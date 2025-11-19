@@ -28,7 +28,7 @@ bevy = { version = "0.17", default-features = false, features = [
     "ktx2",
     "zstd_rust",
 ] }
-bevy_mod_imgui = { path = "../bevy_mod_imgui-main" }
+bevy_mod_imgui = { path = "./bevy_mod_imgui-main" }
 imgui = "0.12.0"
 
 [dependencies.crossbeam-channel]
