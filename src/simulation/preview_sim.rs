@@ -111,8 +111,11 @@ fn setup_preview_scene(
     // Spawn camera
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 0.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-        MainCamera,
+        MainCamera{
+            center: Vec3::ZERO,
+            distance: 10.0,
+            rotation: Quat::IDENTITY,
+        },
         PreviewSceneEntity,
     ));
 

@@ -18,5 +18,5 @@ Thumbs.db
 nul
 
 # Kiro/Claude settings (optional - keep if you want to share)
-# .kiro/
-# .claude/
+.kiro/
+.claude/

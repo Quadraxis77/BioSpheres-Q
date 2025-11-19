@@ -20,7 +20,7 @@ impl Plugin for ImguiPanelPlugin {
             // configurations or remote desktop connections, causing panels to render at
             // massive, distorted sizes. By disabling automatic scaling and using a fixed
             // font size, we ensure consistent, predictable UI rendering across all environments.
-            font_size: 16.0,
+            //font_size: 16.0,
             apply_display_scale_to_font_size: false, // Disable automatic DPI scaling
             apply_display_scale_to_font_oversample: false, // Disable oversampling scaling
             ..Default::default()
