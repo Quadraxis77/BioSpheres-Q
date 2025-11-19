@@ -1,0 +1,54 @@
+[package]
+name = "biospheres-bevy"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "biospheres_bevy"
+path = "src/lib.rs"
+
+[[bin]]
+name = "biospheres"
+path = "src/main.rs"
+
+[dependencies]
+bevy = { version = "0.17", default-features = false, features = [
+    "bevy_asset",
+    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_render",
+    "bevy_state",
+    "bevy_ui",
+    "bevy_text",
+    "bevy_gizmos",
+    "multi_threaded",
+    "png",
+    "tonemapping_luts",
+    "ktx2",
+    "zstd_rust",
+] }
+bevy_mod_imgui = { path = "../bevy_mod_imgui-main" }
+imgui = "0.12.0"
+
+[dependencies.crossbeam-channel]
+version = "0.5"
+
+[dependencies.futures-lite]
+version = "2.0"
+
+[dependencies.rayon]
+version = "1.10"
+
+[dev-dependencies]
+proptest = "1.4"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Enable fast compiles for development
+[profile.dev.package.bevy_render]
+opt-level = 3

@@ -1,0 +1,502 @@
+use bevy::prelude::*;
+use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
+use crate::ui::camera::MainCamera;
+use crate::simulation::{CanonicalState, InitialState, InitialCell};
+use crate::simulation::PhysicsConfig;
+use std::collections::HashMap;
+
+/// CPU-based simulation plugin
+/// Target: 4K cells at >50tps
+/// 
+/// Uses multithreaded physics via Rayon for improved performance:
+/// - Parallel Verlet integration (position and velocity updates)
+/// - Parallel collision detection across spatial grid cells
+/// - Parallel force computation with deterministic accumulation
+/// - Parallel boundary condition application
+/// 
+/// All parallel operations maintain deterministic ordering to ensure
+/// bit-identical results across runs.
+pub struct CpuSimPlugin;
+
+/// Fixed timestep simulation plugin for CPU mode
+pub struct CpuSimTimestepPlugin;
+
+impl Plugin for CpuSimPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(CpuSimTimestepPlugin)
+            .init_resource::<MainSimState>()
+            .add_systems(OnEnter(CpuSceneState::Active), setup_cpu_scene)
+            .add_systems(OnExit(CpuSceneState::Active), cleanup_cpu_scene)
+            .init_state::<CpuSceneState>();
+    }
+}
+
+impl Plugin for CpuSimTimestepPlugin {
+    fn build(&self, app: &mut App) {
+        // Use Bevy's default fixed timestep: 64 Hz
+        // Note: Time<Fixed> defaults to 64 Hz, so we don't need to set it explicitly
+        app
+            // Add physics systems to FixedUpdate schedule (runs at fixed rate)
+            .add_systems(
+                FixedUpdate,
+                (
+                    // Update fixed timestep based on speed multiplier
+                    update_fixed_timestep,
+                    // Run canonical physics step
+                    run_main_simulation,
+                )
+                    .chain()
+                    .run_if(in_state(CpuSceneState::Active))
+                    .run_if(|state: Res<crate::simulation::SimulationState>| {
+                        state.mode == crate::simulation::SimulationMode::Cpu && !state.paused
+                    }),
+            )
+            // Add rendering/UI systems to Update schedule (runs every frame)
+            .add_systems(
+                Update,
+                (
+                    sync_ecs_from_canonical,
+                    crate::cell::physics::sync_transforms,
+                )
+                    .chain()
+                    .run_if(in_state(CpuSceneState::Active))
+                    .run_if(|state: Res<crate::simulation::SimulationState>| {
+                        state.mode == crate::simulation::SimulationMode::Cpu
+                    }),
+            );
+    }
+}
+
+/// Main simulation state resource
+/// Contains the canonical state and mapping from cell IDs to ECS entities
+#[derive(Resource)]
+pub struct MainSimState {
+    /// Canonical state for main simulation
+    pub canonical_state: CanonicalState,
+    
+    /// Initial state for potential reset
+    pub initial_state: InitialState,
+    
+    /// Mapping from cell ID to ECS entity
+    pub id_to_entity: HashMap<u32, Entity>,
+    
+    /// Mapping from ECS entity to cell index in canonical state
+    pub entity_to_index: HashMap<Entity, usize>,
+    
+    /// Simulation time (advances based on speed multiplier)
+    pub simulation_time: f32,
+}
+
+impl Default for MainSimState {
+    fn default() -> Self {
+        // Create a minimal initial state with smaller spatial grid
+        let config = PhysicsConfig::default();
+        let initial_state = InitialState::new(config, 4_000, 0);
+        
+        // Override the spatial grid with a smaller one (16x16x16 instead of 64x64x64)
+        let mut canonical_state = initial_state.to_canonical_state();
+        canonical_state.spatial_grid = crate::simulation::DeterministicSpatialGrid::new(16, 100.0, 50.0);
+        
+        Self {
+            canonical_state,
+            initial_state,
+            id_to_entity: HashMap::new(),
+            entity_to_index: HashMap::new(),
+            simulation_time: 0.0,
+        }
+    }
+}
+
+/// Update the fixed timestep based on simulation speed multiplier
+fn update_fixed_timestep(
+    sim_state: Res<crate::simulation::SimulationState>,
+    mut time: ResMut<Time<Fixed>>,
+) {
+    // Base timestep is 64 Hz (1/64 seconds)
+    let base_timestep = 1.0 / 64.0;
+    
+    // Clamp speed multiplier between 0.1x and 10x
+    let speed = sim_state.speed_multiplier.clamp(0.1, 10.0);
+    
+    // Calculate new timestep (higher speed = SMALLER timestep = more ticks per frame)
+    // At 1x: 1/64 seconds per tick (64 Hz)
+    // At 10x: 1/640 seconds per tick (640 Hz)
+    let new_timestep = base_timestep / speed;
+    
+    // Update the fixed timestep
+    let current_timestep = time.timestep().as_secs_f32();
+    if (current_timestep - new_timestep).abs() > 0.0001 {
+        time.set_timestep(std::time::Duration::from_secs_f32(new_timestep));
+    }
+}
+
+/// Run main simulation physics step using canonical physics
+fn run_main_simulation(
+    mut main_state: ResMut<MainSimState>,
+    config: Res<PhysicsConfig>,
+    genome: Res<crate::genome::CurrentGenome>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Early return if no cells (scene not initialized yet)
+    if main_state.canonical_state.cell_count == 0 {
+        return;
+    }
+    
+    // Run canonical physics step
+    crate::simulation::physics_step(
+        &mut main_state.canonical_state,
+        &config,
+    );
+    
+    // Advance simulation time by the base timestep (64 Hz)
+    // The speed multiplier is already baked into the fixed timestep rate
+    // At 1x: timestep = 1/64, runs 64 times per second
+    // At 10x: timestep = 1/640, runs 640 times per second
+    // Both advance simulation time by 1/64 per tick
+    main_state.simulation_time += 1.0 / 64.0;
+    
+    // Get current simulation time before borrowing main_state mutably
+    let current_sim_time = main_state.simulation_time;
+    
+    // Handle divisions using simulation time
+    handle_divisions(
+        &mut main_state,
+        &genome,
+        current_sim_time,
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+    );
+}
+
+/// Handle cell divisions in canonical state using the canonical division_step function
+fn handle_divisions(
+    main_state: &mut MainSimState,
+    genome: &crate::genome::CurrentGenome,
+    current_time: f32,
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    // Early exit if at capacity (4000 cells for CPU simulation)
+    const MAX_CELLS: usize = 4_000;
+    if main_state.canonical_state.cell_count >= MAX_CELLS {
+        return;
+    }
+    
+    // Collect parent cell IDs before division (so we can despawn their entities)
+    let mut parent_cell_ids = Vec::new();
+    for i in 0..main_state.canonical_state.cell_count {
+        let cell_age = current_time - main_state.canonical_state.birth_times[i];
+        if cell_age >= main_state.canonical_state.split_intervals[i] {
+            parent_cell_ids.push(main_state.canonical_state.cell_ids[i]);
+        }
+    }
+    
+    // Run canonical division step with cell limit
+    let rng_seed = main_state.initial_state.rng_seed;
+    let division_events = crate::simulation::canonical_physics::division_step(
+        &mut main_state.canonical_state,
+        &genome.genome,
+        current_time,
+        MAX_CELLS,
+        rng_seed,
+    );
+    
+    // Despawn parent entities
+    for parent_cell_id in parent_cell_ids {
+        if let Some(parent_entity) = main_state.id_to_entity.remove(&parent_cell_id) {
+            main_state.entity_to_index.remove(&parent_entity);
+            commands.entity(parent_entity).despawn();
+        }
+    }
+    
+    // Process division events to spawn child entities
+    for event in division_events {
+        let child_a_idx = event.child_a_idx;
+        let child_b_idx = event.child_b_idx;
+        
+        // Get child properties from canonical state
+        let child_a_pos = main_state.canonical_state.positions[child_a_idx];
+        let child_a_vel = main_state.canonical_state.velocities[child_a_idx];
+        let child_a_rotation = main_state.canonical_state.rotations[child_a_idx];
+        let child_a_mass = main_state.canonical_state.masses[child_a_idx];
+        let child_a_radius = main_state.canonical_state.radii[child_a_idx];
+        let child_a_mode_idx = main_state.canonical_state.mode_indices[child_a_idx];
+        let child_a_split_interval = main_state.canonical_state.split_intervals[child_a_idx];
+        
+        let child_b_pos = main_state.canonical_state.positions[child_b_idx];
+        let child_b_vel = main_state.canonical_state.velocities[child_b_idx];
+        let child_b_rotation = main_state.canonical_state.rotations[child_b_idx];
+        let child_b_mass = main_state.canonical_state.masses[child_b_idx];
+        let child_b_radius = main_state.canonical_state.radii[child_b_idx];
+        let child_b_mode_idx = main_state.canonical_state.mode_indices[child_b_idx];
+        let child_b_split_interval = main_state.canonical_state.split_intervals[child_b_idx];
+        
+        // Get colors from genome
+        let child_a_mode = genome.genome.modes.get(child_a_mode_idx);
+        let child_b_mode = genome.genome.modes.get(child_b_mode_idx);
+        
+        let child_a_color = child_a_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
+        let child_b_color = child_b_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
+        
+        // Spawn ECS entity for child A
+        let cell_id_a = main_state.canonical_state.cell_ids[child_a_idx];
+        let entity_a = commands.spawn((
+            Cell {
+                mass: child_a_mass,
+                radius: child_a_radius,
+                genome_id: 0,
+                mode_index: child_a_mode_idx,
+            },
+            CellPosition {
+                position: child_a_pos,
+                velocity: child_a_vel,
+            },
+            CellOrientation {
+                rotation: child_a_rotation,
+                angular_velocity: Vec3::ZERO,
+            },
+            CellSignaling::default(),
+            crate::cell::division::DivisionTimer {
+                birth_time: current_time,
+                split_interval: child_a_split_interval,
+            },
+            crate::cell::physics::CellForces::default(),
+            crate::cell::physics::Cytoskeleton::default(),
+            Mesh3d(meshes.add(Sphere::new(child_a_radius).mesh().ico(5).unwrap())),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(child_a_color.x, child_a_color.y, child_a_color.z),
+                ..default()
+            })),
+            Transform::from_translation(child_a_pos).with_rotation(child_a_rotation),
+            Visibility::default(),
+            CpuSceneEntity,
+        )).id();
+        
+        main_state.id_to_entity.insert(cell_id_a, entity_a);
+        main_state.entity_to_index.insert(entity_a, child_a_idx);
+        
+        // Spawn ECS entity for child B
+        let cell_id_b = main_state.canonical_state.cell_ids[child_b_idx];
+        let entity_b = commands.spawn((
+            Cell {
+                mass: child_b_mass,
+                radius: child_b_radius,
+                genome_id: 0,
+                mode_index: child_b_mode_idx,
+            },
+            CellPosition {
+                position: child_b_pos,
+                velocity: child_b_vel,
+            },
+            CellOrientation {
+                rotation: child_b_rotation,
+                angular_velocity: Vec3::ZERO,
+            },
+            CellSignaling::default(),
+            crate::cell::division::DivisionTimer {
+                birth_time: current_time,
+                split_interval: child_b_split_interval,
+            },
+            crate::cell::physics::CellForces::default(),
+            crate::cell::physics::Cytoskeleton::default(),
+            Mesh3d(meshes.add(Sphere::new(child_b_radius).mesh().ico(5).unwrap())),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(child_b_color.x, child_b_color.y, child_b_color.z),
+                ..default()
+            })),
+            Transform::from_translation(child_b_pos).with_rotation(child_b_rotation),
+            Visibility::default(),
+            CpuSceneEntity,
+        )).id();
+        
+        main_state.id_to_entity.insert(cell_id_b, entity_b);
+        main_state.entity_to_index.insert(entity_b, child_b_idx);
+    }
+}
+
+/// Sync ECS components from canonical state
+fn sync_ecs_from_canonical(
+    main_state: Res<MainSimState>,
+    drag_state: Res<crate::input::cell_dragging::DragState>,
+    mut cells_query: Query<(Entity, &mut CellPosition, &mut Cell)>,
+) {
+    // Early return if no cells (scene not initialized yet)
+    if main_state.canonical_state.cell_count == 0 {
+        return;
+    }
+    
+    // For each cell in canonical state, update corresponding ECS entity
+    for i in 0..main_state.canonical_state.cell_count {
+        let cell_id = main_state.canonical_state.cell_ids[i];
+        if let Some(&entity) = main_state.id_to_entity.get(&cell_id) {
+            // Skip syncing if this cell is currently being dragged
+            if drag_state.dragged_entity == Some(entity) {
+                continue;
+            }
+            
+            if let Ok((_, mut pos, mut cell)) = cells_query.get_mut(entity) {
+                pos.position = main_state.canonical_state.positions[i];
+                pos.velocity = main_state.canonical_state.velocities[i];
+                cell.mass = main_state.canonical_state.masses[i];
+                cell.radius = main_state.canonical_state.radii[i];
+                cell.genome_id = main_state.canonical_state.genome_ids[i];
+                cell.mode_index = main_state.canonical_state.mode_indices[i];
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+/// State for CPU simulation scene
+#[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CpuSceneState {
+    #[default]
+    Inactive,
+    Active,
+}
+
+/// Marker component for CPU scene entities
+#[derive(Component)]
+pub struct CpuSceneEntity;
+
+/// Setup the CPU simulation scene with camera and single cell at origin
+fn setup_cpu_scene(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    genome: Res<crate::genome::CurrentGenome>,
+    config: Res<PhysicsConfig>,
+    mut main_state: ResMut<MainSimState>,
+) {
+    // Spawn 3D camera
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 0.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+        MainCamera,
+        CpuSceneEntity,
+    ));
+
+    // Get initial mode settings from genome (same as preview scene)
+    let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
+    let mode = genome.genome.modes.get(initial_mode_index)
+        .or_else(|| genome.genome.modes.first());
+    
+    let (color, split_mass, split_interval) = if let Some(mode) = mode {
+        (mode.color, mode.split_mass, mode.split_interval)
+    } else {
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0)
+    };
+    
+    let cell_radius = 1.0;
+    
+    // Create initial state
+    let mut initial_state = InitialState::new(config.clone(), 4_000, 0);
+    initial_state.add_cell(InitialCell {
+        id: 0,
+        position: Vec3::ZERO,
+        velocity: Vec3::ZERO,
+        rotation: genome.genome.initial_orientation,
+        angular_velocity: Vec3::ZERO,
+        mass: split_mass,
+        radius: cell_radius,
+        genome_id: 0,
+        mode_index: initial_mode_index,
+        birth_time: 0.0,
+        split_interval,
+        stiffness: 10.0,
+    });
+    
+    // Initialize canonical state from initial state
+    main_state.canonical_state = initial_state.to_canonical_state();
+    main_state.initial_state = initial_state;
+    main_state.id_to_entity.clear();
+    main_state.entity_to_index.clear();
+    main_state.simulation_time = 0.0;
+    
+    // Spawn ECS entity for the initial cell
+    let entity = commands.spawn((
+        // Cell data components
+        Cell {
+            mass: split_mass,
+            radius: cell_radius,
+            genome_id: 0,
+            mode_index: initial_mode_index,
+        },
+        CellPosition {
+            position: Vec3::ZERO,
+            velocity: Vec3::ZERO,
+        },
+        CellOrientation {
+            rotation: genome.genome.initial_orientation,
+            angular_velocity: Vec3::ZERO,
+        },
+        CellSignaling::default(),
+        crate::cell::division::DivisionTimer {
+            birth_time: 0.0,
+            split_interval,
+        },
+        crate::cell::physics::CellForces::default(),
+        crate::cell::physics::Cytoskeleton::default(),
+        // Visual representation
+        Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(color.x, color.y, color.z),
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO)
+            .with_rotation(genome.genome.initial_orientation),
+        Visibility::default(),
+        CpuSceneEntity,
+    )).id();
+    
+    // Map cell ID to entity
+    main_state.id_to_entity.insert(0, entity);
+    main_state.entity_to_index.insert(entity, 0);
+
+    // Add basic lighting
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: false,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+        CpuSceneEntity,
+    ));
+
+    // Add ambient light as an entity
+    commands.spawn((
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 500.0,
+            ..default()
+        },
+        CpuSceneEntity,
+    ));
+}
+
+/// Cleanup CPU scene entities
+fn cleanup_cpu_scene(
+    mut commands: Commands,
+    query: Query<Entity, With<CpuSceneEntity>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+
+

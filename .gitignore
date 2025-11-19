@@ -1,0 +1,22 @@
+# Rust build artifacts
+/target
+Cargo.lock
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ImGui settings (user-specific)
+imgui.ini
+
+# OS files
+.DS_Store
+Thumbs.db
+nul
+
+# Kiro/Claude settings (optional - keep if you want to share)
+# .kiro/
+# .claude/

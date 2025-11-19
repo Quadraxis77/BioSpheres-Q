@@ -1,0 +1,120 @@
+Notes: 
+- `1 Frieza (Fr) = 1 microsecond per cell per tick`
+# Design Requirements
+## Simulation
+- Stability
+	- Deterministic
+	- Energy constant or lost
+	- Angular and linear momentum is conserved
+- Performance:
+	- [[GPU Simulation]]: 
+		- Real time performance for huge cell count
+        - Variable speed controls, no backwards simulation
+			- Target: `100K cells at >50tps = <0.2Fr
+		- Same result as CPU and Preview simulations
+        - Fluid and Gas simulation
+	- [[CPU Simulation]]:
+		- Very fast performance for medium cell count
+			- Target: `10K cells at >50tps = <2Fr
+	- [[Preview Simulation]]:
+		- Smaller, faster version of [[CPU Simulation]].
+		- Manual time scrubber control only, no automatic linear progression
+		- Real time update on genome change
+			- CPU Sim target: `2Fr = Simulating 256 cells for 30 ticks in 16ms`
+		 - Using a different number of threads to CPU sim to optimize for low cell count
+		 - Controlled by scrubber
+	 - Optimizations:
+		 - Framerate limit, so we don't render more frames than we can display
+		 - Data oriented design, SoA
+		 - Opengl DSA
+		 - Spatial partitioning
+			 - Grid is easier to implement, but if the world is much bigger than the number of cells then it might be better to use octrees
+- Cell physics properties
+	- I'm considering determining cell orientations based on their relative position to genome instead of doing true angular physics, but I'm unsure how well that would work
+- Cell collisions:
+	- Cells have soft collisions with each other and the world boundary
+	- Force is proportional to overlap between cells and the cells' cytoskeleton gene
+	- Optimization: 
+		- Use spatial partitioning to minimize required number of checks
+- Cell division:
+	- **DETERMINISTIC ALLOCATION!!!**
+		- Prefix-sum and scatter is a theoretically sound allocator for gpu
+		- For CPU sim, a single threaded compaction is probably good enough
+	- When the cell is ready to divide (correct split mass/time, cell and adhesion limits not hit) it will divide into 2 daughter cells according to genome.
+- Cell adhesion:
+	- Inheritance
+		- Genome defined, not spatial
+	- Physics
+		- Linear springs
+		- Angular springs?
+		- Alternatively, linear spring to a target position to fake lever forces
+		- Angular constraints (preferably 'hard stop')
+		- Break after max force (to avoid trying to compute high forces that cause instability)
+- Cell types:
+	- Chronocyte
+		- Splits after a set time
+	- Phagocyte
+		- Eats food to gain biomass
+	- Photocyte
+		- Absorbs light to gain biomass
+	- Flagellocyte
+		- Propels itself forward
+	- All the cell lab cells + our own inventions 
+- Cell signaling
+	- 4 Signaling substances like in cell lab (or maybe more if we want)
+- Cell behavior
+	- Cells can change their behavior based on various stimuli, like in cell lab 
+- Genomes:
+	- Many modes
+		- Fixed or dynamic number of modes?
+			- Dynamic seems more user friendly but might be less performant, but we would need to measure its performance impact to determine how significant it is
+			- Could be dynamic up to a set limit for memory 
+			- The issue with dynamic is that the computer can't trivially calculate the position in memory that each genome is stored at
+			- This may be an issue for gpu especially
+## UI
+- [[Camera]]:
+	- Space engineers-like 6DOF camera movement. 
+		- WASD for moving through the world
+		- Mouse look
+		- QE Roll
+	- Blender/unity-like orbital camera option would be nice to have as well
+		- Orbit with mouse look
+		- Panning
+		- Zoom with mouse wheel
+- Info:
+	- Debug info:
+		- FPS
+		- TPS
+		- Simulation mode
+		- Execution time of various simulation steps
+	- World info:
+		- 3D compass for global orientation
+		- Grid and axes for orientation
+	- Cell info:
+		- All properties of the selected cell
+		- Orientation gizmos
+		- Adhesion anchor gizmos
+		- Split plane gizmos 
+- Simulation Control:
+	- Cell count limits
+	- Time:
+		- Pause
+		- Physics tickrate is decoupled from rendering framerate
+		- Set target tickrate and framerate, prioritise ticks over frames down to 1FPS
+		- Configurable timestep size
+	- Interaction:
+		- Tool selection UI
+		- Selecting cells using a ray cast
+			- Optimisation: utilise spatial partitioning
+		- Dragging cells
+		- Adding cells
+		- Editing cell data
+		- Removing cells
+		- Sample cell genome
+## Rendering
+- Debug rendering:
+	- Colored icospheres for cells
+	- Lines for adhesions
+	- Wireframe mode
+- Fancy cell rendering:
+	- Smooth cell deformation would be peak, but performance cost is questionable

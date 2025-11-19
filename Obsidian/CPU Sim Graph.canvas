@@ -1,0 +1,29 @@
+{
+	"nodes":[
+		{"id":"46c55db2dfca77f9","type":"group","x":-140,"y":-220,"width":290,"height":300,"label":"Physics"},
+		{"id":"2981e8f8ccbf8195","type":"text","text":"# CPU Simulation","x":-120,"y":-520,"width":250,"height":60},
+		{"id":"ea15145a63f2ba80","type":"text","text":"Initialisation","x":-120,"y":-440,"width":250,"height":60},
+		{"id":"798bf1c2e7efb74a","type":"text","text":"Input Cell data","x":-120,"y":-340,"width":250,"height":60},
+		{"id":"a7bbb8633e8a6d04","type":"text","text":"Collisions","x":-120,"y":-200,"width":250,"height":60},
+		{"id":"d337dee49e884020","type":"text","text":"Adhesions","x":-120,"y":-100,"width":250,"height":60},
+		{"id":"1d727e7fd2d2c71a","type":"text","text":"Compute new positions and velocities","x":-120,"y":0,"width":250,"height":60},
+		{"id":"bf0b0efcd18a73fc","type":"text","text":"Metabolism","x":-120,"y":120,"width":250,"height":60},
+		{"id":"66f4e91494967b6c","type":"text","text":"Generate instances","x":-120,"y":800,"width":250,"height":60},
+		{"id":"84af5f8aacc8e60f","type":"text","text":"Render","x":-120,"y":920,"width":250,"height":60},
+		{"id":"58c5eaf68467ed33","type":"text","text":"Output Cell data","x":-120,"y":700,"width":250,"height":60},
+		{"id":"fa947b7c15f2b5c7","type":"file","file":"Biospheres Overview/Deterministic cell division.canvas","x":-195,"y":240,"width":400,"height":400}
+	],
+	"edges":[
+		{"id":"d6e265c32344b99c","fromNode":"ea15145a63f2ba80","fromSide":"bottom","toNode":"798bf1c2e7efb74a","toSide":"top"},
+		{"id":"85e643fe0a20b626","fromNode":"798bf1c2e7efb74a","fromSide":"bottom","toNode":"a7bbb8633e8a6d04","toSide":"top"},
+		{"id":"7c8655e67055e790","fromNode":"a7bbb8633e8a6d04","fromSide":"bottom","toNode":"d337dee49e884020","toSide":"top"},
+		{"id":"afda51a41aed0fe9","fromNode":"d337dee49e884020","fromSide":"bottom","toNode":"1d727e7fd2d2c71a","toSide":"top"},
+		{"id":"aa271e28701f3359","fromNode":"66f4e91494967b6c","fromSide":"bottom","toNode":"84af5f8aacc8e60f","toSide":"top"},
+		{"id":"da1dfc7c8534410a","fromNode":"1d727e7fd2d2c71a","fromSide":"bottom","toNode":"bf0b0efcd18a73fc","toSide":"top"},
+		{"id":"7a17319321a15f0d","fromNode":"58c5eaf68467ed33","fromSide":"bottom","toNode":"66f4e91494967b6c","toSide":"top"},
+		{"id":"9ffee3506ca7cd84","fromNode":"58c5eaf68467ed33","fromSide":"right","toNode":"798bf1c2e7efb74a","toSide":"right"},
+		{"id":"b6d44cc9b8bde6ac","fromNode":"bf0b0efcd18a73fc","fromSide":"bottom","toNode":"fa947b7c15f2b5c7","toSide":"top"},
+		{"id":"34f39dd6733d79ab","fromNode":"fa947b7c15f2b5c7","fromSide":"bottom","toNode":"58c5eaf68467ed33","toSide":"top"},
+		{"id":"141a1da3c3f637ca","fromNode":"1d727e7fd2d2c71a","fromSide":"left","toNode":"a7bbb8633e8a6d04","toSide":"left","label":"Physics\nSubticks"}
+	]
+}

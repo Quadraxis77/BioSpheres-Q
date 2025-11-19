@@ -1,0 +1,541 @@
+use bevy::prelude::*;
+use bevy_mod_imgui::prelude::*;
+use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, GpuSceneState, CpuSceneEntity};
+
+/// Event to trigger scene reset
+#[derive(Message)]
+pub struct ResetSceneEvent;
+
+/// Resource to track Scene Manager window state
+#[derive(Resource)]
+pub struct SceneManagerState {
+    pub window_open: bool,
+}
+
+impl Default for SceneManagerState {
+    fn default() -> Self {
+        Self {
+            window_open: true,
+        }
+    }
+}
+
+/// Scene Manager plugin for managing scene transitions and time controls
+pub struct SceneManagerPlugin;
+
+impl Plugin for SceneManagerPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<SceneManagerState>()
+            .add_message::<ResetSceneEvent>()
+            .add_systems(Update, render_scene_manager_window)
+            .add_systems(Update, handle_reset_scene_event);
+    }
+}
+
+/// Main Scene Manager window rendering system
+fn render_scene_manager_window(
+    mut imgui_context: NonSendMut<ImguiContext>,
+    mut scene_manager_state: ResMut<SceneManagerState>,
+    mut simulation_state: ResMut<SimulationState>,
+    mut app_exit_events: MessageWriter<AppExit>,
+    cpu_scene_state: Option<Res<State<CpuSceneState>>>,
+    gpu_scene_state: Option<Res<State<GpuSceneState>>>,
+    preview_scene_state: Option<Res<State<PreviewSceneState>>>,
+    next_cpu_scene_state: Option<ResMut<NextState<CpuSceneState>>>,
+    next_gpu_scene_state: Option<ResMut<NextState<GpuSceneState>>>,
+    next_preview_scene_state: Option<ResMut<NextState<PreviewSceneState>>>,
+    mut reset_scene_events: MessageWriter<ResetSceneEvent>,
+) {
+    // Early return if states aren't initialized yet
+    let Some(cpu_scene_state) = cpu_scene_state else { return };
+    let Some(gpu_scene_state) = gpu_scene_state else { return };
+    let Some(preview_scene_state) = preview_scene_state else { return };
+    let Some(mut next_cpu_scene_state) = next_cpu_scene_state else { return };
+    let Some(mut next_gpu_scene_state) = next_gpu_scene_state else { return };
+    let Some(mut next_preview_scene_state) = next_preview_scene_state else { return };
+
+    let ui = imgui_context.ui();
+
+    // Only render if window is open
+    if !scene_manager_state.window_open {
+        return;
+    }
+
+    ui.window("Scene Manager")
+        .position([10.0, 10.0], Condition::FirstUseEver)
+        .size([300.0, 200.0], Condition::FirstUseEver)
+        .size_constraints([250.0, 150.0], [f32::MAX, f32::MAX])
+        .collapsible(true)
+        .opened(&mut scene_manager_state.window_open)
+        .build(|| {
+            // Exit button at the top in red
+            let red = [0.8, 0.2, 0.2, 1.0];
+            let red_hovered = [1.0, 0.3, 0.3, 1.0];
+            let red_active = [0.6, 0.1, 0.1, 1.0];
+            
+            let _button_color = ui.push_style_color(StyleColor::Button, red);
+            let _button_hovered = ui.push_style_color(StyleColor::ButtonHovered, red_hovered);
+            let _button_active = ui.push_style_color(StyleColor::ButtonActive, red_active);
+            
+            if ui.button("Exit Application") {
+                app_exit_events.write(AppExit::Success);
+            }
+            
+            ui.separator();
+            
+            ui.text("Scene Selection");
+            ui.separator();
+            
+            // Scene selection using selectable items (radio button behavior)
+            let mut selected_mode = simulation_state.mode;
+            
+            if ui.selectable_config("Preview Scene")
+                .selected(selected_mode == SimulationMode::Preview)
+                .build()
+            {
+                selected_mode = SimulationMode::Preview;
+            }
+            
+            if ui.selectable_config("CPU Scene")
+                .selected(selected_mode == SimulationMode::Cpu)
+                .build()
+            {
+                selected_mode = SimulationMode::Cpu;
+            }
+            
+            if ui.selectable_config("GPU Scene")
+                .selected(selected_mode == SimulationMode::Gpu)
+                .build()
+            {
+                selected_mode = SimulationMode::Gpu;
+            }
+            
+            // Handle scene transition if mode changed
+            if selected_mode != simulation_state.mode {
+                handle_scene_transition(
+                    &mut simulation_state,
+                    selected_mode,
+                    &cpu_scene_state,
+                    &gpu_scene_state,
+                    &preview_scene_state,
+                    &mut next_cpu_scene_state,
+                    &mut next_gpu_scene_state,
+                    &mut next_preview_scene_state,
+                );
+            }
+            
+            ui.separator();
+            
+            // Reset scene button
+            if ui.button("Reset Scene") {
+                reset_scene_events.write(ResetSceneEvent);
+            }
+            
+            ui.separator();
+            
+            // Time controls section
+            ui.text("Time Controls");
+            ui.separator();
+            
+            // Show pause/resume buttons for CPU and GPU modes
+            // Show message for Preview mode
+            match simulation_state.mode {
+                SimulationMode::Cpu | SimulationMode::Gpu => {
+                    // Pause button
+                    if ui.button("Pause") {
+                        simulation_state.paused = true;
+                    }
+                    ui.same_line();
+                    
+                    // Resume button
+                    if ui.button("Resume") {
+                        simulation_state.paused = false;
+                    }
+                    ui.same_line();
+                    
+                    // Display current pause state
+                    ui.text(format!("Paused: {}", if simulation_state.paused { "Yes" } else { "No" }));
+                    
+                    ui.spacing();
+                    
+                    // Simulation speed control
+                    ui.text("Simulation Speed");
+                    
+                    // Speed preset buttons
+                    let speed_presets = [
+                        ("0.5x", 0.5),
+                        ("1x", 1.0),
+                        ("2x", 2.0),
+                        ("5x", 5.0),
+                        ("10x", 10.0),
+                    ];
+                    
+                    for (i, (label, speed)) in speed_presets.iter().enumerate() {
+                        if i > 0 {
+                            ui.same_line();
+                        }
+                        
+                        let is_current = (simulation_state.speed_multiplier - speed).abs() < 0.01;
+                        if is_current {
+                            let _style = ui.push_style_color(StyleColor::Button, [0.0, 0.5, 0.8, 1.0]);
+                            ui.button(label);
+                        } else if ui.button(label) {
+                            simulation_state.speed_multiplier = *speed;
+                        }
+                    }
+                    
+                    // Fine-tune slider
+                    ui.set_next_item_width(-1.0);
+                    ui.slider_config("##speed", 0.1, 10.0)
+                        .display_format("%.1fx")
+                        .build(&mut simulation_state.speed_multiplier);
+                    
+                    // Display current speed
+                    ui.text(format!("Current: {:.1}x speed", simulation_state.speed_multiplier));
+                }
+                SimulationMode::Preview => {
+                    // Display message for Preview mode
+                    ui.text("Time control handled by Time Scrubber");
+                }
+            }
+            
+            ui.separator();
+            
+            // Display current simulation statistics
+            // Note: Time tracking now handled by Bevy's Time<Fixed> resource
+        });
+}
+
+/// Handle scene transitions when user selects a different scene
+fn handle_scene_transition(
+    simulation_state: &mut SimulationState,
+    new_mode: SimulationMode,
+    cpu_scene_state: &State<CpuSceneState>,
+    gpu_scene_state: &State<GpuSceneState>,
+    preview_scene_state: &State<PreviewSceneState>,
+    next_cpu_scene_state: &mut NextState<CpuSceneState>,
+    next_gpu_scene_state: &mut NextState<GpuSceneState>,
+    next_preview_scene_state: &mut NextState<PreviewSceneState>,
+) {
+    
+    let old_mode = simulation_state.mode;
+    
+    // Deactivate old scene
+    match old_mode {
+        SimulationMode::Cpu => {
+            if **cpu_scene_state == CpuSceneState::Active {
+                next_cpu_scene_state.set(CpuSceneState::Inactive);
+            }
+        }
+        SimulationMode::Gpu => {
+            if **gpu_scene_state == GpuSceneState::Active {
+                next_gpu_scene_state.set(GpuSceneState::Inactive);
+            }
+        }
+        SimulationMode::Preview => {
+            if **preview_scene_state == PreviewSceneState::Active {
+                next_preview_scene_state.set(PreviewSceneState::Inactive);
+            }
+        }
+    }
+    
+    // Activate new scene
+    match new_mode {
+        SimulationMode::Cpu => {
+            next_cpu_scene_state.set(CpuSceneState::Active);
+        }
+        SimulationMode::Gpu => {
+            next_gpu_scene_state.set(GpuSceneState::Active);
+        }
+        SimulationMode::Preview => {
+            next_preview_scene_state.set(PreviewSceneState::Active);
+        }
+    }
+    
+    // Update simulation mode
+    simulation_state.mode = new_mode;
+}
+
+/// Handle reset scene events by directly despawning and respawning scene entities
+fn handle_reset_scene_event(
+    mut reset_events: MessageReader<ResetSceneEvent>,
+    mut commands: Commands,
+    simulation_state: ResMut<SimulationState>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    genome: Res<crate::genome::CurrentGenome>,
+    config: Res<crate::cell::physics::PhysicsConfig>,
+    cpu_entities: Query<Entity, (With<CpuSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
+    gpu_entities: Query<Entity, (With<crate::simulation::gpu_sim::GpuSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
+    preview_entities: Query<Entity, (With<crate::simulation::preview_sim::PreviewSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
+    mut main_sim_state: Option<ResMut<crate::simulation::cpu_sim::MainSimState>>,
+    mut preview_sim_state: Option<ResMut<crate::simulation::preview_sim::PreviewSimState>>,
+) {
+    for _ in reset_events.read() {
+        // Note: Time is now managed by Bevy's Time<Fixed> resource
+        
+        // Despawn all entities and respawn initial scene based on mode
+        match simulation_state.mode {
+            SimulationMode::Cpu => {
+                // Despawn all CPU scene entities
+                for entity in cpu_entities.iter() {
+                    commands.entity(entity).despawn();
+                }
+                
+                // Reset MainSimState
+                if let Some(ref mut main_state) = main_sim_state {
+                    spawn_cpu_scene_without_camera(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state);
+                }
+            }
+            SimulationMode::Gpu => {
+                // Despawn all GPU scene entities
+                for entity in gpu_entities.iter() {
+                    commands.entity(entity).despawn();
+                }
+                
+                // Respawn initial GPU scene
+                spawn_gpu_scene(&mut commands, &mut meshes, &mut materials, &genome);
+            }
+            SimulationMode::Preview => {
+                // Despawn all Preview scene entities
+                for entity in preview_entities.iter() {
+                    commands.entity(entity).despawn();
+                }
+                
+                // Reset PreviewSimState
+                if let Some(ref mut preview_state) = preview_sim_state {
+                    spawn_preview_scene(&mut commands, &mut meshes, &mut materials, &genome, &config, preview_state);
+                }
+            }
+        }
+    }
+}
+
+/// Spawn CPU scene entities without camera (for reset)
+fn spawn_cpu_scene_without_camera(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    genome: &Res<crate::genome::CurrentGenome>,
+    config: &Res<crate::cell::physics::PhysicsConfig>,
+    main_state: &mut crate::simulation::cpu_sim::MainSimState,
+) {
+    use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
+    use crate::simulation::{InitialState, InitialCell};
+
+    // Get initial mode settings from genome
+    let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
+    let mode = genome.genome.modes.get(initial_mode_index)
+        .or_else(|| genome.genome.modes.first());
+    
+    let (color, split_mass, split_interval) = if let Some(mode) = mode {
+        (mode.color, mode.split_mass, mode.split_interval)
+    } else {
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0)
+    };
+    
+    let cell_radius = 1.0;
+    
+    // Create initial state
+    let mut initial_state = InitialState::new((**config).clone(), 10_000, 0);
+    initial_state.add_cell(InitialCell {
+        id: 0,
+        position: Vec3::ZERO,
+        velocity: Vec3::ZERO,
+        rotation: genome.genome.initial_orientation,
+        angular_velocity: Vec3::ZERO,
+        mass: split_mass,
+        radius: cell_radius,
+        genome_id: 0,
+        mode_index: initial_mode_index,
+        birth_time: 0.0,
+        split_interval,
+        stiffness: 10.0,
+    });
+    
+    // Initialize canonical state from initial state
+    main_state.canonical_state = initial_state.to_canonical_state();
+    main_state.initial_state = initial_state;
+    main_state.id_to_entity.clear();
+    main_state.entity_to_index.clear();
+    
+    // Spawn initial cell
+    let entity = commands.spawn((
+        Cell {
+            mass: split_mass,
+            radius: cell_radius,
+            genome_id: 0,
+            mode_index: initial_mode_index,
+        },
+        CellPosition {
+            position: Vec3::ZERO,
+            velocity: Vec3::ZERO,
+        },
+        CellOrientation {
+            rotation: genome.genome.initial_orientation,
+            angular_velocity: Vec3::ZERO,
+        },
+        CellSignaling::default(),
+        crate::cell::division::DivisionTimer {
+            birth_time: 0.0,
+            split_interval,
+        },
+        crate::cell::physics::CellForces::default(),
+        crate::cell::physics::Cytoskeleton::default(),
+        Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(color.x, color.y, color.z),
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO)
+            .with_rotation(genome.genome.initial_orientation),
+        Visibility::default(),
+        CpuSceneEntity,
+    )).id();
+    
+    // Map cell ID to entity
+    main_state.id_to_entity.insert(0, entity);
+    main_state.entity_to_index.insert(entity, 0);
+
+    // Add lighting
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: false,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+        CpuSceneEntity,
+    ));
+
+    commands.spawn((
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 500.0,
+            ..default()
+        },
+        CpuSceneEntity,
+    ));
+}
+
+/// Placeholder for GPU scene spawn (implement when needed)
+fn spawn_gpu_scene(
+    _commands: &mut Commands,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
+    _genome: &Res<crate::genome::CurrentGenome>,
+) {
+    // TODO: Implement GPU scene spawning
+}
+
+/// Spawn Preview scene entities without camera (for reset)
+fn spawn_preview_scene(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    genome: &Res<crate::genome::CurrentGenome>,
+    config: &Res<crate::cell::physics::PhysicsConfig>,
+    preview_state: &mut crate::simulation::preview_sim::PreviewSimState,
+) {
+    use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
+    use crate::simulation::{InitialState, InitialCell};
+
+    // Get initial mode settings from genome
+    let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
+    let mode = genome.genome.modes.get(initial_mode_index)
+        .or_else(|| genome.genome.modes.first());
+    
+    let (color, split_mass, split_interval) = if let Some(mode) = mode {
+        (mode.color, mode.split_mass, mode.split_interval)
+    } else {
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0)
+    };
+    
+    let cell_radius = 1.0;
+    let stiffness = 10.0;
+    
+    // Create initial state
+    let mut initial_state = InitialState::new((**config).clone(), 100_000, 0);
+    initial_state.add_cell(InitialCell {
+        id: 0,
+        position: Vec3::ZERO,
+        velocity: Vec3::ZERO,
+        rotation: genome.genome.initial_orientation,
+        angular_velocity: Vec3::ZERO,
+        mass: split_mass,
+        radius: cell_radius,
+        genome_id: 0,
+        mode_index: initial_mode_index,
+        birth_time: 0.0,
+        split_interval,
+        stiffness,
+    });
+    
+    // Convert to canonical state
+    let canonical_state = initial_state.to_canonical_state();
+    
+    // Update preview state
+    preview_state.initial_state = initial_state;
+    preview_state.canonical_state = canonical_state;
+    preview_state.current_time = 0.0;
+    preview_state.id_to_entity.clear();
+    
+    // Spawn initial cell
+    let entity = commands.spawn((
+        Cell {
+            mass: split_mass,
+            radius: cell_radius,
+            genome_id: 0,
+            mode_index: initial_mode_index,
+        },
+        CellPosition {
+            position: Vec3::ZERO,
+            velocity: Vec3::ZERO,
+        },
+        CellOrientation {
+            rotation: genome.genome.initial_orientation,
+            angular_velocity: Vec3::ZERO,
+        },
+        CellSignaling::default(),
+        crate::cell::division::DivisionTimer {
+            birth_time: 0.0,
+            split_interval,
+        },
+        crate::cell::physics::CellForces::default(),
+        crate::cell::physics::Cytoskeleton {
+            stiffness,
+        },
+        Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(color.x, color.y, color.z),
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO)
+            .with_rotation(genome.genome.initial_orientation),
+        Visibility::default(),
+        crate::simulation::preview_sim::PreviewSceneEntity,
+    )).id();
+    
+    // Map cell ID to entity
+    preview_state.id_to_entity.insert(0, entity);
+
+    // Add lighting
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: false,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+        crate::simulation::preview_sim::PreviewSceneEntity,
+    ));
+
+    commands.spawn((
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 500.0,
+            ..default()
+        },
+        crate::simulation::preview_sim::PreviewSceneEntity,
+    ));
+}
