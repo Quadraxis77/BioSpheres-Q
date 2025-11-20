@@ -91,3 +91,13 @@ pub fn is_editor_hovered() -> bool {
 }
 
 
+
+/// Check if a link is currently hovered
+/// Returns true if a link is hovered and fills in the link ID
+/// 
+/// Note: This function should be called after the editor scope but within the window scope
+pub fn is_link_hovered(link_id: &mut i32) -> bool {
+    unsafe {
+        imnodes_sys::imnodes_IsLinkHovered(link_id)
+    }
+}

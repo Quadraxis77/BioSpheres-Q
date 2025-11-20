@@ -8,6 +8,8 @@ pub struct GenomeNodeGraph {
     pub mode_to_node: HashMap<usize, i32>,
     /// Map from node ID to mode index
     pub node_to_mode: HashMap<i32, usize>,
+    /// Map from node ID to mode name (for stable position tracking)
+    pub node_to_name: HashMap<i32, String>,
     /// Node positions (node_id -> (x, y))
     pub node_positions: HashMap<i32, (f32, f32)>,
     /// Next available node ID
@@ -29,6 +31,7 @@ impl Default for GenomeNodeGraph {
         Self {
             mode_to_node: HashMap::new(),
             node_to_mode: HashMap::new(),
+            node_to_name: HashMap::new(),
             node_positions: HashMap::new(),
             next_node_id: 0,
             links: Vec::new(),
@@ -80,6 +83,7 @@ impl GenomeNodeGraph {
     pub fn clear(&mut self) {
         self.mode_to_node.clear();
         self.node_to_mode.clear();
+        self.node_to_name.clear();
         self.node_positions.clear();
         self.links.clear();
         self.next_node_id = 0;

@@ -17,6 +17,7 @@ pub struct GenomeGraphState {
     pub is_panning: bool,
     pub last_mouse_pos: Option<[f32; 2]>,
     pub panning_offset: [f32; 2],
+    pub dragging_from_pin: Option<i32>, // Track which output pin is being dragged from
 }
 
 impl Default for GenomeGraphState {
@@ -26,6 +27,7 @@ impl Default for GenomeGraphState {
             is_panning: false,
             last_mouse_pos: None,
             panning_offset: [0.0, 0.0],
+            dragging_from_pin: None,
         }
     }
 }
@@ -187,6 +189,21 @@ fn render_genome_editor(
                 // Select the newly created mode
                 current_genome.selected_mode_index = insert_idx as i32;
                 
+                // Calculate grid position for the new node
+                const NODE_SPACING_X: f32 = 250.0;
+                const NODE_SPACING_Y: f32 = 200.0;
+                const START_X: f32 = 50.0;
+                const START_Y: f32 = 50.0;
+                const COLUMNS: usize = 4;
+                
+                let col = insert_idx % COLUMNS;
+                let row = insert_idx / COLUMNS;
+                let x = START_X + (col as f32 * NODE_SPACING_X);
+                let y = START_Y + (row as f32 * NODE_SPACING_Y);
+                
+                // Set pending position for the new node
+                node_graph.pending_position = Some((insert_idx, x, y));
+                
                 // Mark node graph for rebuild
                 node_graph.mark_for_rebuild();
             }
@@ -194,13 +211,25 @@ fn render_genome_editor(
             ui.same_line();
             if ui.button("Remove Mode") && current_genome.genome.modes.len() > 1 {
                 let selected = current_genome.selected_mode_index as usize;
-                if selected < current_genome.genome.modes.len() {
+                let initial_mode = current_genome.genome.initial_mode as usize;
+                
+                // Don't allow removing the initial mode
+                if selected < current_genome.genome.modes.len() && selected != initial_mode {
                     current_genome.genome.modes.remove(selected);
                     if current_genome.selected_mode_index >= current_genome.genome.modes.len() as i32 {
                         current_genome.selected_mode_index = (current_genome.genome.modes.len() as i32) - 1;
                     }
                     // Mark node graph for rebuild
                     node_graph.mark_for_rebuild();
+                }
+            }
+            
+            // Show tooltip if trying to remove initial mode
+            if ui.is_item_hovered() {
+                let selected = current_genome.selected_mode_index as usize;
+                let initial_mode = current_genome.genome.initial_mode as usize;
+                if selected == initial_mode {
+                    ui.tooltip_text("Cannot remove the initial mode");
                 }
             }
 
@@ -704,7 +733,7 @@ fn render_genome_graph(
         .no_nav() // Disable navigation to allow mouse input to pass through
         .build(|| {
             // Show help text
-            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Shift+Click: Add mode | Shift+Right-click node: Remove | Middle/Right drag: Pan");
+            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Shift+Click: Add mode | Shift+Right-click node: Remove | Right-click link: Self-ref | Middle drag: Pan");
             ui.separator();
             
 
@@ -814,7 +843,6 @@ fn render_genome_graph(
                     let mut created_start_pin = unsafe { std::mem::transmute(0i32) };
                     let mut created_end_pin = unsafe { std::mem::transmute(0i32) };
                     let mut dropped_link_id = unsafe { std::mem::transmute(0i32) };
-                    let mut link_started_pin = unsafe { std::mem::transmute(0i32) };
                     let mut hovered_node_id: i32 = 0;
 
                     editor(editor_context, |mut node_editor| {
@@ -848,27 +876,45 @@ fn render_genome_graph(
                     // Check for link events after editor scope closes but while still in window
                     let link_was_created = imnodes_extensions::get_created_link_pins(&mut created_start_pin, &mut created_end_pin);
                     let link_was_dropped = imnodes_extensions::get_dropped_link_id(&mut dropped_link_id);
-                    let link_is_started = imnodes_extensions::is_link_started(&mut link_started_pin);
                     let node_is_hovered = imnodes_extensions::is_node_hovered(&mut hovered_node_id);
+                    
+                    let mut link_started_pin: OutputPinId = unsafe { std::mem::transmute(0i32) };
+                    let link_is_started = imnodes_extensions::is_link_started(&mut link_started_pin);
+                    
+                    let mut hovered_link_id: i32 = 0;
+                    let link_is_hovered = imnodes_extensions::is_link_hovered(&mut hovered_link_id);
+                    
+                    // Track which pin is being dragged from
+                    if link_is_started {
+                        let pin_id: i32 = unsafe { std::mem::transmute(link_started_pin) };
+                        graph_state.dragging_from_pin = Some(pin_id);
+                    }
 
                     // Handle link creation
                     if link_was_created {
                         handle_link_created(&mut current_genome, &mut node_graph, created_start_pin, created_end_pin);
-                    }
-                    // Handle link dropped over a node (auto-connect to parent pin)
-                    else if link_is_started && node_is_hovered && !ui.io().want_capture_mouse {
-                        // User is dragging a link and hovering over a node
-                        // When they release, connect to that node's parent pin
-                        if !ui.is_mouse_down(imgui::MouseButton::Left) {
-                            // Convert the hovered node ID to its parent input pin
-                            let parent_input_pin: imnodes::InputPinId = unsafe { std::mem::transmute(hovered_node_id * 100) };
-                            handle_link_created(&mut current_genome, &mut node_graph, link_started_pin, parent_input_pin);
-                        }
+                        graph_state.dragging_from_pin = None; // Clear drag state
                     }
 
-                    // Handle link destruction
+                    // Handle link dropped - check if it was dropped over a node to auto-connect
                     if link_was_dropped {
-                        handle_link_destroyed(&mut current_genome, &mut node_graph, dropped_link_id);
+                        // If dropped over a node and we know which pin was dragged, connect to that node
+                        if node_is_hovered && graph_state.dragging_from_pin.is_some() {
+                            let output_pin: imnodes::OutputPinId = unsafe { std::mem::transmute(graph_state.dragging_from_pin.unwrap()) };
+                            let parent_input_pin: imnodes::InputPinId = unsafe { std::mem::transmute(hovered_node_id * 100) };
+                            
+                            // Create the new connection
+                            handle_link_created(&mut current_genome, &mut node_graph, output_pin, parent_input_pin);
+                        } else {
+                            // Not over a node, so destroy the link (make it self-referential)
+                            handle_link_destroyed(&mut current_genome, &mut node_graph, dropped_link_id);
+                        }
+                        graph_state.dragging_from_pin = None; // Clear drag state
+                    }
+                    
+                    // Handle right-click on link to make it self-referential
+                    if link_is_hovered && ui.is_mouse_clicked(imgui::MouseButton::Right) {
+                        handle_link_make_self_referential(&mut current_genome, &mut node_graph, hovered_link_id);
                     }
 
                     // Handle node click to select mode (without shift)
@@ -932,8 +978,10 @@ fn render_genome_graph(
                     if node_is_hovered && ui.is_mouse_clicked(imgui::MouseButton::Right) && ui.io().key_shift {
                         // Get the mode index for the hovered node
                         if let Some(mode_idx) = node_graph.get_mode_for_node(hovered_node_id) {
-                            // Don't allow removing the last mode
-                            if current_genome.genome.modes.len() > 1 {
+                            let initial_mode = current_genome.genome.initial_mode as usize;
+                            
+                            // Don't allow removing the last mode or the initial mode
+                            if current_genome.genome.modes.len() > 1 && mode_idx != initial_mode {
                                 // Remove the mode
                                 current_genome.genome.modes.remove(mode_idx);
                                 
@@ -990,23 +1038,14 @@ fn render_genome_graph(
 
 /// Rebuild the node graph from genome data
 fn rebuild_node_graph(genome: &GenomeData, node_graph: &mut GenomeNodeGraph) {
-    // Save existing positions by mode name (more stable than index)
-    // We need to build a map of current node_id -> mode_name BEFORE clearing
+    // Save existing positions by mode name (using stored names from node graph)
     let mut saved_positions_by_name: HashMap<String, (f32, f32)> = HashMap::new();
     
-    // First pass: build a map of mode_idx -> mode_name from the CURRENT genome
-    let mode_names: HashMap<usize, String> = genome.modes.iter()
-        .enumerate()
-        .map(|(idx, mode)| (idx, mode.name.clone()))
-        .collect();
-    
-    // Second pass: save positions by name using the current node graph
-    for (mode_idx, node_id) in &node_graph.mode_to_node {
+    // Save positions using the mode names stored in the node graph
+    // This is stable because we stored the names when the nodes were created
+    for (node_id, mode_name) in &node_graph.node_to_name {
         if let Some(pos) = node_graph.get_node_position(*node_id) {
-            // Get the mode name for this mode index
-            if let Some(mode_name) = mode_names.get(mode_idx) {
-                saved_positions_by_name.insert(mode_name.clone(), pos);
-            }
+            saved_positions_by_name.insert(mode_name.clone(), pos);
         }
     }
     
@@ -1019,6 +1058,9 @@ fn rebuild_node_graph(genome: &GenomeData, node_graph: &mut GenomeNodeGraph) {
     let mut restored_positions = 0;
     for (mode_idx, mode) in genome.modes.iter().enumerate() {
         let node_id = node_graph.create_node(mode_idx);
+        
+        // Store the mode name for this node
+        node_graph.node_to_name.insert(node_id, mode.name.clone());
         
         // Try to restore position by name (survives reordering/deletion)
         if let Some(&(x, y)) = saved_positions_by_name.get(&mode.name) {
@@ -1230,6 +1272,33 @@ fn handle_link_destroyed(
             // Rebuild the graph to reflect changes
             node_graph.mark_for_rebuild();
         }
+    }
+}
+
+/// Handle right-click on link to make it self-referential
+fn handle_link_make_self_referential(
+    current_genome: &mut ResMut<CurrentGenome>,
+    node_graph: &mut ResMut<GenomeNodeGraph>,
+    link_id: i32,
+) {
+    // Find the link
+    if let Some((from_node, _to_node, is_child_a)) =
+        node_graph.links.get(link_id as usize).copied()
+    {
+        if let Some(parent_mode_idx) = node_graph.get_mode_for_node(from_node) {
+            // Set the child to point to the same mode (self-referential)
+            if parent_mode_idx < current_genome.genome.modes.len() {
+                let mode = &mut current_genome.genome.modes[parent_mode_idx];
+                if is_child_a {
+                    mode.child_a.mode_number = parent_mode_idx as i32;
+                } else {
+                    mode.child_b.mode_number = parent_mode_idx as i32;
+                }
+            }
+        }
+
+        // Rebuild the graph to reflect changes
+        node_graph.mark_for_rebuild();
     }
 }
 
