@@ -260,34 +260,40 @@ fn run_preview_resimulation(
         sim_state.is_resimulating = false;
         return;
     };
-    
+
     sim_state.is_resimulating = true;
-    
+
     let start_time = std::time::Instant::now();
-    
-    // Reset to initial state
-    preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
-    preview_state.current_time = 0.0;
-    
-    // Calculate number of steps
-    let steps = (target_time / config.fixed_timestep).ceil() as u32;
-    
+
+    // Determine if we can simulate forward incrementally
+    let (start_step, steps) = if target_time > preview_state.current_time {
+        // Moving forward: simulate only the additional steps
+        let start_step = (preview_state.current_time / config.fixed_timestep).ceil() as u32;
+        let end_step = (target_time / config.fixed_timestep).ceil() as u32;
+        (start_step, end_step - start_step)
+    } else {
+        // Moving backward: reset to initial state and simulate from beginning
+        preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
+        preview_state.current_time = 0.0;
+        (0, (target_time / config.fixed_timestep).ceil() as u32)
+    };
+
     // Extract values we need before the loop
     let max_cells = preview_state.initial_state.max_cells;
     let rng_seed = preview_state.initial_state.rng_seed;
-    
+
     // Run physics steps (no ECS overhead)
     let mut total_physics_time = std::time::Duration::ZERO;
     let mut total_division_time = std::time::Duration::ZERO;
-    
+
     for step in 0..steps {
-        let current_time = step as f32 * config.fixed_timestep;
-        
+        let current_time = (start_step + step) as f32 * config.fixed_timestep;
+
         // Run canonical physics step (single-threaded for preview)
         let physics_start = std::time::Instant::now();
         crate::simulation::canonical_physics::physics_step_st(&mut preview_state.canonical_state, &config);
         total_physics_time += physics_start.elapsed();
-        
+
         // Run division step using canonical physics
         let division_start = std::time::Instant::now();
         crate::simulation::canonical_physics::division_step(
@@ -299,13 +305,13 @@ fn run_preview_resimulation(
         );
         total_division_time += division_start.elapsed();
     }
-    
+
     println!("  Physics: {:?}, Division: {:?}", total_physics_time, total_division_time);
-    
+
     let sim_duration = start_time.elapsed();
-    println!("Resimulation: {} steps in {:?} ({} cells)", 
+    println!("Resimulation: {} steps in {:?} ({} cells)",
              steps, sim_duration, preview_state.canonical_state.cell_count);
-    
+
     preview_state.current_time = target_time;
     sim_state.target_time = None;
     sim_state.is_resimulating = false;
