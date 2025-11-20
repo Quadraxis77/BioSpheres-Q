@@ -180,32 +180,41 @@ fn handle_divisions(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    // Early exit if at capacity (4000 cells for CPU simulation)
-    const MAX_CELLS: usize = 4_000;
-    if main_state.canonical_state.cell_count >= MAX_CELLS {
+    // Early exit if at capacity
+    // Use the actual max_cells from initial state (respects what was configured)
+    let max_cells = main_state.initial_state.max_cells;
+    if main_state.canonical_state.cell_count >= max_cells {
         return;
     }
-    
-    // Collect parent cell IDs before division (so we can despawn their entities)
-    let mut parent_cell_ids = Vec::new();
-    for i in 0..main_state.canonical_state.cell_count {
-        let cell_age = current_time - main_state.canonical_state.birth_times[i];
-        if cell_age >= main_state.canonical_state.split_intervals[i] {
-            parent_cell_ids.push(main_state.canonical_state.cell_ids[i]);
-        }
-    }
-    
+
+    // Create a mapping from cell index to cell ID BEFORE division
+    // This allows us to look up which entities to despawn after division
+    let index_to_cell_id: Vec<u32> = main_state.canonical_state.cell_ids[..main_state.canonical_state.cell_count].to_vec();
+
     // Run canonical division step with cell limit
+    // This will return events for cells that actually divided
     let rng_seed = main_state.initial_state.rng_seed;
     let division_events = crate::simulation::canonical_physics::division_step(
         &mut main_state.canonical_state,
         &genome.genome,
         current_time,
-        MAX_CELLS,
+        max_cells,
         rng_seed,
     );
-    
-    // Despawn parent entities
+
+    // Collect parent cell IDs that ACTUALLY divided (from division events)
+    // Important: Only despawn cells that successfully divided, not cells that
+    // wanted to divide but couldn't due to capacity constraints
+    let mut parent_cell_ids = Vec::new();
+    for event in &division_events {
+        // parent_idx refers to the index BEFORE division/compaction
+        // Look up the cell_id from our saved mapping
+        if event.parent_idx < index_to_cell_id.len() {
+            parent_cell_ids.push(index_to_cell_id[event.parent_idx]);
+        }
+    }
+
+    // Despawn parent entities (only for cells that actually divided)
     for parent_cell_id in parent_cell_ids {
         if let Some(parent_entity) = main_state.id_to_entity.remove(&parent_cell_id) {
             main_state.entity_to_index.remove(&parent_entity);
@@ -315,6 +324,17 @@ fn handle_divisions(
         
         main_state.id_to_entity.insert(cell_id_b, entity_b);
         main_state.entity_to_index.insert(entity_b, child_b_idx);
+    }
+
+    // Rebuild entity_to_index mapping for ALL cells after compaction
+    // Division and compaction can shift cell indices, so we need to rebuild
+    // the mapping to keep it consistent with the canonical state
+    main_state.entity_to_index.clear();
+    for i in 0..main_state.canonical_state.cell_count {
+        let cell_id = main_state.canonical_state.cell_ids[i];
+        if let Some(&entity) = main_state.id_to_entity.get(&cell_id) {
+            main_state.entity_to_index.insert(entity, i);
+        }
     }
 }
 

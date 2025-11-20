@@ -770,7 +770,6 @@ pub fn division_step(
     max_cells: usize,
     _rng_seed: u64,
 ) -> Vec<DivisionEvent> {
-    use crate::simulation::cell_allocation::Simulation as AllocationSim;
     
     // Early exit if at capacity
     if state.cell_count >= max_cells {
@@ -792,28 +791,13 @@ pub fn division_step(
     }
     
     println!("Division at t={}: {} cells dividing", current_time, divisions_to_process.len());
-    
-    // Create allocation simulation for deterministic slot assignment
-    // NOTE: This allocates large vectors - only do this when actually needed
-    let mut alloc_sim = AllocationSim::new(max_cells, max_cells * 40);
-    
-    // Mark all current cells as free initially
-    for i in 0..alloc_sim.cells.len() {
-        alloc_sim.cells[i].age = -1; // Free
-    }
-    
-    // Mark dividing cells as occupied (so they generate reservations)
-    for &parent_idx in &divisions_to_process {
-        if parent_idx < alloc_sim.cells.len() {
-            alloc_sim.cells[parent_idx].age = 0; // Occupied (will divide)
-        }
-    }
-    
-    // Run allocation pipeline to get deterministic slot assignments
-    alloc_sim.identify_free_cell_slots();
-    alloc_sim.generate_reservations();
-    alloc_sim.compact_arrays();
-    alloc_sim.assign_reservations();
+
+    // For staggered divisions, we use a simpler allocation strategy:
+    // Write children to slots at the end of the array (starting from cell_count)
+    // Then compact to remove parents and consolidate everything
+    //
+    // This avoids the complex reservation system which was designed for
+    // simultaneous divisions where all parents are freed at once.
     
     // Collect division data before modifying state
     struct DivisionData {
@@ -838,25 +822,25 @@ pub fn division_step(
     
     let mut division_data_list = Vec::new();
     let mut division_events = Vec::new();
-    
+
+    // Calculate available slots for children
+    // We write children starting from the end of the current cell array
+    let mut next_available_slot = state.cell_count;
+
+    println!("  Starting allocation at slot {} (current cell_count: {})", next_available_slot, state.cell_count);
+
     // Process each division and collect data
     for &parent_idx in &divisions_to_process {
-        // Get allocated slots from the allocation system
-        let child_a_reservation = 2 * parent_idx;
-        let child_b_reservation = 2 * parent_idx + 1;
-        
-        if child_a_reservation >= alloc_sim.assignments_cells.len() ||
-           child_b_reservation >= alloc_sim.assignments_cells.len() {
-            continue;
+        // Check if we have space for 2 more cells
+        if next_available_slot + 1 >= state.capacity {
+            println!("Warning: Not enough capacity for division");
+            break;
         }
-        
-        let child_a_slot = alloc_sim.assignments_cells[child_a_reservation];
-        let child_b_slot = alloc_sim.assignments_cells[child_b_reservation];
-        
-        // Skip if slots weren't assigned (BIG sentinel value)
-        if child_a_slot == u32::MAX || child_b_slot == u32::MAX {
-            continue;
-        }
+
+        // Allocate two consecutive slots for the children
+        let child_a_slot = next_available_slot;
+        let child_b_slot = next_available_slot + 1;
+        next_available_slot += 2;
         
         let mode_index = state.mode_indices[parent_idx];
         let mode = genome.modes.get(mode_index);
@@ -983,8 +967,22 @@ pub fn division_step(
     // After division, we have children written to various slots, but parents are still in the array
     // We need to collect all active cells (children) and compact them to indices 0..N
     
-    // Mark which slots contain active cells (children)
+    // Mark which slots contain active cells
+    // Start by marking all existing cells (that aren't dividing) as active
     let mut active_slots = vec![false; state.capacity];
+
+    // Create a set of parent indices that are dividing
+    let dividing_parents: std::collections::HashSet<usize> =
+        division_data_list.iter().map(|d| d.parent_idx).collect();
+
+    // Mark all cells that exist and are NOT dividing as active
+    for i in 0..state.cell_count {
+        if !dividing_parents.contains(&i) {
+            active_slots[i] = true;
+        }
+    }
+
+    // Mark child slots as active
     for data in &division_data_list {
         active_slots[data.child_a_slot] = true;
         active_slots[data.child_b_slot] = true;
@@ -1000,30 +998,36 @@ pub fn division_step(
     active_indices.sort_unstable();
     
     // Compact: move all active cells to the front of the arrays
+    // We need to copy data rather than swap to avoid corruption when
+    // old indices appear later in the active list
     for (new_idx, &old_idx) in active_indices.iter().enumerate() {
         if new_idx != old_idx {
-            // Swap data from old_idx to new_idx
-            state.cell_ids.swap(new_idx, old_idx);
-            state.positions.swap(new_idx, old_idx);
-            state.prev_positions.swap(new_idx, old_idx);
-            state.velocities.swap(new_idx, old_idx);
-            state.masses.swap(new_idx, old_idx);
-            state.radii.swap(new_idx, old_idx);
-            state.genome_ids.swap(new_idx, old_idx);
-            state.mode_indices.swap(new_idx, old_idx);
-            state.rotations.swap(new_idx, old_idx);
-            state.angular_velocities.swap(new_idx, old_idx);
-            state.forces.swap(new_idx, old_idx);
-            state.accelerations.swap(new_idx, old_idx);
-            state.prev_accelerations.swap(new_idx, old_idx);
-            state.stiffnesses.swap(new_idx, old_idx);
-            state.birth_times.swap(new_idx, old_idx);
-            state.split_intervals.swap(new_idx, old_idx);
+            // Copy data from old_idx to new_idx
+            state.cell_ids[new_idx] = state.cell_ids[old_idx];
+            state.positions[new_idx] = state.positions[old_idx];
+            state.prev_positions[new_idx] = state.prev_positions[old_idx];
+            state.velocities[new_idx] = state.velocities[old_idx];
+            state.masses[new_idx] = state.masses[old_idx];
+            state.radii[new_idx] = state.radii[old_idx];
+            state.genome_ids[new_idx] = state.genome_ids[old_idx];
+            state.mode_indices[new_idx] = state.mode_indices[old_idx];
+            state.rotations[new_idx] = state.rotations[old_idx];
+            state.angular_velocities[new_idx] = state.angular_velocities[old_idx];
+            state.forces[new_idx] = state.forces[old_idx];
+            state.accelerations[new_idx] = state.accelerations[old_idx];
+            state.prev_accelerations[new_idx] = state.prev_accelerations[old_idx];
+            state.stiffnesses[new_idx] = state.stiffnesses[old_idx];
+            state.birth_times[new_idx] = state.birth_times[old_idx];
+            state.split_intervals[new_idx] = state.split_intervals[old_idx];
         }
     }
     
     // Update cell count to reflect only active cells
+    let old_cell_count = state.cell_count;
     state.cell_count = active_indices.len();
+
+    println!("  Compaction: {} cells -> {} cells (dividing: {}, children written: {})",
+             old_cell_count, state.cell_count, divisions_to_process.len(), division_data_list.len() * 2);
     
     // Update division events with new indices after compaction
     let mut index_mapping: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
