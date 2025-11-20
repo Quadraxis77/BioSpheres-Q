@@ -48,6 +48,7 @@ pub struct CanonicalState {
     
     // === Physics State (SoA) ===
     pub forces: Vec<Vec3>,
+    pub torques: Vec<Vec3>,
     pub accelerations: Vec<Vec3>,
     pub prev_accelerations: Vec<Vec3>,
     pub stiffnesses: Vec<f32>,
@@ -80,6 +81,7 @@ impl CanonicalState {
             rotations: vec![Quat::IDENTITY; capacity],
             angular_velocities: vec![Vec3::ZERO; capacity],
             forces: vec![Vec3::ZERO; capacity],
+            torques: vec![Vec3::ZERO; capacity],
             accelerations: vec![Vec3::ZERO; capacity],
             prev_accelerations: vec![Vec3::ZERO; capacity],
             stiffnesses: vec![10.0; capacity],
@@ -122,6 +124,7 @@ impl CanonicalState {
         self.rotations[idx] = rotation;
         self.angular_velocities[idx] = angular_velocity;
         self.forces[idx] = Vec3::ZERO;
+        self.torques[idx] = Vec3::ZERO;
         self.accelerations[idx] = Vec3::ZERO;
         self.prev_accelerations[idx] = Vec3::ZERO;
         self.stiffnesses[idx] = stiffness;
@@ -534,9 +537,10 @@ pub fn compute_collision_forces_canonical_st(
     collision_pairs: &[CanonicalCollisionPair],
     config: &crate::cell::physics::PhysicsConfig,
 ) {
-    // Clear all forces
+    // Clear all forces and torques
     for i in 0..state.cell_count {
         state.forces[i] = Vec3::ZERO;
+        state.torques[i] = Vec3::ZERO;
     }
     
     // Process each collision pair
@@ -579,6 +583,44 @@ pub fn compute_collision_forces_canonical_st(
         // Apply equal and opposite forces
         state.forces[idx_b] += force;
         state.forces[idx_a] -= force;
+        
+        // === Tangential Friction and Torque ===
+        
+        // Contact points on each cell surface
+        let contact_point_a = state.positions[idx_a] + pair.normal * state.radii[idx_a];
+        let contact_point_b = state.positions[idx_b] - pair.normal * state.radii[idx_b];
+        
+        // Velocity at contact points including rotation
+        let vel_at_contact_a = state.velocities[idx_a] + 
+            state.angular_velocities[idx_a].cross(contact_point_a - state.positions[idx_a]);
+        let vel_at_contact_b = state.velocities[idx_b] + 
+            state.angular_velocities[idx_b].cross(contact_point_b - state.positions[idx_b]);
+        
+        // Relative velocity at contact point
+        let relative_vel_at_contact = vel_at_contact_b - vel_at_contact_a;
+        
+        // Tangential component (perpendicular to normal)
+        let tangential_velocity = relative_vel_at_contact - pair.normal * relative_vel_at_contact.dot(pair.normal);
+        
+        // Apply friction force if there's tangential motion
+        if tangential_velocity.length() > 0.0001 {
+            let tangent_direction = tangential_velocity.normalize();
+            
+            // Friction force magnitude (proportional to normal force)
+            let friction_magnitude = config.friction_coefficient * clamped_force_magnitude.abs();
+            let friction_force = -tangent_direction * friction_magnitude;
+            
+            // Apply friction forces
+            state.forces[idx_a] += friction_force;
+            state.forces[idx_b] -= friction_force;
+            
+            // Calculate torques from friction
+            let torque_a = (contact_point_a - state.positions[idx_a]).cross(friction_force);
+            let torque_b = (contact_point_b - state.positions[idx_b]).cross(-friction_force);
+            
+            state.torques[idx_a] += torque_a;
+            state.torques[idx_b] += torque_b;
+        }
     }
 }
 
@@ -594,12 +636,13 @@ pub fn compute_collision_forces_canonical(
 ) {
     use rayon::prelude::*;
     
-    // Clear all forces (parallel)
+    // Clear all forces and torques (parallel)
     state.forces[..state.cell_count].par_iter_mut().for_each(|f| *f = Vec3::ZERO);
+    state.torques[..state.cell_count].par_iter_mut().for_each(|t| *t = Vec3::ZERO);
     
-    // Compute forces for each collision pair in parallel
-    // Store as (index, force) pairs to accumulate deterministically
-    let force_contributions: Vec<(usize, Vec3)> = collision_pairs
+    // Compute forces and torques for each collision pair in parallel
+    // Store as (index, force, torque) tuples to accumulate deterministically
+    let contributions: Vec<(usize, Vec3, Vec3)> = collision_pairs
         .par_iter()
         .flat_map(|pair| {
             let idx_a = pair.index_a;
@@ -637,15 +680,55 @@ pub fn compute_collision_forces_canonical(
             let clamped_force_magnitude = total_force_magnitude.clamp(-max_force, max_force);
             let force = clamped_force_magnitude * pair.normal;
             
-            // Return force contributions for both cells
-            vec![(idx_b, force), (idx_a, -force)]
+            // === Tangential Friction and Torque ===
+            
+            // Contact points on each cell surface
+            let contact_point_a = state.positions[idx_a] + pair.normal * state.radii[idx_a];
+            let contact_point_b = state.positions[idx_b] - pair.normal * state.radii[idx_b];
+            
+            // Velocity at contact points including rotation
+            let vel_at_contact_a = state.velocities[idx_a] + 
+                state.angular_velocities[idx_a].cross(contact_point_a - state.positions[idx_a]);
+            let vel_at_contact_b = state.velocities[idx_b] + 
+                state.angular_velocities[idx_b].cross(contact_point_b - state.positions[idx_b]);
+            
+            // Relative velocity at contact point
+            let relative_vel_at_contact = vel_at_contact_b - vel_at_contact_a;
+            
+            // Tangential component (perpendicular to normal)
+            let tangential_velocity = relative_vel_at_contact - pair.normal * relative_vel_at_contact.dot(pair.normal);
+            
+            let mut torque_a = Vec3::ZERO;
+            let mut torque_b = Vec3::ZERO;
+            let mut friction_force = Vec3::ZERO;
+            
+            // Apply friction force if there's tangential motion
+            if tangential_velocity.length() > 0.0001 {
+                let tangent_direction = tangential_velocity.normalize();
+                
+                // Friction force magnitude (proportional to normal force)
+                let friction_magnitude = config.friction_coefficient * clamped_force_magnitude.abs();
+                friction_force = -tangent_direction * friction_magnitude;
+                
+                // Calculate torques from friction
+                torque_a = (contact_point_a - state.positions[idx_a]).cross(friction_force);
+                torque_b = (contact_point_b - state.positions[idx_b]).cross(-friction_force);
+            }
+            
+            // Return contributions for both cells: (index, force, torque)
+            vec![
+                (idx_b, force, torque_b),
+                (idx_a, -force, torque_a),
+                (idx_a, friction_force, Vec3::ZERO),
+                (idx_b, -friction_force, Vec3::ZERO),
+            ]
         })
         .collect();
     
-    // Accumulate forces sequentially to maintain determinism
-    // (Parallel accumulation would be non-deterministic due to floating-point addition order)
-    for (idx, force) in force_contributions {
+    // Accumulate forces and torques sequentially to maintain determinism
+    for (idx, force, torque) in contributions {
         state.forces[idx] += force;
+        state.torques[idx] += torque;
     }
 }
 
@@ -663,23 +746,30 @@ pub fn physics_step_st(
         config.fixed_timestep,
     );
     
-    // 2. Update spatial partitioning
+    // 2. Update rotations from angular velocities
+    crate::cell::physics::integrate_rotations_soa_st(
+        &mut state.rotations[..state.cell_count],
+        &state.angular_velocities[..state.cell_count],
+        config.fixed_timestep,
+    );
+    
+    // 3. Update spatial partitioning
     state.spatial_grid.rebuild(&state.positions, state.cell_count);
     
-    // 3. Detect collisions
+    // 4. Detect collisions
     let collisions = detect_collisions_canonical_st(state);
     
-    // 4. Compute forces
+    // 5. Compute forces and torques
     compute_collision_forces_canonical_st(state, &collisions, config);
     
-    // 5. Apply boundary conditions
+    // 6. Apply boundary conditions
     crate::cell::physics::apply_boundary_forces_soa_st(
         &state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
         config,
     );
     
-    // 6. Verlet integration (velocity update)
+    // 7. Verlet integration (velocity update)
     crate::cell::physics::verlet_integrate_velocities_soa_st(
         &mut state.velocities[..state.cell_count],
         &mut state.accelerations[..state.cell_count],
@@ -688,6 +778,16 @@ pub fn physics_step_st(
         &state.masses[..state.cell_count],
         config.fixed_timestep,
         config.velocity_damping,
+    );
+    
+    // 8. Update angular velocities from torques
+    crate::cell::physics::integrate_angular_velocities_soa_st(
+        &mut state.angular_velocities[..state.cell_count],
+        &state.torques[..state.cell_count],
+        &state.radii[..state.cell_count],
+        &state.masses[..state.cell_count],
+        config.fixed_timestep,
+        config.angular_damping,
     );
 }
 
@@ -705,23 +805,30 @@ pub fn physics_step(
         config.fixed_timestep,
     );
     
-    // 2. Update spatial partitioning
+    // 2. Update rotations from angular velocities
+    crate::cell::physics::integrate_rotations_soa(
+        &mut state.rotations[..state.cell_count],
+        &state.angular_velocities[..state.cell_count],
+        config.fixed_timestep,
+    );
+    
+    // 3. Update spatial partitioning
     state.spatial_grid.rebuild(&state.positions, state.cell_count);
     
-    // 3. Detect collisions
+    // 4. Detect collisions
     let collisions = detect_collisions_canonical(state);
     
-    // 4. Compute forces
+    // 5. Compute forces and torques
     compute_collision_forces_canonical(state, &collisions, config);
     
-    // 5. Apply boundary conditions
+    // 6. Apply boundary conditions
     crate::cell::physics::apply_boundary_forces_soa(
         &state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
         config,
     );
     
-    // 6. Verlet integration (velocity update)
+    // 7. Verlet integration (velocity update)
     crate::cell::physics::verlet_integrate_velocities_soa(
         &mut state.velocities[..state.cell_count],
         &mut state.accelerations[..state.cell_count],
@@ -730,6 +837,16 @@ pub fn physics_step(
         &state.masses[..state.cell_count],
         config.fixed_timestep,
         config.velocity_damping,
+    );
+    
+    // 8. Update angular velocities from torques
+    crate::cell::physics::integrate_angular_velocities_soa(
+        &mut state.angular_velocities[..state.cell_count],
+        &state.torques[..state.cell_count],
+        &state.radii[..state.cell_count],
+        &state.masses[..state.cell_count],
+        config.fixed_timestep,
+        config.angular_damping,
     );
 }
 
@@ -927,6 +1044,7 @@ pub fn division_step(
             state.rotations[data.child_a_slot] = data.child_a_orientation;
             state.angular_velocities[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.forces[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
+            state.torques[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
@@ -948,6 +1066,7 @@ pub fn division_step(
             state.rotations[data.child_b_slot] = data.child_b_orientation;
             state.angular_velocities[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.forces[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
+            state.torques[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
@@ -1014,6 +1133,7 @@ pub fn division_step(
             state.rotations[new_idx] = state.rotations[old_idx];
             state.angular_velocities[new_idx] = state.angular_velocities[old_idx];
             state.forces[new_idx] = state.forces[old_idx];
+            state.torques[new_idx] = state.torques[old_idx];
             state.accelerations[new_idx] = state.accelerations[old_idx];
             state.prev_accelerations[new_idx] = state.prev_accelerations[old_idx];
             state.stiffnesses[new_idx] = state.stiffnesses[old_idx];

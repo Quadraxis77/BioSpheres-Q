@@ -15,6 +15,8 @@ pub mod physics {
         verlet_integrate_positions_soa, verlet_integrate_velocities_soa,
         verlet_integrate_positions_soa_st, verlet_integrate_velocities_soa_st,
         apply_boundary_forces_soa, apply_boundary_forces_soa_st,
+        integrate_angular_velocities_soa, integrate_angular_velocities_soa_st,
+        integrate_rotations_soa, integrate_rotations_soa_st,
         sync_transforms
     };
 }

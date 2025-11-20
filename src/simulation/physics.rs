@@ -52,6 +52,12 @@ pub struct PhysicsConfig {
     /// Velocity damping coefficient (matches desktop: 0.98)
     /// Applied as pow(velocity_damping, dt * 100.0)
     pub velocity_damping: f32,
+    
+    /// Tangential friction coefficient for rolling contact
+    pub friction_coefficient: f32,
+    
+    /// Angular velocity damping coefficient
+    pub angular_damping: f32,
 }
 
 impl Default for PhysicsConfig {
@@ -63,6 +69,8 @@ impl Default for PhysicsConfig {
             damping: 0.0,
             fixed_timestep: 1.0 / 64.0, // Match Bevy's default fixed timestep (64 Hz)
             velocity_damping: 0.98,
+            friction_coefficient: 0.3,
+            angular_damping: 0.95,
         }
     }
 }
@@ -291,6 +299,101 @@ pub fn apply_boundary_forces_soa(
                 
                 // Reverse radial component
                 *vel = v_tangential - v_radial;
+            }
+        });
+}
+
+/// Update angular velocities from torques (SoA version) - Single-threaded
+pub fn integrate_angular_velocities_soa_st(
+    angular_velocities: &mut [Vec3],
+    torques: &[Vec3],
+    radii: &[f32],
+    masses: &[f32],
+    dt: f32,
+    angular_damping: f32,
+) {
+    let angular_damping_factor = angular_damping.powf(dt * 100.0);
+    
+    for i in 0..angular_velocities.len() {
+        if masses[i] <= 0.0 || !masses[i].is_finite() || radii[i] <= 0.0 {
+            continue;
+        }
+        
+        // Moment of inertia for a sphere: I = (2/5) * m * r²
+        let moment_of_inertia = 0.4 * masses[i] * radii[i] * radii[i];
+        
+        if moment_of_inertia > 0.0 {
+            let angular_acceleration = torques[i] / moment_of_inertia;
+            angular_velocities[i] = (angular_velocities[i] + angular_acceleration * dt) * angular_damping_factor;
+        }
+    }
+}
+
+/// Update angular velocities from torques (SoA version) - Multithreaded
+pub fn integrate_angular_velocities_soa(
+    angular_velocities: &mut [Vec3],
+    torques: &[Vec3],
+    radii: &[f32],
+    masses: &[f32],
+    dt: f32,
+    angular_damping: f32,
+) {
+    use rayon::prelude::*;
+    
+    let angular_damping_factor = angular_damping.powf(dt * 100.0);
+    
+    angular_velocities.par_iter_mut()
+        .zip(torques.par_iter())
+        .zip(radii.par_iter())
+        .zip(masses.par_iter())
+        .for_each(|(((ang_vel, torque), radius), mass)| {
+            if *mass <= 0.0 || !mass.is_finite() || *radius <= 0.0 {
+                return;
+            }
+            
+            // Moment of inertia for a sphere: I = (2/5) * m * r²
+            let moment_of_inertia = 0.4 * *mass * *radius * *radius;
+            
+            if moment_of_inertia > 0.0 {
+                let angular_acceleration = *torque / moment_of_inertia;
+                *ang_vel = (*ang_vel + angular_acceleration * dt) * angular_damping_factor;
+            }
+        });
+}
+
+/// Update rotations from angular velocities (SoA version) - Single-threaded
+pub fn integrate_rotations_soa_st(
+    rotations: &mut [Quat],
+    angular_velocities: &[Vec3],
+    dt: f32,
+) {
+    for i in 0..rotations.len() {
+        let ang_vel = angular_velocities[i];
+        if ang_vel.length_squared() > 0.0001 {
+            let angle = ang_vel.length() * dt;
+            let axis = ang_vel.normalize();
+            let delta_rotation = Quat::from_axis_angle(axis, angle);
+            rotations[i] = (delta_rotation * rotations[i]).normalize();
+        }
+    }
+}
+
+/// Update rotations from angular velocities (SoA version) - Multithreaded
+pub fn integrate_rotations_soa(
+    rotations: &mut [Quat],
+    angular_velocities: &[Vec3],
+    dt: f32,
+) {
+    use rayon::prelude::*;
+    
+    rotations.par_iter_mut()
+        .zip(angular_velocities.par_iter())
+        .for_each(|(rotation, ang_vel)| {
+            if ang_vel.length_squared() > 0.0001 {
+                let angle = ang_vel.length() * dt;
+                let axis = ang_vel.normalize();
+                let delta_rotation = Quat::from_axis_angle(axis, angle);
+                *rotation = (delta_rotation * *rotation).normalize();
             }
         });
 }
