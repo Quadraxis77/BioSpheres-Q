@@ -206,25 +206,38 @@ impl DeterministicSpatialGrid {
         sphere_radius: f32,
     ) -> Vec<IVec3> {
         let mut active_cells = Vec::new();
-        
+
         for x in 0..grid_dimensions.x as i32 {
             for y in 0..grid_dimensions.y as i32 {
                 for z in 0..grid_dimensions.z as i32 {
                     let grid_coord = IVec3::new(x, y, z);
-                    
+
                     // Calculate the center of this grid cell in world space
                     let grid_pos = Vec3::new(x as f32, y as f32, z as f32);
-                    let world_pos = (grid_pos * cell_size) + Vec3::splat(cell_size / 2.0) 
+                    let world_pos = (grid_pos * cell_size) + Vec3::splat(cell_size / 2.0)
                         - Vec3::splat(grid_dimensions.x as f32 * cell_size / 2.0);
-                    
-                    // Check if the center is within the sphere
-                    if world_pos.length() <= sphere_radius {
+
+                    // Calculate the AABB bounds for this grid cell
+                    let half_cell = cell_size / 2.0;
+                    let min_bound = world_pos - Vec3::splat(half_cell);
+                    let max_bound = world_pos + Vec3::splat(half_cell);
+
+                    // Find the closest point on the grid cell (AABB) to the sphere center (origin)
+                    // Clamp the sphere center (0,0,0) to the AABB bounds
+                    let closest_point = Vec3::new(
+                        0.0_f32.clamp(min_bound.x, max_bound.x),
+                        0.0_f32.clamp(min_bound.y, max_bound.y),
+                        0.0_f32.clamp(min_bound.z, max_bound.z),
+                    );
+
+                    // Check if the closest point on the cell is within the sphere
+                    if closest_point.length() <= sphere_radius {
                         active_cells.push(grid_coord);
                     }
                 }
             }
         }
-        
+
         active_cells
     }
     
