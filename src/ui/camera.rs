@@ -10,9 +10,11 @@ impl Plugin for CameraPlugin {
         app.init_resource::<CameraConfig>()
             .init_resource::<CameraState>()
             .init_resource::<ImGuiWantCapture>()
+            .init_resource::<OrbitReferenceState>()
             .add_systems(Update, (
                 camera_mouse_grab,
-                camera_update
+                camera_update,
+                update_orbit_reference_ball,
             ).chain());
     }
 }
@@ -25,16 +27,53 @@ pub struct MainCamera {
     pub rotation: Quat,
 }
 
+/// Component marking the orbit reference ball
+#[derive(Component)]
+pub struct OrbitReferenceBall;
+
+/// Resource to track orbit reference ball fade state
+#[derive(Resource)]
+pub struct OrbitReferenceState {
+    pub alpha: f32,
+    pub time_since_change: f32,
+    pub fade_delay: f32,
+    pub fade_duration: f32,
+}
+
+impl Default for OrbitReferenceState {
+    fn default() -> Self {
+        Self {
+            alpha: 0.0,
+            time_since_change: 999.0, // Start faded out
+            fade_delay: 1.0,           // Wait 1 second before fading
+            fade_duration: 1.0,        // Fade over 1 second
+        }
+    }
+}
+
 /// Spawn the orbit camera
-pub fn setup_camera(mut commands: Commands) {
+pub fn setup_camera(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     commands.spawn((
         Camera3d::default(),
         MainCamera {
             center: Vec3::ZERO,
-            distance: 8.0,
+            distance: 0.0, // Start at center (no orbit)
             rotation: Quat::IDENTITY,
         },
         Transform::IDENTITY,
+    ));
+    
+    // Spawn orbit reference ball at origin
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(0.5))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgba(0.5, 0.8, 1.0, 0.0), // Start invisible
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO),
+        OrbitReferenceBall,
     ));
 }
 
@@ -69,10 +108,11 @@ pub struct CameraState {
     pub is_dragging: bool,
 }
 
-/// Resource to track whether ImGui wants to capture mouse input
+/// Resource to track whether ImGui wants to capture input
 #[derive(Resource, Default)]
 pub struct ImGuiWantCapture {
     pub want_capture_mouse: bool,
+    pub want_capture_keyboard: bool,
 }
 
 /// System to handle mouse grab for camera rotation (right-click to look)
@@ -102,6 +142,7 @@ pub fn camera_update(
     keyboard: Res<ButtonInput<KeyCode>>,
     config: Res<CameraConfig>,
     imgui_capture: Res<ImGuiWantCapture>,
+    mut orbit_ref_state: ResMut<OrbitReferenceState>,
     mut query: Query<(&mut Transform, &mut MainCamera)>,
 ) {
     let dt = time.delta_secs();
@@ -109,12 +150,27 @@ pub fn camera_update(
     let (mut transform, mut cam) = query.single_mut().unwrap();
 
     // -------------------------------
+    // 0. RESET ORBIT (middle click)
+    // -------------------------------
+    // Only process if ImGui is not capturing the mouse
+    if !imgui_capture.want_capture_mouse && mouse_buttons.just_pressed(MouseButton::Middle) {
+        cam.distance = 0.0; // Reset to center
+        orbit_ref_state.time_since_change = 0.0; // Show reference ball
+        orbit_ref_state.alpha = 0.3; // Set to visible
+    }
+
+    // -------------------------------
     // 1. ZOOM (scroll)
     // -------------------------------
     // Only process scroll if ImGui is not capturing the mouse
-    if !imgui_capture.want_capture_mouse {
-        cam.distance *= 1.0 - mouse_scroll.delta.y * config.zoom_speed;
-        cam.distance = cam.distance.max(0.01); // prevent inversion
+    if !imgui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
+        // Additive zoom - constant speed regardless of distance
+        cam.distance -= mouse_scroll.delta.y * config.zoom_speed * 5.0;
+        cam.distance = cam.distance.max(0.0); // Don't allow negative distance
+        
+        // Reset fade timer when orbit distance changes
+        orbit_ref_state.time_since_change = 0.0;
+        orbit_ref_state.alpha = 0.3; // Set to visible
     }
 
     // -------------------------------
@@ -140,51 +196,54 @@ pub fn camera_update(
     // -------------------------------
     // 3. ROLL (Q/E)
     // -------------------------------
-    let mut roll_amount = 0.0;
-    if keyboard.pressed(KeyCode::KeyQ) {
-        roll_amount += 1.0;
-    }
-    if keyboard.pressed(KeyCode::KeyE) {
-        roll_amount -= 1.0;
-    }
+    // Only process keyboard input if ImGui is not capturing it
+    if !imgui_capture.want_capture_keyboard {
+        let mut roll_amount = 0.0;
+        if keyboard.pressed(KeyCode::KeyQ) {
+            roll_amount += 1.0;
+        }
+        if keyboard.pressed(KeyCode::KeyE) {
+            roll_amount -= 1.0;
+        }
 
-    if roll_amount != 0.0 {
-        let roll_axis = cam.rotation * Vec3::Z; // viewing direction local Z
-        let roll = Quat::from_axis_angle(roll_axis, roll_amount * config.roll_speed * dt);
-        cam.rotation = (roll * cam.rotation).normalize();
-    }
+        if roll_amount != 0.0 {
+            let roll_axis = cam.rotation * Vec3::Z; // viewing direction local Z
+            let roll = Quat::from_axis_angle(roll_axis, roll_amount * config.roll_speed * dt);
+            cam.rotation = (roll * cam.rotation).normalize();
+        }
 
-    // -------------------------------
-    // 4. MOVE ORBIT CENTER (WASD + Space + C)
-    // -------------------------------
-    let mut speed = config.move_speed * dt;
-    if keyboard.pressed(KeyCode::ShiftLeft) {
-        speed *= config.sprint_multiplier;
-    }
+        // -------------------------------
+        // 4. MOVE ORBIT CENTER (WASD + Space + C)
+        // -------------------------------
+        let mut speed = config.move_speed * dt;
+        if keyboard.pressed(KeyCode::ShiftLeft) {
+            speed *= config.sprint_multiplier;
+        }
 
-    let mut move_vec = Vec3::ZERO;
+        let mut move_vec = Vec3::ZERO;
 
-    if keyboard.pressed(KeyCode::KeyW) {
-        move_vec += cam.rotation * Vec3::Z * -1.0; // forward
-    }
-    if keyboard.pressed(KeyCode::KeyS) {
-        move_vec += cam.rotation * Vec3::Z; // backward
-    }
-    if keyboard.pressed(KeyCode::KeyA) {
-        move_vec += cam.rotation * Vec3::X * -1.0; // left
-    }
-    if keyboard.pressed(KeyCode::KeyD) {
-        move_vec += cam.rotation * Vec3::X; // right
-    }
-    if keyboard.pressed(KeyCode::Space) {
-        move_vec += cam.rotation * Vec3::Y; // up
-    }
-    if keyboard.pressed(KeyCode::KeyC) {
-        move_vec += cam.rotation * Vec3::Y * -1.0; // down
-    }
+        if keyboard.pressed(KeyCode::KeyW) {
+            move_vec += cam.rotation * Vec3::Z * -1.0; // forward
+        }
+        if keyboard.pressed(KeyCode::KeyS) {
+            move_vec += cam.rotation * Vec3::Z; // backward
+        }
+        if keyboard.pressed(KeyCode::KeyA) {
+            move_vec += cam.rotation * Vec3::X * -1.0; // left
+        }
+        if keyboard.pressed(KeyCode::KeyD) {
+            move_vec += cam.rotation * Vec3::X; // right
+        }
+        if keyboard.pressed(KeyCode::Space) {
+            move_vec += cam.rotation * Vec3::Y; // up
+        }
+        if keyboard.pressed(KeyCode::KeyC) {
+            move_vec += cam.rotation * Vec3::Y * -1.0; // down
+        }
 
-    if move_vec.length_squared() > 0.0 {
-        cam.center += move_vec.normalize() * speed;
+        if move_vec.length_squared() > 0.0 {
+            cam.center += move_vec.normalize() * speed;
+        }
     }
 
     // -------------------------------
@@ -193,4 +252,41 @@ pub fn camera_update(
     let offset = cam.rotation * Vec3::new(0.0, 0.0, cam.distance);
     transform.translation = cam.center + offset;
     transform.rotation = cam.rotation;
+}
+
+/// System to update the orbit reference ball visibility and position
+fn update_orbit_reference_ball(
+    time: Res<Time>,
+    mut orbit_ref_state: ResMut<OrbitReferenceState>,
+    camera_query: Query<&MainCamera>,
+    mut ball_query: Query<(&mut Transform, &MeshMaterial3d<StandardMaterial>), With<OrbitReferenceBall>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let dt = time.delta_secs();
+    
+    // Update fade timer
+    orbit_ref_state.time_since_change += dt;
+    
+    // Calculate alpha based on fade state
+    if orbit_ref_state.time_since_change < orbit_ref_state.fade_delay {
+        // Still visible, no fade yet
+        orbit_ref_state.alpha = 0.3;
+    } else {
+        // Start fading
+        let fade_progress = (orbit_ref_state.time_since_change - orbit_ref_state.fade_delay) / orbit_ref_state.fade_duration;
+        orbit_ref_state.alpha = (0.3 * (1.0 - fade_progress.min(1.0))).max(0.0);
+    }
+    
+    // Update ball position and material
+    if let Ok(cam) = camera_query.single() {
+        if let Ok((mut ball_transform, material_handle)) = ball_query.single_mut() {
+            // Position ball at camera center (orbit point)
+            ball_transform.translation = cam.center;
+            
+            // Update material alpha
+            if let Some(material) = materials.get_mut(&material_handle.0) {
+                material.base_color = Color::srgba(0.5, 0.8, 1.0, orbit_ref_state.alpha);
+            }
+        }
+    }
 }

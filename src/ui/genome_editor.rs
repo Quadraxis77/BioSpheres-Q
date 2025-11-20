@@ -55,13 +55,14 @@ struct PreviousGenomeState {
     mode_connections: Vec<(usize, i32, i32)>, // (mode_idx, child_a, child_b)
 }
 
-/// System to update ImGui mouse capture state - runs before other UI systems
+/// System to update ImGui input capture state - runs before other UI systems
 fn update_imgui_capture_state(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut imgui_capture: ResMut<ImGuiWantCapture>,
 ) {
     let ui = imgui_context.ui();
     imgui_capture.want_capture_mouse = ui.io().want_capture_mouse;
+    imgui_capture.want_capture_keyboard = ui.io().want_capture_keyboard;
 }
 
 /// System to detect genome changes and trigger node graph rebuild
@@ -797,6 +798,13 @@ fn render_genome_graph(
                         // Get the raw pointer to the editor context
                         let editor_ptr = editor_context as *const EditorContext as *mut imnodes_sys::ImNodesEditorContext;
                         imnodes_sys::imnodes_EditorContextSet(editor_ptr);
+                        
+                        // Make grid lines very faint
+                        let style = imnodes_sys::imnodes_GetStyle();
+                        if !style.is_null() {
+                            // Set grid line color to very faint (low alpha)
+                            (*style).Colors[imnodes_sys::ImNodesCol__ImNodesCol_GridLine as usize] = 0x10FFFFFF; // Very faint white
+                        }
                     }
                 }
             });

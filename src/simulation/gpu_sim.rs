@@ -36,10 +36,24 @@ fn setup_gpu_scene(
     commands.spawn((
         Camera3d::default(),
         MainCamera{
-            center: Vec3::ZERO,
-            distance: 10.0,
+            center: Vec3::new(0.0, 0.0, 10.0), // Orbit center offset from world origin
+            distance: 0.0, // No orbit offset (camera at orbit center)
             rotation: Quat::IDENTITY,
         },
+        GpuSceneEntity,
+    ));
+    
+    // Spawn orbit reference ball
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(0.5))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgba(0.5, 0.8, 1.0, 0.0), // Start invisible
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO),
+        crate::ui::camera::OrbitReferenceBall,
         GpuSceneEntity,
     ));
 
