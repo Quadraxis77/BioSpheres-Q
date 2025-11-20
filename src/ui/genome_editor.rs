@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_imgui::prelude::*;
+use imgui::InputTextFlags;
 use crate::genome::*;
 use crate::simulation::{SimulationState, SimulationMode};
 use super::imgui_widgets;
@@ -262,6 +263,64 @@ fn render_genome_editor(
     }
 }
 
+/// Helper function to draw a slider with a text input for precise value entry
+fn slider_with_input_f32(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f32, width: f32) -> bool {
+    let mut changed = false;
+
+    // Draw slider
+    ui.set_next_item_width(width - 80.0);
+    if ui.slider(label, min, max, value) {
+        changed = true;
+    }
+
+    // Draw text input on same line
+    ui.same_line();
+    ui.set_next_item_width(70.0);
+    let input_label = format!("##input{}", label);
+
+    let mut text_buffer = format!("{:.2}", value);
+    if ui.input_text(&input_label, &mut text_buffer)
+        .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
+        .build()
+    {
+        if let Ok(new_value) = text_buffer.parse::<f32>() {
+            *value = new_value.clamp(min, max);
+            changed = true;
+        }
+    }
+
+    changed
+}
+
+/// Helper function to draw a slider with a text input for precise value entry (i32 version)
+fn slider_with_input_i32(ui: &Ui, label: &str, value: &mut i32, min: i32, max: i32, width: f32) -> bool {
+    let mut changed = false;
+
+    // Draw slider
+    ui.set_next_item_width(width - 80.0);
+    if ui.slider(label, min, max, value) {
+        changed = true;
+    }
+
+    // Draw text input on same line
+    ui.same_line();
+    ui.set_next_item_width(70.0);
+    let input_label = format!("##input{}", label);
+
+    let mut text_buffer = format!("{}", value);
+    if ui.input_text(&input_label, &mut text_buffer)
+        .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
+        .build()
+    {
+        if let Ok(new_value) = text_buffer.parse::<i32>() {
+            *value = new_value.clamp(min, max);
+            changed = true;
+        }
+    }
+
+    changed
+}
+
 /// Draw mode settings (tabbed interface)
 fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSettings]) {
     if let Some(_tab_bar) = ui.tab_bar("ModeSettingsTabs") {
@@ -365,12 +424,12 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings) {
     // Split mass (only for non-Test cell types)
     if mode.cell_type != 0 {
         ui.text("Split Mass:");
-        ui.slider("##SplitMass", 0.1, 10.0, &mut mode.split_mass);
+        slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.1, 10.0, ui.content_region_avail()[0]);
     }
 
     // Split interval
     ui.text("Split Interval:");
-    ui.slider("##SplitInterval", 1.0, 30.0, &mut mode.split_interval);
+    slider_with_input_f32(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
 
     ui.spacing();
     ui.separator();
@@ -415,7 +474,7 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings) {
 
     // Max adhesions
     ui.text("Max Adhesions:");
-    ui.slider("##MaxAdhesions", 0, 20, &mut mode.max_adhesions);
+    slider_with_input_i32(ui, "##MaxAdhesions", &mut mode.max_adhesions, 0, 20, ui.content_region_avail()[0]);
 
     ui.spacing();
     ui.separator();
@@ -467,25 +526,25 @@ fn draw_adhesion_settings(ui: &Ui, adhesion: &mut AdhesionSettings) {
     ui.checkbox("Adhesion Can Break", &mut adhesion.can_break);
 
     ui.text("Adhesion Break Force:");
-    ui.slider("##AdhesionBreakForce", 0.1, 100.0, &mut adhesion.break_force);
+    slider_with_input_f32(ui, "##AdhesionBreakForce", &mut adhesion.break_force, 0.1, 100.0, ui.content_region_avail()[0]);
 
     ui.text("Adhesion Rest Length:");
-    ui.slider("##AdhesionRestLength", 0.5, 5.0, &mut adhesion.rest_length);
+    slider_with_input_f32(ui, "##AdhesionRestLength", &mut adhesion.rest_length, 0.5, 5.0, ui.content_region_avail()[0]);
 
     ui.text("Linear Spring Stiffness:");
-    ui.slider("##LinearSpringStiffness", 0.1, 500.0, &mut adhesion.linear_spring_stiffness);
+    slider_with_input_f32(ui, "##LinearSpringStiffness", &mut adhesion.linear_spring_stiffness, 0.1, 500.0, ui.content_region_avail()[0]);
 
     ui.text("Linear Spring Damping:");
-    ui.slider("##LinearSpringDamping", 0.0, 10.0, &mut adhesion.linear_spring_damping);
+    slider_with_input_f32(ui, "##LinearSpringDamping", &mut adhesion.linear_spring_damping, 0.0, 10.0, ui.content_region_avail()[0]);
 
     ui.text("Angular Spring Stiffness:");
-    ui.slider("##AngularSpringStiffness", 0.1, 100.0, &mut adhesion.orientation_spring_stiffness);
+    slider_with_input_f32(ui, "##AngularSpringStiffness", &mut adhesion.orientation_spring_stiffness, 0.1, 100.0, ui.content_region_avail()[0]);
 
     ui.text("Angular Spring Damping:");
-    ui.slider("##AngularSpringDamping", 0.0, 10.0, &mut adhesion.orientation_spring_damping);
+    slider_with_input_f32(ui, "##AngularSpringDamping", &mut adhesion.orientation_spring_damping, 0.0, 10.0, ui.content_region_avail()[0]);
 
     ui.text("Max Angular Deviation:");
-    ui.slider("##MaxAngularDeviation", 0.0, 180.0, &mut adhesion.max_angular_deviation);
+    slider_with_input_f32(ui, "##MaxAngularDeviation", &mut adhesion.max_angular_deviation, 0.0, 180.0, ui.content_region_avail()[0]);
 
     ui.spacing();
     ui.separator();
@@ -494,8 +553,8 @@ fn draw_adhesion_settings(ui: &Ui, adhesion: &mut AdhesionSettings) {
     ui.checkbox("Enable Twist Constraint", &mut adhesion.enable_twist_constraint);
 
     ui.text("Twist Constraint Stiffness:");
-    ui.slider("##TwistConstraintStiffness", 0.0, 2.0, &mut adhesion.twist_constraint_stiffness);
+    slider_with_input_f32(ui, "##TwistConstraintStiffness", &mut adhesion.twist_constraint_stiffness, 0.0, 2.0, ui.content_region_avail()[0]);
 
     ui.text("Twist Constraint Damping:");
-    ui.slider("##TwistConstraintDamping", 0.0, 10.0, &mut adhesion.twist_constraint_damping);
+    slider_with_input_f32(ui, "##TwistConstraintDamping", &mut adhesion.twist_constraint_damping, 0.0, 10.0, ui.content_region_avail()[0]);
 }
