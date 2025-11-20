@@ -1,20 +1,29 @@
 use bevy::prelude::*;
 use bevy_mod_imgui::prelude::*;
 use imgui::InputTextFlags;
+use imnodes::{Context, EditorContext, editor};
 use crate::genome::*;
 use crate::simulation::{SimulationState, SimulationMode};
 use super::imgui_widgets;
 use super::camera::ImGuiWantCapture;
+
+/// Resource to track genome graph window state
+#[derive(Resource, Default)]
+pub struct GenomeGraphState {
+    pub show_window: bool,
+}
 
 /// Genome editor plugin - modular UI component for editing genome data
 pub struct GenomeEditorPlugin;
 
 impl Plugin for GenomeEditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-            update_imgui_capture_state,
-            render_genome_editor,
-        ).chain());
+        app.init_resource::<GenomeGraphState>()
+            .add_systems(Update, (
+                update_imgui_capture_state,
+                render_genome_editor,
+                render_genome_graph,
+            ).chain());
     }
 }
 
@@ -33,6 +42,7 @@ fn render_genome_editor(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut simulation_state: ResMut<SimulationState>,
     preview_state: Res<crate::simulation::preview_sim::PreviewSimState>,
+    mut graph_state: ResMut<GenomeGraphState>,
 ) {
     // Only show genome editor in Preview mode
     if simulation_state.mode != SimulationMode::Preview {
@@ -66,6 +76,11 @@ fn render_genome_editor(
             ui.same_line();
             if ui.button("Load Genome") {
                 // TODO: Implement genome loading functionality
+            }
+
+            ui.same_line();
+            if ui.button("Genome Graph") {
+                graph_state.show_window = !graph_state.show_window;
             }
 
             ui.separator();
@@ -570,4 +585,51 @@ fn draw_adhesion_settings(ui: &Ui, adhesion: &mut AdhesionSettings) {
 
     ui.text("Twist Constraint Damping:");
     slider_with_input_f32(ui, "##TwistConstraintDamping", &mut adhesion.twist_constraint_damping, 0.0, 10.0, ui.content_region_avail()[0]);
+}
+
+/// System to render genome graph window
+fn render_genome_graph(
+    mut graph_state: ResMut<GenomeGraphState>,
+    mut imgui_context: NonSendMut<ImguiContext>,
+    simulation_state: Res<SimulationState>,
+) {
+    // Only show in Preview mode and if window is open
+    if simulation_state.mode != SimulationMode::Preview || !graph_state.show_window {
+        return;
+    }
+
+    let ui = imgui_context.ui();
+
+    // Create static context and editor for persistent state
+    // We can't store these in a resource because they're not thread-safe (not Send/Sync)
+    // This is safe because Bevy systems with NonSendMut run on the main thread only
+    static mut IMNODES_CONTEXT: Option<Context> = None;
+    static mut EDITOR_CONTEXT: Option<EditorContext> = None;
+
+    // Safety: This system uses NonSendMut<ImguiContext>, which means Bevy guarantees
+    // it only runs on the main thread, so there's no risk of data races
+    unsafe {
+        if IMNODES_CONTEXT.is_none() {
+            let context = Context::new();
+            let editor = context.create_editor();
+            IMNODES_CONTEXT = Some(context);
+            EDITOR_CONTEXT = Some(editor);
+        }
+    }
+
+    ui.window("Genome Graph")
+        .opened(&mut graph_state.show_window)
+        .position([820.0, 13.0], Condition::FirstUseEver)
+        .size([600.0, 600.0], Condition::FirstUseEver)
+        .build(|| {
+            // Create the node editor
+            // Safety: Same as above - main thread only access
+            unsafe {
+                if let Some(editor_context) = &mut EDITOR_CONTEXT {
+                    editor(editor_context, |_editor| {
+                        // Empty node graph for now
+                    });
+                }
+            }
+        });
 }
