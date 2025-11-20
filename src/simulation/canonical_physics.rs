@@ -584,42 +584,48 @@ pub fn compute_collision_forces_canonical_st(
         state.forces[idx_b] += force;
         state.forces[idx_a] -= force;
         
-        // === Tangential Friction and Torque ===
+        // === Rolling Friction Torque ===
+        // Apply torque based on tangential velocity at contact point
+        // This creates rolling without violating momentum conservation
         
-        // Contact points on each cell surface
-        let contact_point_a = state.positions[idx_a] + pair.normal * state.radii[idx_a];
-        let contact_point_b = state.positions[idx_b] - pair.normal * state.radii[idx_b];
-        
-        // Velocity at contact points including rotation
-        let vel_at_contact_a = state.velocities[idx_a] + 
-            state.angular_velocities[idx_a].cross(contact_point_a - state.positions[idx_a]);
-        let vel_at_contact_b = state.velocities[idx_b] + 
-            state.angular_velocities[idx_b].cross(contact_point_b - state.positions[idx_b]);
-        
-        // Relative velocity at contact point
-        let relative_vel_at_contact = vel_at_contact_b - vel_at_contact_a;
-        
-        // Tangential component (perpendicular to normal)
-        let tangential_velocity = relative_vel_at_contact - pair.normal * relative_vel_at_contact.dot(pair.normal);
-        
-        // Apply friction force if there's tangential motion
-        if tangential_velocity.length() > 0.0001 {
-            let tangent_direction = tangential_velocity.normalize();
+        if config.friction_coefficient > 0.0 && pair.overlap > 0.0 {
+            // Contact point offsets from cell centers
+            let contact_offset_a = pair.normal * state.radii[idx_a];
+            let contact_offset_b = -pair.normal * state.radii[idx_b];
             
-            // Friction force magnitude (proportional to normal force)
-            let friction_magnitude = config.friction_coefficient * clamped_force_magnitude.abs();
-            let friction_force = -tangent_direction * friction_magnitude;
+            // Velocity at contact points including rotation
+            let vel_at_contact_a = state.velocities[idx_a] + 
+                state.angular_velocities[idx_a].cross(contact_offset_a);
+            let vel_at_contact_b = state.velocities[idx_b] + 
+                state.angular_velocities[idx_b].cross(contact_offset_b);
             
-            // Apply friction forces
-            state.forces[idx_a] += friction_force;
-            state.forces[idx_b] -= friction_force;
+            // Relative velocity at contact point
+            let relative_vel_at_contact = vel_at_contact_b - vel_at_contact_a;
             
-            // Calculate torques from friction
-            let torque_a = (contact_point_a - state.positions[idx_a]).cross(friction_force);
-            let torque_b = (contact_point_b - state.positions[idx_b]).cross(-friction_force);
+            // Tangential component (perpendicular to normal)
+            let tangential_velocity = relative_vel_at_contact - pair.normal * relative_vel_at_contact.dot(pair.normal);
+            let tangential_speed = tangential_velocity.length();
             
-            state.torques[idx_a] += torque_a;
-            state.torques[idx_b] += torque_b;
+            if tangential_speed > 0.0001 {
+                let tangent_direction = tangential_velocity / tangential_speed;
+                
+                // Maximum friction torque (Coulomb friction limit)
+                let max_friction_torque = config.friction_coefficient * clamped_force_magnitude.abs();
+                
+                // Torque direction: perpendicular to both normal and tangent
+                // This creates rotation that opposes the tangential sliding
+                let torque_axis_a = contact_offset_a.cross(tangent_direction);
+                let torque_axis_b = contact_offset_b.cross(tangent_direction);
+                
+                // Torque magnitude scaled by tangential speed and radius
+                let torque_magnitude = (tangential_speed * state.radii[idx_a]).min(max_friction_torque);
+                
+                let resistance_torque_a = -torque_axis_a.normalize_or_zero() * torque_magnitude;
+                let resistance_torque_b = -torque_axis_b.normalize_or_zero() * torque_magnitude;
+                
+                state.torques[idx_a] += resistance_torque_a;
+                state.torques[idx_b] += resistance_torque_b;
+            }
         }
     }
 }
@@ -680,47 +686,52 @@ pub fn compute_collision_forces_canonical(
             let clamped_force_magnitude = total_force_magnitude.clamp(-max_force, max_force);
             let force = clamped_force_magnitude * pair.normal;
             
-            // === Tangential Friction and Torque ===
-            
-            // Contact points on each cell surface
-            let contact_point_a = state.positions[idx_a] + pair.normal * state.radii[idx_a];
-            let contact_point_b = state.positions[idx_b] - pair.normal * state.radii[idx_b];
-            
-            // Velocity at contact points including rotation
-            let vel_at_contact_a = state.velocities[idx_a] + 
-                state.angular_velocities[idx_a].cross(contact_point_a - state.positions[idx_a]);
-            let vel_at_contact_b = state.velocities[idx_b] + 
-                state.angular_velocities[idx_b].cross(contact_point_b - state.positions[idx_b]);
-            
-            // Relative velocity at contact point
-            let relative_vel_at_contact = vel_at_contact_b - vel_at_contact_a;
-            
-            // Tangential component (perpendicular to normal)
-            let tangential_velocity = relative_vel_at_contact - pair.normal * relative_vel_at_contact.dot(pair.normal);
+            // === Rolling Friction Torque ===
             
             let mut torque_a = Vec3::ZERO;
             let mut torque_b = Vec3::ZERO;
-            let mut friction_force = Vec3::ZERO;
             
-            // Apply friction force if there's tangential motion
-            if tangential_velocity.length() > 0.0001 {
-                let tangent_direction = tangential_velocity.normalize();
+            // Apply torque based on tangential velocity at contact point
+            if config.friction_coefficient > 0.0 && pair.overlap > 0.0 {
+                // Contact point offsets from cell centers
+                let contact_offset_a = pair.normal * state.radii[idx_a];
+                let contact_offset_b = -pair.normal * state.radii[idx_b];
                 
-                // Friction force magnitude (proportional to normal force)
-                let friction_magnitude = config.friction_coefficient * clamped_force_magnitude.abs();
-                friction_force = -tangent_direction * friction_magnitude;
+                // Velocity at contact points including rotation
+                let vel_at_contact_a = state.velocities[idx_a] + 
+                    state.angular_velocities[idx_a].cross(contact_offset_a);
+                let vel_at_contact_b = state.velocities[idx_b] + 
+                    state.angular_velocities[idx_b].cross(contact_offset_b);
                 
-                // Calculate torques from friction
-                torque_a = (contact_point_a - state.positions[idx_a]).cross(friction_force);
-                torque_b = (contact_point_b - state.positions[idx_b]).cross(-friction_force);
+                // Relative velocity at contact point
+                let relative_vel_at_contact = vel_at_contact_b - vel_at_contact_a;
+                
+                // Tangential component (perpendicular to normal)
+                let tangential_velocity = relative_vel_at_contact - pair.normal * relative_vel_at_contact.dot(pair.normal);
+                let tangential_speed = tangential_velocity.length();
+                
+                if tangential_speed > 0.0001 {
+                    let tangent_direction = tangential_velocity / tangential_speed;
+                    
+                    // Maximum friction torque (Coulomb friction limit)
+                    let max_friction_torque = config.friction_coefficient * clamped_force_magnitude.abs();
+                    
+                    // Torque direction: perpendicular to both normal and tangent
+                    let torque_axis_a = contact_offset_a.cross(tangent_direction);
+                    let torque_axis_b = contact_offset_b.cross(tangent_direction);
+                    
+                    // Torque magnitude scaled by tangential speed and radius
+                    let torque_magnitude = (tangential_speed * state.radii[idx_a]).min(max_friction_torque);
+                    
+                    torque_a = -torque_axis_a.normalize_or_zero() * torque_magnitude;
+                    torque_b = -torque_axis_b.normalize_or_zero() * torque_magnitude;
+                }
             }
             
             // Return contributions for both cells: (index, force, torque)
             vec![
                 (idx_b, force, torque_b),
                 (idx_a, -force, torque_a),
-                (idx_a, friction_force, Vec3::ZERO),
-                (idx_b, -friction_force, Vec3::ZERO),
             ]
         })
         .collect();
@@ -906,8 +917,6 @@ pub fn division_step(
     if divisions_to_process.is_empty() {
         return Vec::new();
     }
-    
-    println!("Division at t={}: {} cells dividing", current_time, divisions_to_process.len());
 
     // For staggered divisions, we use a simpler allocation strategy:
     // Write children to slots at the end of the array (starting from cell_count)
@@ -944,13 +953,10 @@ pub fn division_step(
     // We write children starting from the end of the current cell array
     let mut next_available_slot = state.cell_count;
 
-    println!("  Starting allocation at slot {} (current cell_count: {})", next_available_slot, state.cell_count);
-
     // Process each division and collect data
     for &parent_idx in &divisions_to_process {
         // Check if we have space for 2 more cells
         if next_available_slot + 1 >= state.capacity {
-            println!("Warning: Not enough capacity for division");
             break;
         }
 
@@ -1143,11 +1149,7 @@ pub fn division_step(
     }
     
     // Update cell count to reflect only active cells
-    let old_cell_count = state.cell_count;
     state.cell_count = active_indices.len();
-
-    println!("  Compaction: {} cells -> {} cells (dividing: {}, children written: {})",
-             old_cell_count, state.cell_count, divisions_to_process.len(), division_data_list.len() * 2);
     
     // Update division events with new indices after compaction
     let mut index_mapping: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
