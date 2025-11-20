@@ -4,14 +4,27 @@ use imgui::InputTextFlags;
 use crate::genome::*;
 use crate::simulation::{SimulationState, SimulationMode};
 use super::imgui_widgets;
+use super::camera::ImGuiWantCapture;
 
 /// Genome editor plugin - modular UI component for editing genome data
 pub struct GenomeEditorPlugin;
 
 impl Plugin for GenomeEditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, render_genome_editor);
+        app.add_systems(Update, (
+            update_imgui_capture_state,
+            render_genome_editor,
+        ).chain());
     }
+}
+
+/// System to update ImGui mouse capture state - runs before other UI systems
+fn update_imgui_capture_state(
+    mut imgui_context: NonSendMut<ImguiContext>,
+    mut imgui_capture: ResMut<ImGuiWantCapture>,
+) {
+    let ui = imgui_context.ui();
+    imgui_capture.want_capture_mouse = ui.io().want_capture_mouse;
 }
 
 /// Main genome editor rendering system

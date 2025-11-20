@@ -9,6 +9,7 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraConfig>()
             .init_resource::<CameraState>()
+            .init_resource::<ImGuiWantCapture>()
             .add_systems(Update, (
                 camera_mouse_grab,
                 camera_update
@@ -68,6 +69,12 @@ pub struct CameraState {
     pub is_dragging: bool,
 }
 
+/// Resource to track whether ImGui wants to capture mouse input
+#[derive(Resource, Default)]
+pub struct ImGuiWantCapture {
+    pub want_capture_mouse: bool,
+}
+
 /// System to handle mouse grab for camera rotation (right-click to look)
 fn camera_mouse_grab(
     mouse_button: Res<ButtonInput<MouseButton>>,
@@ -94,6 +101,7 @@ pub fn camera_update(
     mouse_scroll: Res<AccumulatedMouseScroll>,
     keyboard: Res<ButtonInput<KeyCode>>,
     config: Res<CameraConfig>,
+    imgui_capture: Res<ImGuiWantCapture>,
     mut query: Query<(&mut Transform, &mut MainCamera)>,
 ) {
     let dt = time.delta_secs();
@@ -103,8 +111,11 @@ pub fn camera_update(
     // -------------------------------
     // 1. ZOOM (scroll)
     // -------------------------------
-    cam.distance *= 1.0 - mouse_scroll.delta.y * config.zoom_speed;
-    cam.distance = cam.distance.max(0.01); // prevent inversion
+    // Only process scroll if ImGui is not capturing the mouse
+    if !imgui_capture.want_capture_mouse {
+        cam.distance *= 1.0 - mouse_scroll.delta.y * config.zoom_speed;
+        cam.distance = cam.distance.max(0.01); // prevent inversion
+    }
 
     // -------------------------------
     // 2. ROTATION (mouse)
