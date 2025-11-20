@@ -33,7 +33,7 @@ impl Default for CurrentGenome {
 }
 
 /// Adhesion configuration
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct AdhesionSettings {
     pub can_break: bool,
     pub break_force: f32,
@@ -67,7 +67,7 @@ impl Default for AdhesionSettings {
 }
 
 /// Child settings for mode transitions
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ChildSettings {
     pub mode_number: i32,
     pub orientation: Quat,
@@ -87,7 +87,7 @@ impl Default for ChildSettings {
 }
 
 /// A single mode within a genome
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ModeSettings {
     pub name: String,
     pub color: Vec3,
@@ -131,7 +131,7 @@ impl Default for ModeSettings {
 }
 
 /// A complete genome definition
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct GenomeData {
     pub name: String,
     pub initial_mode: i32,

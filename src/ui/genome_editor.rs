@@ -17,12 +17,16 @@ impl Plugin for GenomeEditorPlugin {
 fn render_genome_editor(
     mut current_genome: ResMut<CurrentGenome>,
     mut imgui_context: NonSendMut<ImguiContext>,
-    simulation_state: Res<SimulationState>,
+    mut simulation_state: ResMut<SimulationState>,
+    preview_state: Res<crate::simulation::preview_sim::PreviewSimState>,
 ) {
     // Only show genome editor in Preview mode
     if simulation_state.mode != SimulationMode::Preview {
         return;
     }
+
+    // Track if genome was modified during this frame
+    let genome_before_edit = current_genome.genome.clone();
 
     let ui = imgui_context.ui();
 
@@ -250,6 +254,12 @@ fn render_genome_editor(
                 }
             }
         });
+
+    // Check if genome was modified and trigger instant resimulation
+    if current_genome.genome != genome_before_edit {
+        // Trigger resimulation to current preview time to apply genome changes
+        simulation_state.target_time = Some(preview_state.current_time);
+    }
 }
 
 /// Draw mode settings (tabbed interface)

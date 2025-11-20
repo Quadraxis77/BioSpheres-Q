@@ -265,6 +265,21 @@ fn run_preview_resimulation(
 
     let start_time = std::time::Instant::now();
 
+    // Update initial state with current genome values before any simulation
+    // This ensures that when genome changes trigger resimulation, the initial cell
+    // has the updated split_interval and other genome properties
+    if let Some(initial_cell) = preview_state.initial_state.initial_cells.first_mut() {
+        let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
+        let mode = genome.genome.modes.get(initial_mode_index)
+            .or_else(|| genome.genome.modes.first());
+
+        if let Some(mode) = mode {
+            initial_cell.split_interval = mode.split_interval;
+            initial_cell.mode_index = initial_mode_index;
+            initial_cell.rotation = genome.genome.initial_orientation;
+        }
+    }
+
     // Determine if we can simulate forward incrementally
     let (start_step, steps) = if target_time > preview_state.current_time {
         // Moving forward: simulate only the additional steps
@@ -272,7 +287,8 @@ fn run_preview_resimulation(
         let end_step = (target_time / config.fixed_timestep).ceil() as u32;
         (start_step, end_step - start_step)
     } else {
-        // Moving backward: reset to initial state and simulate from beginning
+        // Moving backward or genome changed (target_time <= current_time):
+        // reset to initial state and simulate from beginning
         preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
         preview_state.current_time = 0.0;
         (0, (target_time / config.fixed_timestep).ceil() as u32)
