@@ -174,9 +174,9 @@ fn render_genome_editor(
                     current_genome.genome.modes.len()
                 };
                 
-                // Generate new mode name based on selected mode
+                // Generate new mode name based on selected mode's default name
                 let new_name = if selected_idx < current_genome.genome.modes.len() {
-                    generate_next_mode_name(&current_genome.genome.modes[selected_idx].name, &current_genome.genome.modes)
+                    generate_next_mode_name(&current_genome.genome.modes[selected_idx].default_name, &current_genome.genome.modes)
                 } else {
                     format!("Mode {}", current_genome.genome.modes.len())
                 };
@@ -527,7 +527,7 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
 }
 
 /// Draw parent settings
-fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, mode_index: usize) {
+fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
     // Mode name
     ui.text("Mode Name:");
     let mut mode_name = mode.name.clone();
@@ -537,14 +537,14 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, mode_index: usize) {
             // Update with the trimmed custom name
             mode.name = trimmed.to_string();
         } else {
-            // If empty, revert to default name based on mode index
-            mode.name = format!("Mode {}", mode_index);
+            // If empty, revert to the stored default name
+            mode.name = mode.default_name.clone();
         }
     }
     
     // Show hint about default name when field is empty
     if ui.is_item_active() && mode_name.trim().is_empty() {
-        ui.text_colored([0.7, 0.7, 0.7, 1.0], &format!("Will revert to: Mode {}", mode_index));
+        ui.text_colored([0.7, 0.7, 0.7, 1.0], &format!("Will revert to: {}", mode.default_name));
     }
 
     ui.spacing();
@@ -963,9 +963,9 @@ fn render_genome_graph(
                             current_genome.genome.modes.len()
                         };
                         
-                        // Generate new mode name based on selected mode
+                        // Generate new mode name based on selected mode's default name
                         let new_name = if selected_idx < current_genome.genome.modes.len() {
-                            generate_next_mode_name(&current_genome.genome.modes[selected_idx].name, &current_genome.genome.modes)
+                            generate_next_mode_name(&current_genome.genome.modes[selected_idx].default_name, &current_genome.genome.modes)
                         } else {
                             format!("Mode {}", current_genome.genome.modes.len())
                         };
@@ -1338,16 +1338,21 @@ fn generate_next_mode_name(base_name: &str, existing_modes: &[ModeSettings]) -> 
         0
     };
     
+    // Helper to check if a name is already used (checks both name and default_name)
+    let is_name_taken = |candidate: &str| {
+        existing_modes.iter().any(|m| m.name == candidate || m.default_name == candidate)
+    };
+    
     // Try the next integer first (e.g., "Mode 5" -> "Mode 6")
     let next_int_name = format!("Mode {}", base_number + 1);
-    if !existing_modes.iter().any(|m| m.name == next_int_name) {
+    if !is_name_taken(&next_int_name) {
         return next_int_name;
     }
     
     // If that's taken, try decimal suffixes (e.g., "Mode 5.1", "Mode 5.2", etc.)
     for i in 1..100 {
         let candidate_name = format!("Mode {}.{}", base_number, i);
-        if !existing_modes.iter().any(|m| m.name == candidate_name) {
+        if !is_name_taken(&candidate_name) {
             return candidate_name;
         }
     }

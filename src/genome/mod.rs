@@ -94,6 +94,7 @@ impl Default for ChildSettings {
 #[derive(Clone, PartialEq)]
 pub struct ModeSettings {
     pub name: String,
+    pub default_name: String, // Original/default name to revert to when user clears the name
     pub color: Vec3,
 
     // Cell type
@@ -119,6 +120,7 @@ impl ModeSettings {
     /// Create a new mode that splits back to itself
     pub fn new_self_splitting(mode_index: i32, name: String) -> Self {
         Self {
+            default_name: name.clone(),
             name,
             color: Vec3::new(1.0, 1.0, 1.0),
             cell_type: 0,
@@ -145,6 +147,7 @@ impl Default for ModeSettings {
     fn default() -> Self {
         Self {
             name: "Untitled Mode".to_string(),
+            default_name: "Untitled Mode".to_string(),
             color: Vec3::new(1.0, 1.0, 1.0),
             cell_type: 0,
             parent_make_adhesion: false,
