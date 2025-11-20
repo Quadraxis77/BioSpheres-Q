@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use crate::simulation::PhysicsConfig;
-use crate::simulation::canonical_physics::CanonicalState;
+use crate::simulation::cpu_physics::CanonicalState;
 
 /// Immutable initial state for deterministic replay
 /// 

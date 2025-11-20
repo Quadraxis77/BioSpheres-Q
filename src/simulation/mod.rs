@@ -1,17 +1,17 @@
 use bevy::prelude::*;
 
-pub mod canonical_physics;
+pub mod cpu_physics;
 pub mod cell_allocation;
 pub mod clock;
 pub mod cpu_sim;
 pub mod double_buffer;
 pub mod gpu_sim;
 pub mod initial_state;
-pub mod physics;
+pub mod physics_config;
 pub mod preview_sim;
 
-pub use canonical_physics::{CanonicalState, DeterministicSpatialGrid, physics_step, deterministic_random};
-pub use physics::{PhysicsConfig, run_physics_step_sync, run_multi_step_sync};
+pub use cpu_physics::{CanonicalState, DeterministicSpatialGrid, physics_step, deterministic_random};
+pub use physics_config::PhysicsConfig;
 pub use cell_allocation::{Cell, Adhesion};
 pub use clock::SimulationClock;
 pub use cpu_sim::{CpuSimPlugin, CpuSimTimestepPlugin, CpuSceneState, CpuSceneEntity};

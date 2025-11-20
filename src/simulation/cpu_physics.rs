@@ -747,10 +747,10 @@ pub fn compute_collision_forces_canonical(
 /// Used by preview simulation for simpler, more predictable performance
 pub fn physics_step_st(
     state: &mut CanonicalState,
-    config: &crate::cell::physics::PhysicsConfig,
+    config: &crate::simulation::PhysicsConfig,
 ) {
     // 1. Verlet integration (position update)
-    crate::cell::physics::verlet_integrate_positions_soa_st(
+    verlet_integrate_positions_soa_st(
         &mut state.positions[..state.cell_count],
         &state.velocities[..state.cell_count],
         &state.accelerations[..state.cell_count],
@@ -758,7 +758,7 @@ pub fn physics_step_st(
     );
     
     // 2. Update rotations from angular velocities
-    crate::cell::physics::integrate_rotations_soa_st(
+    integrate_rotations_soa_st(
         &mut state.rotations[..state.cell_count],
         &state.angular_velocities[..state.cell_count],
         config.fixed_timestep,
@@ -774,14 +774,14 @@ pub fn physics_step_st(
     compute_collision_forces_canonical_st(state, &collisions, config);
     
     // 6. Apply boundary conditions
-    crate::cell::physics::apply_boundary_forces_soa_st(
+    apply_boundary_forces_soa_st(
         &state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
         config,
     );
     
     // 7. Verlet integration (velocity update)
-    crate::cell::physics::verlet_integrate_velocities_soa_st(
+    verlet_integrate_velocities_soa_st(
         &mut state.velocities[..state.cell_count],
         &mut state.accelerations[..state.cell_count],
         &mut state.prev_accelerations[..state.cell_count],
@@ -792,7 +792,7 @@ pub fn physics_step_st(
     );
     
     // 8. Update angular velocities from torques
-    crate::cell::physics::integrate_angular_velocities_soa_st(
+    integrate_angular_velocities_soa_st(
         &mut state.angular_velocities[..state.cell_count],
         &state.torques[..state.cell_count],
         &state.radii[..state.cell_count],
@@ -806,10 +806,10 @@ pub fn physics_step_st(
 /// This is the core function called by Main simulation mode
 pub fn physics_step(
     state: &mut CanonicalState,
-    config: &crate::cell::physics::PhysicsConfig,
+    config: &crate::simulation::PhysicsConfig,
 ) {
     // 1. Verlet integration (position update)
-    crate::cell::physics::verlet_integrate_positions_soa(
+    verlet_integrate_positions_soa(
         &mut state.positions[..state.cell_count],
         &state.velocities[..state.cell_count],
         &state.accelerations[..state.cell_count],
@@ -817,7 +817,7 @@ pub fn physics_step(
     );
     
     // 2. Update rotations from angular velocities
-    crate::cell::physics::integrate_rotations_soa(
+    integrate_rotations_soa(
         &mut state.rotations[..state.cell_count],
         &state.angular_velocities[..state.cell_count],
         config.fixed_timestep,
@@ -833,14 +833,14 @@ pub fn physics_step(
     compute_collision_forces_canonical(state, &collisions, config);
     
     // 6. Apply boundary conditions
-    crate::cell::physics::apply_boundary_forces_soa(
+    apply_boundary_forces_soa(
         &state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
         config,
     );
     
     // 7. Verlet integration (velocity update)
-    crate::cell::physics::verlet_integrate_velocities_soa(
+    verlet_integrate_velocities_soa(
         &mut state.velocities[..state.cell_count],
         &mut state.accelerations[..state.cell_count],
         &mut state.prev_accelerations[..state.cell_count],
@@ -851,7 +851,7 @@ pub fn physics_step(
     );
     
     // 8. Update angular velocities from torques
-    crate::cell::physics::integrate_angular_velocities_soa(
+    integrate_angular_velocities_soa(
         &mut state.angular_velocities[..state.cell_count],
         &state.torques[..state.cell_count],
         &state.radii[..state.cell_count],
@@ -1204,4 +1204,281 @@ fn hash_u64(mut x: u64) -> u64 {
         x >>= 8;
     }
     hash
+}
+
+// ============================================================================
+// Structure-of-Arrays (SoA) Integration Functions
+// ============================================================================
+// These pure functions operate on slices and are used by the physics_step functions above.
+// They provide both single-threaded and multi-threaded versions for flexibility.
+
+/// Verlet integration position update (SoA version) - Single-threaded
+/// Position update: x(t+dt) = x(t) + v(t)*dt + 0.5*a(t)*dt²
+pub fn verlet_integrate_positions_soa_st(
+    positions: &mut [Vec3],
+    velocities: &[Vec3],
+    accelerations: &[Vec3],
+    dt: f32,
+) {
+    let dt_sq = dt * dt;
+    for i in 0..positions.len() {
+        if velocities[i].is_finite() && accelerations[i].is_finite() {
+            positions[i] += velocities[i] * dt + 0.5 * accelerations[i] * dt_sq;
+        }
+    }
+}
+
+/// Verlet integration position update (SoA version) - Multithreaded
+/// Position update: x(t+dt) = x(t) + v(t)*dt + 0.5*a(t)*dt²
+/// 
+/// Uses parallel iteration for improved performance with large cell counts.
+pub fn verlet_integrate_positions_soa(
+    positions: &mut [Vec3],
+    velocities: &[Vec3],
+    accelerations: &[Vec3],
+    dt: f32,
+) {
+    use rayon::prelude::*;
+    
+    let dt_sq = dt * dt;
+    
+    // Use parallel iteration for better performance with many cells
+    positions.par_iter_mut()
+        .zip(velocities.par_iter())
+        .zip(accelerations.par_iter())
+        .for_each(|((pos, vel), acc)| {
+            if vel.is_finite() && acc.is_finite() {
+                *pos += *vel * dt + 0.5 * *acc * dt_sq;
+            }
+        });
+}
+
+/// Verlet integration velocity update (SoA version) - Single-threaded
+/// Velocity update: v(t+dt) = v(t) + 0.5*(a(t) + a(t+dt))*dt
+pub fn verlet_integrate_velocities_soa_st(
+    velocities: &mut [Vec3],
+    accelerations: &mut [Vec3],
+    prev_accelerations: &mut [Vec3],
+    forces: &[Vec3],
+    masses: &[f32],
+    dt: f32,
+    velocity_damping: f32,
+) {
+    let velocity_damping_factor = velocity_damping.powf(dt * 100.0);
+    
+    for i in 0..velocities.len() {
+        // Skip invalid masses
+        if masses[i] <= 0.0 || !masses[i].is_finite() {
+            continue;
+        }
+        
+        let old_acceleration = accelerations[i];
+        let new_acceleration = forces[i] / masses[i];
+        
+        if new_acceleration.is_finite() {
+            let velocity_change = 0.5 * (old_acceleration + new_acceleration) * dt;
+            velocities[i] = (velocities[i] + velocity_change) * velocity_damping_factor;
+            accelerations[i] = new_acceleration;
+            prev_accelerations[i] = old_acceleration;
+        }
+    }
+}
+
+/// Verlet integration velocity update (SoA version) - Multithreaded
+/// Velocity update: v(t+dt) = v(t) + 0.5*(a(t) + a(t+dt))*dt
+/// 
+/// Uses parallel iteration for improved performance with large cell counts.
+pub fn verlet_integrate_velocities_soa(
+    velocities: &mut [Vec3],
+    accelerations: &mut [Vec3],
+    prev_accelerations: &mut [Vec3],
+    forces: &[Vec3],
+    masses: &[f32],
+    dt: f32,
+    velocity_damping: f32,
+) {
+    use rayon::prelude::*;
+    
+    let velocity_damping_factor = velocity_damping.powf(dt * 100.0);
+    
+    // Use parallel iteration for better performance with many cells
+    velocities.par_iter_mut()
+        .zip(accelerations.par_iter_mut())
+        .zip(prev_accelerations.par_iter_mut())
+        .zip(forces.par_iter())
+        .zip(masses.par_iter())
+        .for_each(|((((vel, acc), prev_acc), force), mass)| {
+            // Skip invalid masses
+            if *mass <= 0.0 || !mass.is_finite() {
+                return;
+            }
+            
+            let old_acceleration = *acc;
+            let new_acceleration = *force / *mass;
+            
+            if new_acceleration.is_finite() {
+                let velocity_change = 0.5 * (old_acceleration + new_acceleration) * dt;
+                *vel = (*vel + velocity_change) * velocity_damping_factor;
+                *acc = new_acceleration;
+                *prev_acc = old_acceleration;
+            }
+        });
+}
+
+/// Apply boundary velocity reversal for cells crossing the spherical boundary (SoA version) - Single-threaded
+pub fn apply_boundary_forces_soa_st(
+    positions: &[Vec3],
+    velocities: &mut [Vec3],
+    config: &crate::simulation::PhysicsConfig,
+) {
+    for i in 0..positions.len() {
+        let distance_from_origin = positions[i].length();
+        
+        if distance_from_origin > config.sphere_radius {
+            let r_hat = if distance_from_origin > 0.0001 {
+                positions[i] / distance_from_origin
+            } else {
+                continue;
+            };
+            
+            // Decompose velocity into radial and tangential components
+            let radial_component_magnitude = velocities[i].dot(r_hat);
+            let v_radial = radial_component_magnitude * r_hat;
+            let v_tangential = velocities[i] - v_radial;
+            
+            // Reverse radial component
+            velocities[i] = v_tangential - v_radial;
+        }
+    }
+}
+
+/// Apply boundary velocity reversal for cells crossing the spherical boundary (SoA version) - Multithreaded
+/// 
+/// Uses parallel iteration for improved performance with large cell counts.
+pub fn apply_boundary_forces_soa(
+    positions: &[Vec3],
+    velocities: &mut [Vec3],
+    config: &crate::simulation::PhysicsConfig,
+) {
+    use rayon::prelude::*;
+    
+    let sphere_radius = config.sphere_radius;
+    
+    // Use parallel iteration for better performance with many cells
+    positions.par_iter()
+        .zip(velocities.par_iter_mut())
+        .for_each(|(pos, vel)| {
+            let distance_from_origin = pos.length();
+            
+            if distance_from_origin > sphere_radius {
+                let r_hat = if distance_from_origin > 0.0001 {
+                    *pos / distance_from_origin
+                } else {
+                    return;
+                };
+                
+                // Decompose velocity into radial and tangential components
+                let radial_component_magnitude = vel.dot(r_hat);
+                let v_radial = radial_component_magnitude * r_hat;
+                let v_tangential = *vel - v_radial;
+                
+                // Reverse radial component
+                *vel = v_tangential - v_radial;
+            }
+        });
+}
+
+/// Update angular velocities from torques (SoA version) - Single-threaded
+pub fn integrate_angular_velocities_soa_st(
+    angular_velocities: &mut [Vec3],
+    torques: &[Vec3],
+    radii: &[f32],
+    masses: &[f32],
+    dt: f32,
+    angular_damping: f32,
+) {
+    let angular_damping_factor = angular_damping.powf(dt * 100.0);
+    
+    for i in 0..angular_velocities.len() {
+        if masses[i] <= 0.0 || !masses[i].is_finite() || radii[i] <= 0.0 {
+            continue;
+        }
+        
+        // Moment of inertia for a sphere: I = (2/5) * m * r²
+        let moment_of_inertia = 0.4 * masses[i] * radii[i] * radii[i];
+        
+        if moment_of_inertia > 0.0 {
+            let angular_acceleration = torques[i] / moment_of_inertia;
+            angular_velocities[i] = (angular_velocities[i] + angular_acceleration * dt) * angular_damping_factor;
+        }
+    }
+}
+
+/// Update angular velocities from torques (SoA version) - Multithreaded
+pub fn integrate_angular_velocities_soa(
+    angular_velocities: &mut [Vec3],
+    torques: &[Vec3],
+    radii: &[f32],
+    masses: &[f32],
+    dt: f32,
+    angular_damping: f32,
+) {
+    use rayon::prelude::*;
+    
+    let angular_damping_factor = angular_damping.powf(dt * 100.0);
+    
+    angular_velocities.par_iter_mut()
+        .zip(torques.par_iter())
+        .zip(radii.par_iter())
+        .zip(masses.par_iter())
+        .for_each(|(((ang_vel, torque), radius), mass)| {
+            if *mass <= 0.0 || !mass.is_finite() || *radius <= 0.0 {
+                return;
+            }
+            
+            // Moment of inertia for a sphere: I = (2/5) * m * r²
+            let moment_of_inertia = 0.4 * *mass * *radius * *radius;
+            
+            if moment_of_inertia > 0.0 {
+                let angular_acceleration = *torque / moment_of_inertia;
+                *ang_vel = (*ang_vel + angular_acceleration * dt) * angular_damping_factor;
+            }
+        });
+}
+
+/// Update rotations from angular velocities (SoA version) - Single-threaded
+pub fn integrate_rotations_soa_st(
+    rotations: &mut [Quat],
+    angular_velocities: &[Vec3],
+    dt: f32,
+) {
+    for i in 0..rotations.len() {
+        let ang_vel = angular_velocities[i];
+        if ang_vel.length_squared() > 0.0001 {
+            let angle = ang_vel.length() * dt;
+            let axis = ang_vel.normalize();
+            let delta_rotation = Quat::from_axis_angle(axis, angle);
+            rotations[i] = (delta_rotation * rotations[i]).normalize();
+        }
+    }
+}
+
+/// Update rotations from angular velocities (SoA version) - Multithreaded
+pub fn integrate_rotations_soa(
+    rotations: &mut [Quat],
+    angular_velocities: &[Vec3],
+    dt: f32,
+) {
+    use rayon::prelude::*;
+    
+    rotations.par_iter_mut()
+        .zip(angular_velocities.par_iter())
+        .for_each(|(rotation, ang_vel)| {
+            if ang_vel.length_squared() > 0.0001 {
+                let angle = ang_vel.length() * dt;
+                let axis = ang_vel.normalize();
+                let delta_rotation = Quat::from_axis_angle(axis, angle);
+                *rotation = (delta_rotation * *rotation).normalize();
+            }
+        });
 }

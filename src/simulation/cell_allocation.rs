@@ -452,7 +452,7 @@ impl Plugin for CellSimulationPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Simulation::new(self.cell_capacity, self.adhesion_capacity));
         // Note: setup and simulation_step systems removed - they were demo/test systems
-        // The Simulation resource is used directly by division_step in canonical_physics
+        // The Simulation resource is used directly by division_step in cpu_physics
     }
 }
 

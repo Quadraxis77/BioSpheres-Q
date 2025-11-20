@@ -38,3 +38,13 @@ impl Default for RenderingConfig {
         }
     }
 }
+
+/// System that synchronizes Transform components with CellPosition
+/// Copies CellPosition.position to Transform.translation for rendering
+pub fn sync_transforms(
+    mut cells_query: Query<(&crate::cell::CellPosition, &mut Transform)>,
+) {
+    for (cell_position, mut transform) in cells_query.iter_mut() {
+        transform.translation = cell_position.position;
+    }
+}

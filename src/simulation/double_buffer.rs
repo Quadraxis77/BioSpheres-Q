@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use std::sync::{Arc, Mutex};
-use crate::simulation::canonical_physics::CanonicalState;
+use crate::simulation::cpu_physics::CanonicalState;
 
 /// Double-buffered canonical state for lock-free reads during rendering
 /// 

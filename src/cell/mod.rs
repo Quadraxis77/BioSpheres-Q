@@ -8,17 +8,18 @@ pub use adhesion::AdhesionPlugin;
 pub use division::{DivisionPlugin, DivisionQueue, has_pending_divisions};
 pub use types::TypesPlugin;
 
-// Re-export physics types from simulation module for backwards compatibility
+// Re-export physics types for backwards compatibility
 pub mod physics {
-    pub use crate::simulation::physics::{
-        PhysicsConfig, CellForces, Cytoskeleton, 
+    pub use crate::simulation::physics_config::PhysicsConfig;
+    pub use crate::simulation::cpu_physics::{
         verlet_integrate_positions_soa, verlet_integrate_velocities_soa,
         verlet_integrate_positions_soa_st, verlet_integrate_velocities_soa_st,
         apply_boundary_forces_soa, apply_boundary_forces_soa_st,
         integrate_angular_velocities_soa, integrate_angular_velocities_soa_st,
         integrate_rotations_soa, integrate_rotations_soa_st,
-        sync_transforms
     };
+    pub use crate::rendering::sync_transforms;
+    pub use super::{CellForces, Cytoskeleton};
 }
 
 /// Main cell plugin that coordinates all cell-related functionality
@@ -53,6 +54,20 @@ pub struct CellPosition {
 pub struct CellOrientation {
     pub rotation: Quat,
     pub angular_velocity: Vec3,
+}
+
+/// Cytoskeleton properties affecting collision response
+#[derive(Component, Default, Clone, Copy)]
+pub struct Cytoskeleton {
+    pub stiffness: f32,
+}
+
+/// Accumulated forces and acceleration for Velocity Verlet integration
+#[derive(Component, Default, Clone)]
+pub struct CellForces {
+    pub force: Vec3,
+    pub acceleration: Vec3,
+    pub prev_acceleration: Vec3,
 }
 
 /// Signaling substances (like Cell Lab)

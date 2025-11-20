@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
 use crate::genome::CurrentGenome;
 use crate::ui::camera::MainCamera;
-use crate::simulation::canonical_physics::CanonicalState;
+use crate::simulation::cpu_physics::CanonicalState;
 use crate::simulation::initial_state::InitialState;
 use crate::simulation::PhysicsConfig;
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ impl Plugin for PreviewSimPlugin {
                 Update,
                 (
                     sync_preview_visuals,
-                    crate::simulation::physics::sync_transforms,
+                    crate::rendering::sync_transforms,
                 )
                     .chain()
                     .after(crate::input::CellDraggingSet)
@@ -319,14 +319,14 @@ fn run_preview_resimulation(
     for step in 0..steps {
         let current_time = (start_step + step) as f32 * config.fixed_timestep;
 
-        // Run canonical physics step (single-threaded for preview)
+        // Run CPU physics step (single-threaded for preview)
         let physics_start = std::time::Instant::now();
-        crate::simulation::canonical_physics::physics_step_st(&mut preview_state.canonical_state, &config);
+        crate::simulation::cpu_physics::physics_step_st(&mut preview_state.canonical_state, &config);
         total_physics_time += physics_start.elapsed();
 
-        // Run division step using canonical physics
+        // Run division step using CPU physics
         let division_start = std::time::Instant::now();
-        crate::simulation::canonical_physics::division_step(
+        crate::simulation::cpu_physics::division_step(
             &mut preview_state.canonical_state,
             &genome.genome,
             current_time,
