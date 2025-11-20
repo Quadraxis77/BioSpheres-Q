@@ -5,6 +5,7 @@ pub mod debug_info;
 pub mod imgui_panel;
 pub mod imgui_widgets;
 pub mod genome_editor;
+pub mod imnodes_extensions;
 pub mod performance_monitor;
 pub mod scene_manager;
 pub mod time_scrubber;

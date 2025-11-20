@@ -1,12 +1,16 @@
 use bevy::prelude::*;
 
+pub mod node_graph;
+pub use node_graph::GenomeNodeGraph;
+
 /// Plugin for genome management
 pub struct GenomePlugin;
 
 impl Plugin for GenomePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GenomeLibrary>()
-            .init_resource::<CurrentGenome>();
+            .init_resource::<CurrentGenome>()
+            .init_resource::<GenomeNodeGraph>();
     }
 }
 
@@ -111,6 +115,32 @@ pub struct ModeSettings {
     pub adhesion_settings: AdhesionSettings,
 }
 
+impl ModeSettings {
+    /// Create a new mode that splits back to itself
+    pub fn new_self_splitting(mode_index: i32, name: String) -> Self {
+        Self {
+            name,
+            color: Vec3::new(1.0, 1.0, 1.0),
+            cell_type: 0,
+            parent_make_adhesion: false,
+            split_mass: 1.0,
+            split_interval: 5.0,
+            parent_split_direction: Vec2::ZERO,
+            max_adhesions: 20,
+            enable_parent_angle_snapping: true,
+            child_a: ChildSettings {
+                mode_number: mode_index,
+                ..Default::default()
+            },
+            child_b: ChildSettings {
+                mode_number: mode_index,
+                ..Default::default()
+            },
+            adhesion_settings: AdhesionSettings::default(),
+        }
+    }
+}
+
 impl Default for ModeSettings {
     fn default() -> Self {
         Self {
@@ -139,6 +169,17 @@ pub struct GenomeData {
     pub modes: Vec<ModeSettings>,
 }
 
+impl GenomeData {
+    /// Set all modes to split back to themselves
+    pub fn set_all_modes_self_splitting(&mut self) {
+        for (idx, mode) in self.modes.iter_mut().enumerate() {
+            let mode_idx = idx as i32;
+            mode.child_a.mode_number = mode_idx;
+            mode.child_b.mode_number = mode_idx;
+        }
+    }
+}
+
 impl Default for GenomeData {
     fn default() -> Self {
         let mut genome = Self {
@@ -147,12 +188,11 @@ impl Default for GenomeData {
             initial_orientation: Quat::IDENTITY,
             modes: Vec::new(),
         };
-        // Initialize with one default mode
-        genome.modes.push(ModeSettings {
-            name: "Default Mode".to_string(),
-            color: Vec3::new(1.0, 1.0, 1.0),
-            ..Default::default()
-        });
+        // Initialize with one default mode that splits back to itself
+        genome.modes.push(ModeSettings::new_self_splitting(
+            0,
+            "Default Mode".to_string(),
+        ));
         genome
     }
 }

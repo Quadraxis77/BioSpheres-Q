@@ -1,16 +1,33 @@
 use bevy::prelude::*;
 use bevy_mod_imgui::prelude::*;
 use imgui::InputTextFlags;
-use imnodes::{Context, EditorContext, editor};
+use imnodes::{Context, EditorContext, editor, PinShape, InputPinId, OutputPinId, LinkId};
 use crate::genome::*;
 use crate::simulation::{SimulationState, SimulationMode};
 use super::imgui_widgets;
 use super::camera::ImGuiWantCapture;
+use super::imnodes_extensions;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// Resource to track genome graph window state
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct GenomeGraphState {
     pub show_window: bool,
+    pub is_panning: bool,
+    pub last_mouse_pos: Option<[f32; 2]>,
+    pub panning_offset: [f32; 2],
+}
+
+impl Default for GenomeGraphState {
+    fn default() -> Self {
+        Self {
+            show_window: false,
+            is_panning: false,
+            last_mouse_pos: None,
+            panning_offset: [0.0, 0.0],
+        }
+    }
 }
 
 /// Genome editor plugin - modular UI component for editing genome data
@@ -19,12 +36,21 @@ pub struct GenomeEditorPlugin;
 impl Plugin for GenomeEditorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GenomeGraphState>()
+            .init_resource::<PreviousGenomeState>()
             .add_systems(Update, (
                 update_imgui_capture_state,
+                detect_genome_changes,
                 render_genome_editor,
                 render_genome_graph,
             ).chain());
     }
+}
+
+/// Resource to track previous genome state for change detection
+#[derive(Resource, Default)]
+struct PreviousGenomeState {
+    mode_count: usize,
+    mode_connections: Vec<(usize, i32, i32)>, // (mode_idx, child_a, child_b)
 }
 
 /// System to update ImGui mouse capture state - runs before other UI systems
@@ -36,6 +62,29 @@ fn update_imgui_capture_state(
     imgui_capture.want_capture_mouse = ui.io().want_capture_mouse;
 }
 
+/// System to detect genome changes and trigger node graph rebuild
+fn detect_genome_changes(
+    current_genome: Res<CurrentGenome>,
+    mut previous_state: ResMut<PreviousGenomeState>,
+    mut node_graph: ResMut<GenomeNodeGraph>,
+) {
+    let current_mode_count = current_genome.genome.modes.len();
+    let current_connections: Vec<(usize, i32, i32)> = current_genome.genome.modes.iter()
+        .enumerate()
+        .map(|(idx, mode)| (idx, mode.child_a.mode_number, mode.child_b.mode_number))
+        .collect();
+
+    // Check if mode count changed or connections changed
+    let needs_rebuild = current_mode_count != previous_state.mode_count
+        || current_connections != previous_state.mode_connections;
+
+    if needs_rebuild {
+        node_graph.mark_for_rebuild();
+        previous_state.mode_count = current_mode_count;
+        previous_state.mode_connections = current_connections;
+    }
+}
+
 /// Main genome editor rendering system
 fn render_genome_editor(
     mut current_genome: ResMut<CurrentGenome>,
@@ -43,6 +92,7 @@ fn render_genome_editor(
     mut simulation_state: ResMut<SimulationState>,
     preview_state: Res<crate::simulation::preview_sim::PreviewSimState>,
     mut graph_state: ResMut<GenomeGraphState>,
+    mut node_graph: ResMut<GenomeNodeGraph>,
 ) {
     // Only show genome editor in Preview mode
     if simulation_state.mode != SimulationMode::Preview {
@@ -110,11 +160,35 @@ fn render_genome_editor(
             ui.text("Modes:");
             ui.same_line();
             if ui.button("Add Mode") {
-                let new_mode = ModeSettings {
-                    name: format!("Mode {}", current_genome.genome.modes.len()),
-                    ..Default::default()
+                let selected_idx = current_genome.selected_mode_index as usize;
+                let insert_idx = if selected_idx < current_genome.genome.modes.len() {
+                    selected_idx + 1
+                } else {
+                    current_genome.genome.modes.len()
                 };
-                current_genome.genome.modes.push(new_mode);
+                
+                // Generate new mode name based on selected mode
+                let new_name = if selected_idx < current_genome.genome.modes.len() {
+                    generate_next_mode_name(&current_genome.genome.modes[selected_idx].name, &current_genome.genome.modes)
+                } else {
+                    format!("Mode {}", current_genome.genome.modes.len())
+                };
+                
+                let new_mode = ModeSettings::new_self_splitting(
+                    insert_idx as i32,
+                    new_name,
+                );
+                
+                current_genome.genome.modes.insert(insert_idx, new_mode);
+                
+                // Update mode numbers for all modes after insertion point
+                update_mode_numbers_after_insert(&mut current_genome.genome, insert_idx);
+                
+                // Select the newly created mode
+                current_genome.selected_mode_index = insert_idx as i32;
+                
+                // Mark node graph for rebuild
+                node_graph.mark_for_rebuild();
             }
 
             ui.same_line();
@@ -125,6 +199,8 @@ fn render_genome_editor(
                     if current_genome.selected_mode_index >= current_genome.genome.modes.len() as i32 {
                         current_genome.selected_mode_index = (current_genome.genome.modes.len() as i32) - 1;
                     }
+                    // Mark node graph for rebuild
+                    node_graph.mark_for_rebuild();
                 }
             }
 
@@ -167,8 +243,7 @@ fn render_genome_editor(
                         };
                         let _text_style = ui.push_style_color(StyleColor::Text, text_color);
 
-                        let button_label = format!("{}: {}", i, name);
-                        if ui.button_with_size(&button_label, [-1.0, 0.0]) {
+                        if ui.button_with_size(name, [-1.0, 0.0]) {
                             new_selected_index = i as i32;
                         }
 
@@ -359,7 +434,7 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
 
         // Child A Settings Tab
         if let Some(_tab) = ui.tab_item("Child A Settings") {
-            draw_child_settings(ui, "Child A", &mut mode.child_a, all_modes);
+            let _mode_changed = draw_child_settings(ui, "Child A", &mut mode.child_a, all_modes);
 
             ui.text("Child A Orientation:");
             ui.spacing();
@@ -381,7 +456,7 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
 
         // Child B Settings Tab
         if let Some(_tab) = ui.tab_item("Child B Settings") {
-            draw_child_settings(ui, "Child B", &mut mode.child_b, all_modes);
+            let _mode_changed = draw_child_settings(ui, "Child B", &mut mode.child_b, all_modes);
 
             ui.text("Child B Orientation:");
             ui.spacing();
@@ -516,8 +591,10 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings) {
     }
 }
 
-/// Draw child settings
-fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_modes: &[ModeSettings]) {
+/// Draw child settings - returns true if mode number changed
+fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_modes: &[ModeSettings]) -> bool {
+    let mut mode_changed = false;
+    
     ui.text("Mode:");
     let mode_names: Vec<String> = all_modes.iter()
         .map(|m| m.name.clone())
@@ -530,6 +607,7 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
         for (i, name) in mode_names.iter().enumerate() {
             let is_selected = i == mode_index;
             if ui.selectable_config(name).selected(is_selected).build() {
+                let old_mode = child.mode_number;
                 child.mode_number = i as i32;
                 // Clamp to valid range
                 if child.mode_number >= all_modes.len() as i32 {
@@ -538,6 +616,7 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
                 if child.mode_number < 0 {
                     child.mode_number = 0;
                 }
+                mode_changed = old_mode != child.mode_number;
             }
         }
     }
@@ -547,6 +626,8 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
     ui.spacing();
 
     ui.checkbox("Keep Adhesion", &mut child.keep_adhesion);
+    
+    mode_changed
 }
 
 /// Draw adhesion settings
@@ -592,6 +673,8 @@ fn render_genome_graph(
     mut graph_state: ResMut<GenomeGraphState>,
     mut imgui_context: NonSendMut<ImguiContext>,
     simulation_state: Res<SimulationState>,
+    mut current_genome: ResMut<CurrentGenome>,
+    mut node_graph: ResMut<GenomeNodeGraph>,
 ) {
     // Only show in Preview mode and if window is open
     if simulation_state.mode != SimulationMode::Preview || !graph_state.show_window {
@@ -600,36 +683,618 @@ fn render_genome_graph(
 
     let ui = imgui_context.ui();
 
-    // Create static context and editor for persistent state
-    // We can't store these in a resource because they're not thread-safe (not Send/Sync)
-    // This is safe because Bevy systems with NonSendMut run on the main thread only
-    static mut IMNODES_CONTEXT: Option<Context> = None;
-    static mut EDITOR_CONTEXT: Option<EditorContext> = None;
+    // Rebuild graph if needed
+    if node_graph.needs_rebuild {
+        rebuild_node_graph(&current_genome.genome, &mut node_graph);
+        node_graph.needs_rebuild = false;
+    }
 
-    // Safety: This system uses NonSendMut<ImguiContext>, which means Bevy guarantees
-    // it only runs on the main thread, so there's no risk of data races
-    unsafe {
-        if IMNODES_CONTEXT.is_none() {
-            let context = Context::new();
-            let editor = context.create_editor();
-            IMNODES_CONTEXT = Some(context);
-            EDITOR_CONTEXT = Some(editor);
+    // Calculate layout if needed
+    if node_graph.needs_layout {
+        node_graph.calculate_grid_layout();
+    }
+
+    let mut show_window = graph_state.show_window;
+    
+    ui.window("Genome Graph")
+        .opened(&mut show_window)
+        .position([820.0, 13.0], Condition::FirstUseEver)
+        .size([800.0, 600.0], Condition::FirstUseEver)
+        .bg_alpha(1.0) // Make window fully opaque
+        .no_nav() // Disable navigation to allow mouse input to pass through
+        .build(|| {
+            // Show help text
+            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Shift+Click: Add mode | Shift+Right-click node: Remove | Middle/Right drag: Pan");
+            ui.separator();
+            
+
+            // Thread-local storage for imnodes context
+            thread_local! {
+                static IMNODES_CONTEXT: RefCell<Option<Context>> = RefCell::new(None);
+                static EDITOR_CONTEXT: RefCell<Option<EditorContext>> = RefCell::new(None);
+            }
+
+            // Initialize contexts if needed
+            IMNODES_CONTEXT.with(|ctx| {
+                if ctx.borrow().is_none() {
+                    *ctx.borrow_mut() = Some(Context::new());
+                }
+            });
+            
+            // Configure IO every frame to enable panning
+            unsafe {
+                let io = imnodes_sys::imnodes_GetIO();
+                if !io.is_null() {
+                    // Enable link detachment with modifier click (Ctrl+Click to detach)
+                    (*io).LinkDetachWithModifierClick.Modifier = std::ptr::null_mut();
+                    
+                    // Set middle mouse button for panning (standard behavior)
+                    // ImGui mouse buttons: 0 = left, 1 = right, 2 = middle
+                    (*io).AltMouseButton = 2; // Middle mouse button
+                    
+                    // Increase auto-panning speed for better UX
+                    (*io).AutoPanningSpeed = 1000.0;
+                }
+            }
+            
+            EDITOR_CONTEXT.with(|editor_ctx| {
+                if editor_ctx.borrow().is_none() {
+                    IMNODES_CONTEXT.with(|ctx| {
+                        if let Some(context) = ctx.borrow().as_ref() {
+                            *editor_ctx.borrow_mut() = Some(context.create_editor());
+                        }
+                    });
+                }
+                
+                // Set the editor context as active for this frame
+                if let Some(editor_context) = editor_ctx.borrow().as_ref() {
+                    unsafe {
+                        // Get the raw pointer to the editor context
+                        let editor_ptr = editor_context as *const EditorContext as *mut imnodes_sys::ImNodesEditorContext;
+                        imnodes_sys::imnodes_EditorContextSet(editor_ptr);
+                    }
+                }
+            });
+
+            // Manual panning implementation with right mouse button as alternative
+            // This provides an additional way to pan besides middle mouse button
+            let is_right_mouse_down = ui.is_mouse_down(imgui::MouseButton::Right);
+            let mouse_pos = ui.io().mouse_pos;
+            
+            // Calculate panning delta
+            let mut panning_delta: Option<(f32, f32)> = None;
+            
+            if is_right_mouse_down {
+                if !graph_state.is_panning {
+                    // Start panning - no need to check window hover, just start tracking
+                    graph_state.is_panning = true;
+                    graph_state.last_mouse_pos = Some(mouse_pos);
+                } else if let Some(last_pos) = graph_state.last_mouse_pos {
+                    // Continue panning - calculate delta
+                    let delta_x = mouse_pos[0] - last_pos[0];
+                    let delta_y = mouse_pos[1] - last_pos[1];
+                    
+                    if delta_x.abs() > 0.01 || delta_y.abs() > 0.01 {
+                        panning_delta = Some((delta_x, delta_y));
+                        graph_state.panning_offset[0] += delta_x;
+                        graph_state.panning_offset[1] += delta_y;
+                    }
+                    
+                    graph_state.last_mouse_pos = Some(mouse_pos);
+                }
+            } else {
+                // Stop panning when mouse button is released
+                graph_state.is_panning = false;
+                graph_state.last_mouse_pos = None;
+            }
+            
+            // Apply panning by moving all node positions
+            if let Some((delta_x, delta_y)) = panning_delta {
+                for mode_idx in 0..current_genome.genome.modes.len() {
+                    if let Some(node_id) = node_graph.get_node_for_mode(mode_idx) {
+                        if let Some((x, y)) = node_graph.get_node_position(node_id) {
+                            node_graph.set_node_position(node_id, x + delta_x, y + delta_y);
+                        }
+                    }
+                }
+            }
+
+            EDITOR_CONTEXT.with(|editor_ctx| {
+                if let Some(editor_context) = editor_ctx.borrow_mut().as_mut() {
+                    // Collect node IDs before entering editor scope
+                    let node_ids: Vec<(usize, i32)> = current_genome
+                        .genome
+                        .modes
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(idx, _)| node_graph.get_node_for_mode(idx).map(|id| (idx, id)))
+                        .collect();
+
+                    // Variables to capture link events
+                    let mut created_start_pin = unsafe { std::mem::transmute(0i32) };
+                    let mut created_end_pin = unsafe { std::mem::transmute(0i32) };
+                    let mut dropped_link_id = unsafe { std::mem::transmute(0i32) };
+                    let mut link_started_pin = unsafe { std::mem::transmute(0i32) };
+                    let mut hovered_node_id: i32 = 0;
+
+                    editor(editor_context, |mut node_editor| {
+                        // Draw nodes for each mode
+                        for (mode_idx, mode) in current_genome.genome.modes.iter().enumerate() {
+                            if let Some(node_id) = node_graph.get_node_for_mode(mode_idx) {
+                                draw_genome_node(ui, &mut node_editor, node_id, mode, mode_idx, &node_graph);
+                            }
+                        }
+
+                        // Draw links between nodes
+                        for (link_idx, (from_node, to_node, is_child_a)) in node_graph.links.iter().enumerate() {
+                            let output_pin = if *is_child_a {
+                                *from_node * 100 + 1
+                            } else {
+                                *from_node * 100 + 2
+                            };
+                            let input_pin = *to_node * 100;
+
+                            // Use unsafe transmute to convert i32 to the required types
+                            unsafe {
+                                let link_id: imnodes::LinkId = std::mem::transmute(link_idx as i32);
+                                let out_id: imnodes::OutputPinId = std::mem::transmute(output_pin);
+                                let in_id: imnodes::InputPinId = std::mem::transmute(input_pin);
+                                // Note: add_link signature is (link_id, input_pin_id, output_pin_id)
+                                node_editor.add_link(link_id, in_id, out_id);
+                            }
+                        }
+                    });
+
+                    // Check for link events after editor scope closes but while still in window
+                    let link_was_created = imnodes_extensions::get_created_link_pins(&mut created_start_pin, &mut created_end_pin);
+                    let link_was_dropped = imnodes_extensions::get_dropped_link_id(&mut dropped_link_id);
+                    let link_is_started = imnodes_extensions::is_link_started(&mut link_started_pin);
+                    let node_is_hovered = imnodes_extensions::is_node_hovered(&mut hovered_node_id);
+
+                    // Handle link creation
+                    if link_was_created {
+                        handle_link_created(&mut current_genome, &mut node_graph, created_start_pin, created_end_pin);
+                    }
+                    // Handle link dropped over a node (auto-connect to parent pin)
+                    else if link_is_started && node_is_hovered && !ui.io().want_capture_mouse {
+                        // User is dragging a link and hovering over a node
+                        // When they release, connect to that node's parent pin
+                        if !ui.is_mouse_down(imgui::MouseButton::Left) {
+                            // Convert the hovered node ID to its parent input pin
+                            let parent_input_pin: imnodes::InputPinId = unsafe { std::mem::transmute(hovered_node_id * 100) };
+                            handle_link_created(&mut current_genome, &mut node_graph, link_started_pin, parent_input_pin);
+                        }
+                    }
+
+                    // Handle link destruction
+                    if link_was_dropped {
+                        handle_link_destroyed(&mut current_genome, &mut node_graph, dropped_link_id);
+                    }
+
+                    // Handle node click to select mode (without shift)
+                    if node_is_hovered && ui.is_mouse_clicked(imgui::MouseButton::Left) && !ui.io().key_shift {
+                        if let Some(mode_idx) = node_graph.get_mode_for_node(hovered_node_id) {
+                            current_genome.selected_mode_index = mode_idx as i32;
+                        }
+                    }
+
+                    // Handle Shift+Click to add new mode
+                    // Check if shift was held and left mouse was clicked, and we're not hovering a node
+                    if ui.io().key_shift && ui.is_mouse_clicked(imgui::MouseButton::Left) && !node_is_hovered {
+                        // Get mouse position in editor space using imnodes API
+                        let mouse_pos_editor = unsafe {
+                            let mut pos = imnodes_sys::ImVec2 { x: 0.0, y: 0.0 };
+                            imnodes_sys::imnodes_EditorContextGetPanning(&mut pos as *mut _);
+                            let mouse_screen = ui.io().mouse_pos;
+                            let window_pos = ui.window_pos();
+                            [
+                                mouse_screen[0] - window_pos[0] - pos.x,
+                                mouse_screen[1] - window_pos[1] - 40.0 - pos.y, // Subtract title bar and help text height
+                            ]
+                        };
+                        
+                        // Insert after selected mode
+                        let selected_idx = current_genome.selected_mode_index as usize;
+                        let insert_idx = if selected_idx < current_genome.genome.modes.len() {
+                            selected_idx + 1
+                        } else {
+                            current_genome.genome.modes.len()
+                        };
+                        
+                        // Generate new mode name based on selected mode
+                        let new_name = if selected_idx < current_genome.genome.modes.len() {
+                            generate_next_mode_name(&current_genome.genome.modes[selected_idx].name, &current_genome.genome.modes)
+                        } else {
+                            format!("Mode {}", current_genome.genome.modes.len())
+                        };
+                        
+                        let new_mode = ModeSettings::new_self_splitting(
+                            insert_idx as i32,
+                            new_name,
+                        );
+                        
+                        current_genome.genome.modes.insert(insert_idx, new_mode);
+                        
+                        // Update mode numbers for all modes after insertion point
+                        update_mode_numbers_after_insert(&mut current_genome.genome, insert_idx);
+                        
+                        // Select the newly created mode
+                        current_genome.selected_mode_index = insert_idx as i32;
+                        
+                        // Store the desired position for the new mode before rebuild
+                        node_graph.pending_position = Some((insert_idx, mouse_pos_editor[0], mouse_pos_editor[1]));
+                        
+                        // Mark node graph for rebuild
+                        node_graph.mark_for_rebuild();
+                    }
+
+                    // Handle Shift+Right-click to remove node
+                    if node_is_hovered && ui.is_mouse_clicked(imgui::MouseButton::Right) && ui.io().key_shift {
+                        // Get the mode index for the hovered node
+                        if let Some(mode_idx) = node_graph.get_mode_for_node(hovered_node_id) {
+                            // Don't allow removing the last mode
+                            if current_genome.genome.modes.len() > 1 {
+                                // Remove the mode
+                                current_genome.genome.modes.remove(mode_idx);
+                                
+                                // Update references in other modes
+                                for (idx, mode) in current_genome.genome.modes.iter_mut().enumerate() {
+                                    // If child references the removed mode, make it self-splitting
+                                    if mode.child_a.mode_number == mode_idx as i32 {
+                                        mode.child_a.mode_number = idx as i32;
+                                    } else if mode.child_a.mode_number > mode_idx as i32 {
+                                        // Shift down references to modes after the removed one
+                                        mode.child_a.mode_number -= 1;
+                                    }
+                                    
+                                    if mode.child_b.mode_number == mode_idx as i32 {
+                                        mode.child_b.mode_number = idx as i32;
+                                    } else if mode.child_b.mode_number > mode_idx as i32 {
+                                        mode.child_b.mode_number -= 1;
+                                    }
+                                }
+                                
+                                // Update initial mode if needed
+                                if current_genome.genome.initial_mode == mode_idx as i32 {
+                                    current_genome.genome.initial_mode = 0;
+                                } else if current_genome.genome.initial_mode > mode_idx as i32 {
+                                    current_genome.genome.initial_mode -= 1;
+                                }
+                                
+                                // Update selected mode if needed
+                                if current_genome.selected_mode_index >= current_genome.genome.modes.len() as i32 {
+                                    current_genome.selected_mode_index = (current_genome.genome.modes.len() as i32) - 1;
+                                }
+                                
+                                // Mark node graph for rebuild
+                                node_graph.mark_for_rebuild();
+                            }
+                        }
+                    }
+
+                    // Update stored positions after drawing (user may have moved nodes)
+                    for (_mode_idx, node_id) in node_ids {
+                        unsafe {
+                            let node_id_typed: imnodes::NodeId = std::mem::transmute(node_id);
+                            let pos = node_id_typed.get_position(imnodes::CoordinateSystem::EditorSpace);
+                            node_graph.set_node_position(node_id, pos.x, pos.y);
+                        }
+                    }
+                }
+            });
+        });
+    
+    // Update the show_window state
+    graph_state.show_window = show_window;
+}
+
+/// Rebuild the node graph from genome data
+fn rebuild_node_graph(genome: &GenomeData, node_graph: &mut GenomeNodeGraph) {
+    // Save existing positions by mode name (more stable than index)
+    // We need to build a map of current node_id -> mode_name BEFORE clearing
+    let mut saved_positions_by_name: HashMap<String, (f32, f32)> = HashMap::new();
+    
+    // First pass: build a map of mode_idx -> mode_name from the CURRENT genome
+    let mode_names: HashMap<usize, String> = genome.modes.iter()
+        .enumerate()
+        .map(|(idx, mode)| (idx, mode.name.clone()))
+        .collect();
+    
+    // Second pass: save positions by name using the current node graph
+    for (mode_idx, node_id) in &node_graph.mode_to_node {
+        if let Some(pos) = node_graph.get_node_position(*node_id) {
+            // Get the mode name for this mode index
+            if let Some(mode_name) = mode_names.get(mode_idx) {
+                saved_positions_by_name.insert(mode_name.clone(), pos);
+            }
+        }
+    }
+    
+    // Track if we have saved positions to restore
+    let has_saved_positions = !saved_positions_by_name.is_empty();
+    
+    node_graph.clear();
+
+    // Create nodes for all modes
+    let mut restored_positions = 0;
+    for (mode_idx, mode) in genome.modes.iter().enumerate() {
+        let node_id = node_graph.create_node(mode_idx);
+        
+        // Try to restore position by name (survives reordering/deletion)
+        if let Some(&(x, y)) = saved_positions_by_name.get(&mode.name) {
+            node_graph.set_node_position(node_id, x, y);
+            restored_positions += 1;
+        }
+    }
+    
+    // If we restored positions for existing nodes, don't trigger automatic layout
+    if has_saved_positions && restored_positions > 0 {
+        node_graph.needs_layout = false;
+    }
+    
+    // Apply pending position if set (for newly created nodes)
+    if let Some((mode_idx, x, y)) = node_graph.pending_position.take() {
+        if let Some(node_id) = node_graph.get_node_for_mode(mode_idx) {
+            node_graph.set_node_position(node_id, x, y);
+            // Don't need automatic layout since we have explicit positions
+            node_graph.needs_layout = false;
         }
     }
 
-    ui.window("Genome Graph")
-        .opened(&mut graph_state.show_window)
-        .position([820.0, 13.0], Condition::FirstUseEver)
-        .size([600.0, 600.0], Condition::FirstUseEver)
-        .build(|| {
-            // Create the node editor
-            // Safety: Same as above - main thread only access
-            unsafe {
-                if let Some(editor_context) = &mut EDITOR_CONTEXT {
-                    editor(editor_context, |_editor| {
-                        // Empty node graph for now
-                    });
+    // Create links based on child mode references
+    for (mode_idx, mode) in genome.modes.iter().enumerate() {
+        if let Some(parent_node) = node_graph.get_node_for_mode(mode_idx) {
+            // Link to Child A
+            let child_a_idx = mode.child_a.mode_number as usize;
+            if child_a_idx < genome.modes.len() {
+                if let Some(child_a_node) = node_graph.get_node_for_mode(child_a_idx) {
+                    node_graph.add_link(parent_node, child_a_node, true);
                 }
             }
+
+            // Link to Child B
+            let child_b_idx = mode.child_b.mode_number as usize;
+            if child_b_idx < genome.modes.len() {
+                if let Some(child_b_node) = node_graph.get_node_for_mode(child_b_idx) {
+                    node_graph.add_link(parent_node, child_b_node, false);
+                }
+            }
+        }
+    }
+}
+
+/// Draw a genome node in the node editor
+fn draw_genome_node(
+    ui: &Ui,
+    node_editor: &mut imnodes::EditorScope,
+    node_id: i32,
+    mode: &ModeSettings,
+    _mode_idx: usize,
+    node_graph: &GenomeNodeGraph,
+) {
+    // Use unsafe transmute to convert i32 to NodeId (both are 32-bit)
+    unsafe {
+        let node_id_typed: imnodes::NodeId = std::mem::transmute(node_id);
+
+        // Set node position if we have one stored
+        if let Some((x, y)) = node_graph.get_node_position(node_id) {
+            let _ = node_id_typed.set_position(x, y, imnodes::CoordinateSystem::EditorSpace);
+        }
+
+        // Convert mode color to u32 format for imnodes
+        let node_color = color_vec3_to_u32(mode.color);
+        
+        // Calculate text color based on brightness for readability
+        let brightness = mode.color.x * 0.299 + mode.color.y * 0.587 + mode.color.z * 0.114;
+        let text_color = if brightness > 0.5 {
+            [0.0, 0.0, 0.0, 1.0] // Dark text on light background
+        } else {
+            [1.0, 1.0, 1.0, 1.0] // Light text on dark background
+        };
+        
+        // Push node color styles
+        imnodes_sys::imnodes_PushColorStyle(
+            imnodes_sys::ImNodesCol__ImNodesCol_TitleBar as i32,
+            node_color,
+        );
+        imnodes_sys::imnodes_PushColorStyle(
+            imnodes_sys::ImNodesCol__ImNodesCol_TitleBarHovered as i32,
+            node_color,
+        );
+        imnodes_sys::imnodes_PushColorStyle(
+            imnodes_sys::ImNodesCol__ImNodesCol_TitleBarSelected as i32,
+            node_color,
+        );
+
+        node_editor.add_node(node_id_typed, |mut node| {
+            // Title bar with mode name
+            node.add_titlebar(|| {
+                let _text_color = ui.push_style_color(StyleColor::Text, text_color);
+                ui.text(&mode.name);
+            });
+
+            // Input pin (parent connection)
+            let input_pin_id: imnodes::InputPinId = std::mem::transmute(node_id * 100);
+            node.add_input(input_pin_id, PinShape::CircleFilled, || {
+                ui.text("Parent");
+            });
+
+            // Node body - show key settings
+            ui.spacing();
+            ui.text(&format!("Type: {}", get_cell_type_name(mode.cell_type)));
+            ui.text(&format!("Split: {:.1}s", mode.split_interval));
+            if mode.parent_make_adhesion {
+                ui.text("Adhesion: Yes");
+            }
+            ui.spacing();
+
+            // Output pins (child connections)
+            let child_a_pin_id: imnodes::OutputPinId = std::mem::transmute(node_id * 100 + 1);
+            node.add_output(child_a_pin_id, PinShape::TriangleFilled, || {
+                ui.text("Child A");
+            });
+
+            let child_b_pin_id: imnodes::OutputPinId = std::mem::transmute(node_id * 100 + 2);
+            node.add_output(child_b_pin_id, PinShape::TriangleFilled, || {
+                ui.text("Child B");
+            });
         });
+        
+        // Pop the color styles (3 styles pushed)
+        imnodes_sys::imnodes_PopColorStyle();
+        imnodes_sys::imnodes_PopColorStyle();
+        imnodes_sys::imnodes_PopColorStyle();
+    }
+}
+
+/// Convert Vec3 color to u32 for imnodes
+#[allow(dead_code)]
+fn color_vec3_to_u32(color: Vec3) -> u32 {
+    let r = (color.x * 255.0) as u32;
+    let g = (color.y * 255.0) as u32;
+    let b = (color.z * 255.0) as u32;
+    0xFF000000 | (b << 16) | (g << 8) | r
+}
+
+/// Get cell type name from index
+fn get_cell_type_name(cell_type: i32) -> &'static str {
+    match cell_type {
+        0 => "Test",
+        _ => "Unknown",
+    }
+}
+
+/// Handle link creation in the node graph
+fn handle_link_created(
+    current_genome: &mut ResMut<CurrentGenome>,
+    node_graph: &mut ResMut<GenomeNodeGraph>,
+    output_pin: OutputPinId,
+    input_pin: InputPinId,
+) {
+    unsafe {
+        // Convert pin IDs back to i32
+        let output_pin_id: i32 = std::mem::transmute(output_pin);
+        let input_pin_id: i32 = std::mem::transmute(input_pin);
+
+        // Decode pin IDs: node_id * 100 for input, node_id * 100 + 1/2 for outputs
+        let parent_node_id = output_pin_id / 100;
+        let child_node_id = input_pin_id / 100;
+        let is_child_a = (output_pin_id % 100) == 1;
+
+        // Get mode indices from node IDs
+        if let (Some(parent_mode_idx), Some(child_mode_idx)) = (
+            node_graph.get_mode_for_node(parent_node_id),
+            node_graph.get_mode_for_node(child_node_id),
+        ) {
+            // Update the genome data
+            if parent_mode_idx < current_genome.genome.modes.len() {
+                let mode = &mut current_genome.genome.modes[parent_mode_idx];
+                if is_child_a {
+                    mode.child_a.mode_number = child_mode_idx as i32;
+                } else {
+                    mode.child_b.mode_number = child_mode_idx as i32;
+                }
+
+                // Update the node graph
+                node_graph.add_link(parent_node_id, child_node_id, is_child_a);
+            }
+        }
+    }
+}
+
+/// Handle link destruction in the node graph
+fn handle_link_destroyed(
+    current_genome: &mut ResMut<CurrentGenome>,
+    node_graph: &mut ResMut<GenomeNodeGraph>,
+    link_id: LinkId,
+) {
+    unsafe {
+        let link_idx: i32 = std::mem::transmute(link_id);
+
+        // Find and remove the link
+        if let Some((from_node, _to_node, is_child_a)) =
+            node_graph.links.get(link_idx as usize).copied()
+        {
+            if let Some(parent_mode_idx) = node_graph.get_mode_for_node(from_node) {
+                // Set the child back to self-splitting (point to same mode)
+                if parent_mode_idx < current_genome.genome.modes.len() {
+                    let mode = &mut current_genome.genome.modes[parent_mode_idx];
+                    if is_child_a {
+                        mode.child_a.mode_number = parent_mode_idx as i32;
+                    } else {
+                        mode.child_b.mode_number = parent_mode_idx as i32;
+                    }
+                }
+            }
+
+            // Rebuild the graph to reflect changes
+            node_graph.mark_for_rebuild();
+        }
+    }
+}
+
+/// Generate the next available mode name based on a base name
+/// If base name is "Mode 5", tries "Mode 6", then "Mode 5.1", "Mode 5.2", etc.
+fn generate_next_mode_name(base_name: &str, existing_modes: &[ModeSettings]) -> String {
+    // Extract the base number from the name (e.g., "Mode 5" -> 5)
+    let base_number = if let Some(num_str) = base_name.split_whitespace().last() {
+        // Try to parse as integer first
+        if let Ok(num) = num_str.parse::<i32>() {
+            num
+        } else {
+            // Try to parse as float (e.g., "5.1")
+            if let Ok(num) = num_str.parse::<f32>() {
+                num.floor() as i32
+            } else {
+                0
+            }
+        }
+    } else {
+        0
+    };
+    
+    // Try the next integer first (e.g., "Mode 5" -> "Mode 6")
+    let next_int_name = format!("Mode {}", base_number + 1);
+    if !existing_modes.iter().any(|m| m.name == next_int_name) {
+        return next_int_name;
+    }
+    
+    // If that's taken, try decimal suffixes (e.g., "Mode 5.1", "Mode 5.2", etc.)
+    for i in 1..100 {
+        let candidate_name = format!("Mode {}.{}", base_number, i);
+        if !existing_modes.iter().any(|m| m.name == candidate_name) {
+            return candidate_name;
+        }
+    }
+    
+    // Fallback: use total mode count
+    format!("Mode {}", existing_modes.len())
+}
+
+/// Update mode numbers after inserting a new mode
+/// All modes at or after the insertion point need their references updated
+fn update_mode_numbers_after_insert(genome: &mut GenomeData, insert_idx: usize) {
+    // Update all child references that point to modes at or after the insertion point
+    for (idx, mode) in genome.modes.iter_mut().enumerate() {
+        // Skip the newly inserted mode - it should remain self-referential
+        if idx == insert_idx {
+            // Ensure the newly inserted mode is self-referential
+            mode.child_a.mode_number = insert_idx as i32;
+            mode.child_b.mode_number = insert_idx as i32;
+            continue;
+        }
+        
+        // For all other modes, update references that point to modes at or after insertion
+        if mode.child_a.mode_number >= insert_idx as i32 {
+            mode.child_a.mode_number += 1;
+        }
+        if mode.child_b.mode_number >= insert_idx as i32 {
+            mode.child_b.mode_number += 1;
+        }
+    }
+    
+    // Update initial mode if needed
+    if genome.initial_mode >= insert_idx as i32 {
+        genome.initial_mode += 1;
+    }
 }
