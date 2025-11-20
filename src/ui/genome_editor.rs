@@ -140,17 +140,22 @@ fn render_genome_editor(
             // Initial mode dropdown
             ui.text("Initial Mode:");
             ui.same_line();
-            let mode_names: Vec<String> = current_genome.genome.modes.iter()
-                .map(|m| m.name.clone())
+            // Build display strings that show both index and name for clarity
+            let mode_display_names: Vec<String> = current_genome.genome.modes.iter()
+                .enumerate()
+                .map(|(idx, m)| format!("[{}] {}", idx, m.name))
                 .collect();
 
-            let mut initial_mode = current_genome.genome.initial_mode as usize;
-            let current_mode_name = mode_names.get(initial_mode).map(|s| s.as_str()).unwrap_or("None");
-            if let Some(_token) = ui.begin_combo("##InitialMode", current_mode_name) {
-                for (i, name) in mode_names.iter().enumerate() {
-                    let is_selected = i == initial_mode;
-                    if ui.selectable_config(name).selected(is_selected).build() {
-                        initial_mode = i;
+            let initial_mode = current_genome.genome.initial_mode as usize;
+            // Clamp to valid range
+            let clamped_initial_mode = initial_mode.min(current_genome.genome.modes.len().saturating_sub(1));
+            let current_mode_display = mode_display_names.get(clamped_initial_mode)
+                .map(|s| s.as_str())
+                .unwrap_or("None");
+            if let Some(_token) = ui.begin_combo("##InitialMode", current_mode_display) {
+                for (i, display_name) in mode_display_names.iter().enumerate() {
+                    let is_selected = i == clamped_initial_mode;
+                    if ui.selectable_config(display_name).selected(is_selected).build() {
                         current_genome.genome.initial_mode = i as i32;
                     }
                 }
@@ -382,7 +387,7 @@ fn render_genome_editor(
                     ui.child_window("ModeSettings")
                         .size([0.0, 0.0])
                         .build(|| {
-                            draw_mode_settings(ui, selected_mode, &modes_for_ref);
+                            draw_mode_settings(ui, selected_mode, &modes_for_ref, selected_idx);
                         });
                 }
             }
@@ -454,11 +459,11 @@ fn slider_with_input_i32(ui: &Ui, label: &str, value: &mut i32, min: i32, max: i
 }
 
 /// Draw mode settings (tabbed interface)
-fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSettings]) {
+fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSettings], mode_index: usize) {
     if let Some(_tab_bar) = ui.tab_bar("ModeSettingsTabs") {
         // Parent Settings Tab
         if let Some(_tab) = ui.tab_item("Parent Settings") {
-            draw_parent_settings(ui, mode);
+            draw_parent_settings(ui, mode, mode_index);
         }
 
         // Child A Settings Tab
@@ -522,12 +527,24 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
 }
 
 /// Draw parent settings
-fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings) {
+fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, mode_index: usize) {
     // Mode name
     ui.text("Mode Name:");
     let mut mode_name = mode.name.clone();
     if ui.input_text("##ModeName", &mut mode_name).build() {
-        mode.name = mode_name;
+        let trimmed = mode_name.trim();
+        if !trimmed.is_empty() {
+            // Update with the trimmed custom name
+            mode.name = trimmed.to_string();
+        } else {
+            // If empty, revert to default name based on mode index
+            mode.name = format!("Mode {}", mode_index);
+        }
+    }
+    
+    // Show hint about default name when field is empty
+    if ui.is_item_active() && mode_name.trim().is_empty() {
+        ui.text_colored([0.7, 0.7, 0.7, 1.0], &format!("Will revert to: Mode {}", mode_index));
     }
 
     ui.spacing();
@@ -625,26 +642,25 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
     let mut mode_changed = false;
     
     ui.text("Mode:");
-    let mode_names: Vec<String> = all_modes.iter()
-        .map(|m| m.name.clone())
+    // Build display strings that show both index and name for clarity
+    let mode_display_names: Vec<String> = all_modes.iter()
+        .enumerate()
+        .map(|(idx, m)| format!("[{}] {}", idx, m.name))
         .collect();
 
     let mode_index = child.mode_number as usize;
-    let current_mode_name = mode_names.get(mode_index).map(|s| s.as_str()).unwrap_or("None");
+    // Clamp mode_index to valid range before using it
+    let clamped_mode_index = mode_index.min(all_modes.len().saturating_sub(1));
+    let current_mode_display = mode_display_names.get(clamped_mode_index)
+        .map(|s| s.as_str())
+        .unwrap_or("None");
 
-    if let Some(_token) = ui.begin_combo("##Mode", current_mode_name) {
-        for (i, name) in mode_names.iter().enumerate() {
-            let is_selected = i == mode_index;
-            if ui.selectable_config(name).selected(is_selected).build() {
+    if let Some(_token) = ui.begin_combo("##Mode", current_mode_display) {
+        for (i, display_name) in mode_display_names.iter().enumerate() {
+            let is_selected = i == clamped_mode_index;
+            if ui.selectable_config(display_name).selected(is_selected).build() {
                 let old_mode = child.mode_number;
                 child.mode_number = i as i32;
-                // Clamp to valid range
-                if child.mode_number >= all_modes.len() as i32 {
-                    child.mode_number = (all_modes.len() as i32) - 1;
-                }
-                if child.mode_number < 0 {
-                    child.mode_number = 0;
-                }
                 mode_changed = old_mode != child.mode_number;
             }
         }
