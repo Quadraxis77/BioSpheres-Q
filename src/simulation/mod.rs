@@ -9,6 +9,7 @@ pub mod gpu_sim;
 pub mod initial_state;
 pub mod physics_config;
 pub mod preview_sim;
+pub mod adhesion_inheritance;
 
 pub use cpu_physics::{CanonicalState, DeterministicSpatialGrid, physics_step, deterministic_random};
 pub use physics_config::PhysicsConfig;
@@ -19,6 +20,7 @@ pub use double_buffer::DoubleBufferedState;
 pub use gpu_sim::{GpuSimPlugin, GpuSceneState, GpuSceneEntity};
 pub use initial_state::{InitialState, InitialCell};
 pub use preview_sim::{PreviewSimPlugin, PreviewSceneState, PreviewSceneEntity};
+pub use adhesion_inheritance::inherit_adhesions_on_division;
 
 /// Configuration for simulation threading
 #[derive(Resource, Clone, Copy, Debug)]

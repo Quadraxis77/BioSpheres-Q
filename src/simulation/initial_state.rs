@@ -123,6 +123,7 @@ impl InitialState {
                 cell.birth_time,
                 cell.split_interval,
                 cell.stiffness,
+                cell.rotation, // genome_orientation = rotation initially
             );
         }
         

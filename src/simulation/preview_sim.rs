@@ -336,11 +336,7 @@ fn run_preview_resimulation(
         total_division_time += division_start.elapsed();
     }
 
-    println!("  Physics: {:?}, Division: {:?}", total_physics_time, total_division_time);
-
-    let sim_duration = start_time.elapsed();
-    println!("Resimulation: {} steps in {:?} ({} cells)",
-             steps, sim_duration, preview_state.canonical_state.cell_count);
+    let _sim_duration = start_time.elapsed();
 
     preview_state.current_time = target_time;
     sim_state.target_time = None;
@@ -384,7 +380,7 @@ fn respawn_preview_cells_after_resimulation(
         
         preview_state.id_to_entity.clear();
         
-        let despawn_duration = start_time.elapsed();
+        let _despawn_duration = start_time.elapsed();
         let spawn_start = std::time::Instant::now();
         
         // Spawn entities for all cells in canonical state
@@ -452,9 +448,7 @@ fn respawn_preview_cells_after_resimulation(
             preview_state.id_to_entity.insert(cell_id, entity);
         }
         
-        let spawn_duration = spawn_start.elapsed();
-        println!("Respawn: despawn {:?}, spawn {} cells in {:?}", 
-                 despawn_duration, preview_state.canonical_state.cell_count, spawn_duration);
+        let _spawn_duration = spawn_start.elapsed();
         
         // Clear the respawn flag
         sim_state.needs_respawn = false;

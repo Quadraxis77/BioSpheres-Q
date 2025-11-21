@@ -46,6 +46,11 @@ pub struct CanonicalState {
     pub rotations: Vec<Quat>,
     pub angular_velocities: Vec<Vec3>,
     
+    // === Genome Orientation (SoA) ===
+    /// Genome-derived orientations (used for adhesion calculations)
+    /// This is separate from physics rotation and represents the cell's "design" orientation
+    pub genome_orientations: Vec<Quat>,
+    
     // === Physics State (SoA) ===
     pub forces: Vec<Vec3>,
     pub torques: Vec<Vec3>,
@@ -57,6 +62,12 @@ pub struct CanonicalState {
     pub birth_times: Vec<f32>,
     pub split_intervals: Vec<f32>,
     
+    // === Adhesion System ===
+    /// Adhesion connections between cells
+    pub adhesion_connections: crate::cell::AdhesionConnections,
+    /// Adhesion connection manager
+    pub adhesion_manager: crate::cell::AdhesionConnectionManager,
+    
     /// Spatial partitioning for collision detection
     pub spatial_grid: DeterministicSpatialGrid,
     
@@ -67,6 +78,9 @@ pub struct CanonicalState {
 impl CanonicalState {
     /// Create a new canonical state with the specified capacity
     pub fn new(capacity: usize) -> Self {
+        // Calculate adhesion connection capacity (20 connections per cell)
+        let adhesion_capacity = capacity * crate::cell::MAX_ADHESIONS_PER_CELL;
+        
         Self {
             cell_count: 0,
             capacity,
@@ -80,6 +94,7 @@ impl CanonicalState {
             mode_indices: vec![0; capacity],
             rotations: vec![Quat::IDENTITY; capacity],
             angular_velocities: vec![Vec3::ZERO; capacity],
+            genome_orientations: vec![Quat::IDENTITY; capacity],
             forces: vec![Vec3::ZERO; capacity],
             torques: vec![Vec3::ZERO; capacity],
             accelerations: vec![Vec3::ZERO; capacity],
@@ -87,6 +102,8 @@ impl CanonicalState {
             stiffnesses: vec![10.0; capacity],
             birth_times: vec![0.0; capacity],
             split_intervals: vec![10.0; capacity],
+            adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
+            adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
             spatial_grid: DeterministicSpatialGrid::new(16, 100.0, 50.0), // Reduced from 64 to 16
             next_cell_id: 0,
         }
@@ -107,6 +124,7 @@ impl CanonicalState {
         birth_time: f32,
         split_interval: f32,
         stiffness: f32,
+        genome_orientation: Quat,
     ) -> Option<usize> {
         if self.cell_count >= self.capacity {
             return None;
@@ -123,6 +141,7 @@ impl CanonicalState {
         self.mode_indices[idx] = mode_index;
         self.rotations[idx] = rotation;
         self.angular_velocities[idx] = angular_velocity;
+        self.genome_orientations[idx] = genome_orientation;
         self.forces[idx] = Vec3::ZERO;
         self.torques[idx] = Vec3::ZERO;
         self.accelerations[idx] = Vec3::ZERO;
@@ -130,6 +149,9 @@ impl CanonicalState {
         self.stiffnesses[idx] = stiffness;
         self.birth_times[idx] = birth_time;
         self.split_intervals[idx] = split_interval;
+        
+        // Initialize adhesion indices for new cell
+        self.adhesion_manager.init_cell_adhesion_indices(idx);
         
         self.next_cell_id += 1;
         self.cell_count += 1;
@@ -531,6 +553,25 @@ pub fn detect_collisions_canonical(
     collision_pairs
 }
 
+/// Check if two cells are connected via an active adhesion connection
+fn are_cells_connected(state: &CanonicalState, cell_a: usize, cell_b: usize) -> bool {
+    // Check all active adhesion connections
+    for i in 0..state.adhesion_connections.active_count {
+        if state.adhesion_connections.is_active[i] == 0 {
+            continue;
+        }
+        
+        let conn_a = state.adhesion_connections.cell_a_index[i];
+        let conn_b = state.adhesion_connections.cell_b_index[i];
+        
+        // Check if this connection links the two cells (in either direction)
+        if (conn_a == cell_a && conn_b == cell_b) || (conn_a == cell_b && conn_b == cell_a) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Compute collision forces from detected collision pairs - Single-threaded version
 pub fn compute_collision_forces_canonical_st(
     state: &mut CanonicalState,
@@ -587,8 +628,11 @@ pub fn compute_collision_forces_canonical_st(
         // === Rolling Friction Torque ===
         // Apply torque based on tangential velocity at contact point
         // This creates rolling without violating momentum conservation
+        // SKIP rolling friction for cells connected via adhesions (would interfere with orientation control)
         
-        if config.friction_coefficient > 0.0 && pair.overlap > 0.0 {
+        let cells_are_connected = are_cells_connected(state, idx_a, idx_b);
+        
+        if config.friction_coefficient > 0.0 && pair.overlap > 0.0 && !cells_are_connected {
             // Contact point offsets from cell centers
             let contact_offset_a = pair.normal * state.radii[idx_a];
             let contact_offset_b = -pair.normal * state.radii[idx_b];
@@ -692,7 +736,10 @@ pub fn compute_collision_forces_canonical(
             let mut torque_b = Vec3::ZERO;
             
             // Apply torque based on tangential velocity at contact point
-            if config.friction_coefficient > 0.0 && pair.overlap > 0.0 {
+            // SKIP rolling friction for cells connected via adhesions (would interfere with orientation control)
+            let cells_are_connected = are_cells_connected(state, idx_a, idx_b);
+            
+            if config.friction_coefficient > 0.0 && pair.overlap > 0.0 && !cells_are_connected {
                 // Contact point offsets from cell centers
                 let contact_offset_a = pair.normal * state.radii[idx_a];
                 let contact_offset_b = -pair.normal * state.radii[idx_b];
@@ -773,6 +820,26 @@ pub fn physics_step_st(
     // 5. Compute forces and torques
     compute_collision_forces_canonical_st(state, &collisions, config);
     
+    // 5.5. Compute adhesion forces (if any connections exist)
+    if state.adhesion_connections.active_count > 0 {
+        // Create default adhesion settings for now
+        // TODO: Get settings from genome modes
+        let default_settings = crate::cell::AdhesionSettings::default();
+        let mode_settings = vec![default_settings; 10]; // Support up to 10 modes
+        
+        crate::cell::compute_adhesion_forces(
+            &state.adhesion_connections,
+            &state.positions[..state.cell_count],
+            &state.velocities[..state.cell_count],
+            &state.rotations[..state.cell_count],
+            &state.angular_velocities[..state.cell_count],
+            &state.masses[..state.cell_count],
+            &mode_settings,
+            &mut state.forces[..state.cell_count],
+            &mut state.torques[..state.cell_count],
+        );
+    }
+    
     // 6. Apply boundary conditions
     apply_boundary_forces_soa_st(
         &state.positions[..state.cell_count],
@@ -831,6 +898,118 @@ pub fn physics_step(
     
     // 5. Compute forces and torques
     compute_collision_forces_canonical(state, &collisions, config);
+    
+    // 5.5. Compute adhesion forces (if any connections exist)
+    if state.adhesion_connections.active_count > 0 {
+        // Create default adhesion settings for now
+        // TODO: Get settings from genome modes
+        let default_settings = crate::cell::AdhesionSettings::default();
+        let mode_settings = vec![default_settings; 10]; // Support up to 10 modes
+        
+        crate::cell::compute_adhesion_forces(
+            &state.adhesion_connections,
+            &state.positions[..state.cell_count],
+            &state.velocities[..state.cell_count],
+            &state.rotations[..state.cell_count],
+            &state.angular_velocities[..state.cell_count],
+            &state.masses[..state.cell_count],
+            &mode_settings,
+            &mut state.forces[..state.cell_count],
+            &mut state.torques[..state.cell_count],
+        );
+    }
+    
+    // 6. Apply boundary conditions
+    apply_boundary_forces_soa(
+        &state.positions[..state.cell_count],
+        &mut state.velocities[..state.cell_count],
+        config,
+    );
+    
+    // 7. Verlet integration (velocity update)
+    verlet_integrate_velocities_soa(
+        &mut state.velocities[..state.cell_count],
+        &mut state.accelerations[..state.cell_count],
+        &mut state.prev_accelerations[..state.cell_count],
+        &state.forces[..state.cell_count],
+        &state.masses[..state.cell_count],
+        config.fixed_timestep,
+        config.velocity_damping,
+    );
+    
+    // 8. Update angular velocities from torques
+    integrate_angular_velocities_soa(
+        &mut state.angular_velocities[..state.cell_count],
+        &state.torques[..state.cell_count],
+        &state.radii[..state.cell_count],
+        &state.masses[..state.cell_count],
+        config.fixed_timestep,
+        config.angular_damping,
+    );
+}
+
+/// Genome-aware physics step function - Multithreaded version
+/// This version uses adhesion settings from the genome
+pub fn physics_step_with_genome(
+    state: &mut CanonicalState,
+    config: &crate::simulation::PhysicsConfig,
+    genome: &crate::genome::GenomeData,
+) {
+    // 1. Verlet integration (position update)
+    verlet_integrate_positions_soa(
+        &mut state.positions[..state.cell_count],
+        &state.velocities[..state.cell_count],
+        &state.accelerations[..state.cell_count],
+        config.fixed_timestep,
+    );
+    
+    // 2. Update rotations from angular velocities
+    integrate_rotations_soa(
+        &mut state.rotations[..state.cell_count],
+        &state.angular_velocities[..state.cell_count],
+        config.fixed_timestep,
+    );
+    
+    // 3. Update spatial partitioning
+    state.spatial_grid.rebuild(&state.positions, state.cell_count);
+    
+    // 4. Detect collisions
+    let collisions = detect_collisions_canonical(state);
+    
+    // 5. Compute forces and torques
+    compute_collision_forces_canonical(state, &collisions, config);
+    
+    // 5.5. Compute adhesion forces with genome settings
+    if state.adhesion_connections.active_count > 0 {
+        // Extract adhesion settings from genome modes
+        let mode_settings: Vec<crate::cell::AdhesionSettings> = genome.modes.iter()
+            .map(|mode| crate::cell::AdhesionSettings {
+                can_break: mode.adhesion_settings.can_break,
+                break_force: mode.adhesion_settings.break_force,
+                rest_length: mode.adhesion_settings.rest_length,
+                linear_spring_stiffness: mode.adhesion_settings.linear_spring_stiffness,
+                linear_spring_damping: mode.adhesion_settings.linear_spring_damping,
+                orientation_spring_stiffness: mode.adhesion_settings.orientation_spring_stiffness,
+                orientation_spring_damping: mode.adhesion_settings.orientation_spring_damping,
+                max_angular_deviation: mode.adhesion_settings.max_angular_deviation,
+                twist_constraint_stiffness: mode.adhesion_settings.twist_constraint_stiffness,
+                twist_constraint_damping: mode.adhesion_settings.twist_constraint_damping,
+                enable_twist_constraint: mode.adhesion_settings.enable_twist_constraint,
+            })
+            .collect();
+        
+        crate::cell::compute_adhesion_forces(
+            &state.adhesion_connections,
+            &state.positions[..state.cell_count],
+            &state.velocities[..state.cell_count],
+            &state.rotations[..state.cell_count],
+            &state.angular_velocities[..state.cell_count],
+            &state.masses[..state.cell_count],
+            &mode_settings,
+            &mut state.forces[..state.cell_count],
+            &mut state.torques[..state.cell_count],
+        );
+    }
     
     // 6. Apply boundary conditions
     apply_boundary_forces_soa(
@@ -928,6 +1107,7 @@ pub fn division_step(
     // Collect division data before modifying state
     struct DivisionData {
         parent_idx: usize,
+        parent_mode_idx: usize,
         child_a_slot: usize,
         child_b_slot: usize,
         parent_velocity: bevy::prelude::Vec3,
@@ -950,20 +1130,20 @@ pub fn division_step(
     let mut division_events = Vec::new();
 
     // Calculate available slots for children
-    // We write children starting from the end of the current cell array
+    // Child A reuses parent index (matches C++), Child B gets new slot
     let mut next_available_slot = state.cell_count;
 
     // Process each division and collect data
     for &parent_idx in &divisions_to_process {
-        // Check if we have space for 2 more cells
-        if next_available_slot + 1 >= state.capacity {
+        // Check if we have space for 1 more cell (child B)
+        if next_available_slot >= state.capacity {
             break;
         }
 
-        // Allocate two consecutive slots for the children
-        let child_a_slot = next_available_slot;
-        let child_b_slot = next_available_slot + 1;
-        next_available_slot += 2;
+        // Child A reuses parent index, Child B gets new slot (matches C++ behavior)
+        let child_a_slot = parent_idx;
+        let child_b_slot = next_available_slot;
+        next_available_slot += 1;
         
         let mode_index = state.mode_indices[parent_idx];
         let mode = genome.modes.get(mode_index);
@@ -1014,6 +1194,7 @@ pub fn division_step(
             
             division_data_list.push(DivisionData {
                 parent_idx,
+                parent_mode_idx: mode_index,
                 child_a_slot: child_a_slot as usize,
                 child_b_slot: child_b_slot as usize,
                 parent_velocity,
@@ -1048,6 +1229,7 @@ pub fn division_step(
             state.genome_ids[data.child_a_slot] = data.parent_genome_id;
             state.mode_indices[data.child_a_slot] = data.child_a_mode_idx;
             state.rotations[data.child_a_slot] = data.child_a_orientation;
+            state.genome_orientations[data.child_a_slot] = data.child_a_orientation;
             state.angular_velocities[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.forces[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.torques[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
@@ -1056,6 +1238,8 @@ pub fn division_step(
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
             state.birth_times[data.child_a_slot] = current_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
+            
+            // Adhesion indices will be initialized in inheritance function (matches C++)
         }
         
         if data.child_b_slot < state.capacity {
@@ -1070,6 +1254,7 @@ pub fn division_step(
             state.genome_ids[data.child_b_slot] = data.parent_genome_id;
             state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
             state.rotations[data.child_b_slot] = data.child_b_orientation;
+            state.genome_orientations[data.child_b_slot] = data.child_b_orientation;
             state.angular_velocities[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.forces[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.torques[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
@@ -1078,6 +1263,9 @@ pub fn division_step(
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
             state.birth_times[data.child_b_slot] = current_time;
             state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
+            
+            // Initialize adhesion indices for child B
+            state.adhesion_manager.init_cell_adhesion_indices(data.child_b_slot);
         }
         
         // Record the division event
@@ -1086,6 +1274,102 @@ pub fn division_step(
             child_a_idx: data.child_a_slot,
             child_b_idx: data.child_b_slot,
         });
+    }
+    
+    // Now handle adhesion inheritance and creation AFTER all children are written
+    // Child A reuses parent index (matches C++), so neighborIndex automatically points to correct cell
+    for data in &division_data_list {
+        // Inherit adhesions from parent to children based on zone classification
+        crate::simulation::inherit_adhesions_on_division(
+            state,
+            genome,
+            data.parent_idx,
+            data.child_a_slot,
+            data.child_b_slot,
+        );
+        
+        // Create child-to-child adhesion if parent mode allows it
+        let mode_index = data.parent_mode_idx;
+        let mode = genome.modes.get(mode_index);
+        
+        if let Some(mode) = mode {
+            println!("Child-to-child check: parent_make_adhesion={}, keep_a={}, keep_b={}", 
+                mode.parent_make_adhesion, mode.child_a.keep_adhesion, mode.child_b.keep_adhesion);
+            
+            if mode.parent_make_adhesion && mode.child_a.keep_adhesion && mode.child_b.keep_adhesion {
+                // CRITICAL FIX: Use mode.splitDirection from genome (NOT world-space calculation)
+                // This matches C++ implementation exactly
+                let pitch = mode.parent_split_direction.x.to_radians();
+                let yaw = mode.parent_split_direction.y.to_radians();
+                let split_dir_local = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
+                
+                // Direction vectors in parent's local frame (matches C++)
+                // ACTUAL positions: Child A is at -offset, child B is at +offset (see line 1144-1145)
+                // Anchor directions represent where on the cell surface the anchor point is located
+                // For cells connected along the split axis, anchors should be on the facing sides
+                // Child A (at -offset) needs anchor pointing toward B (at +offset) = +split direction
+                // Child B (at +offset) needs anchor pointing toward A (at -offset) = -split direction
+                let anchor_direction_a_parent_local = split_dir_local;   // A's anchor faces toward B
+                let anchor_direction_b_parent_local = -split_dir_local;  // B's anchor faces toward A
+                
+                // Transform to each child's local space using physics rotations
+                // Anchors are stored in physics local space (matching C++ implementation)
+                let child_a_rotation = state.rotations[data.child_a_slot];
+                let child_b_rotation = state.rotations[data.child_b_slot];
+                
+                let inv_rot_a = child_a_rotation.inverse();
+                let anchor_direction_a = (inv_rot_a * anchor_direction_a_parent_local).normalize();
+                
+                let inv_rot_b = child_b_rotation.inverse();
+                let anchor_direction_b = (inv_rot_b * anchor_direction_b_parent_local).normalize();
+                
+                // Get genome orientations for twist references
+                let child_a_genome_orientation = state.genome_orientations[data.child_a_slot];
+                let child_b_genome_orientation = state.genome_orientations[data.child_b_slot];
+                
+                // Get child mode split directions for zone classification
+                let child_a_mode = genome.modes.get(data.child_a_mode_idx);
+                let child_b_mode = genome.modes.get(data.child_b_mode_idx);
+                
+                let child_a_split_dir = if let Some(m) = child_a_mode {
+                    let pitch = m.parent_split_direction.x.to_radians();
+                    let yaw = m.parent_split_direction.y.to_radians();
+                    Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z
+                } else {
+                    Vec3::Z
+                };
+                
+                let child_b_split_dir = if let Some(m) = child_b_mode {
+                    let pitch = m.parent_split_direction.x.to_radians();
+                    let yaw = m.parent_split_direction.y.to_radians();
+                    Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z
+                } else {
+                    Vec3::Z
+                };
+                
+                // Create child-to-child connection with parent's mode index
+                let result = state.adhesion_manager.add_adhesion_with_directions(
+                    &mut state.adhesion_connections,
+                    data.child_a_slot,
+                    data.child_b_slot,
+                    mode_index,
+                    anchor_direction_a,
+                    anchor_direction_b,
+                    child_a_split_dir,
+                    child_b_split_dir,
+                    child_a_genome_orientation,
+                    child_b_genome_orientation,
+                );
+                
+                if let Some(conn_idx) = result {
+                    println!("✓ Created child-to-child adhesion {} between cells {} and {} (parent was {})", 
+                        conn_idx, data.child_a_slot, data.child_b_slot, data.parent_idx);
+                } else {
+                    println!("✗ Failed to create child-to-child adhesion between cells {} and {} (parent was {})", 
+                        data.child_a_slot, data.child_b_slot, data.parent_idx);
+                }
+            }
+        }
     }
     
     // Compact the canonical state to remove gaps
@@ -1137,6 +1421,7 @@ pub fn division_step(
             state.genome_ids[new_idx] = state.genome_ids[old_idx];
             state.mode_indices[new_idx] = state.mode_indices[old_idx];
             state.rotations[new_idx] = state.rotations[old_idx];
+            state.genome_orientations[new_idx] = state.genome_orientations[old_idx];
             state.angular_velocities[new_idx] = state.angular_velocities[old_idx];
             state.forces[new_idx] = state.forces[old_idx];
             state.torques[new_idx] = state.torques[old_idx];
@@ -1161,6 +1446,43 @@ pub fn division_step(
         event.child_a_idx = *index_mapping.get(&event.child_a_idx).unwrap_or(&event.child_a_idx);
         event.child_b_idx = *index_mapping.get(&event.child_b_idx).unwrap_or(&event.child_b_idx);
     }
+    
+    // Update adhesion connections to use new cell indices after compaction
+    for i in 0..state.adhesion_connections.active_count {
+        if state.adhesion_connections.is_active[i] == 1 {
+            let old_cell_a = state.adhesion_connections.cell_a_index[i];
+            let old_cell_b = state.adhesion_connections.cell_b_index[i];
+            
+            if let Some(&new_cell_a) = index_mapping.get(&old_cell_a) {
+                state.adhesion_connections.cell_a_index[i] = new_cell_a;
+            }
+            if let Some(&new_cell_b) = index_mapping.get(&old_cell_b) {
+                state.adhesion_connections.cell_b_index[i] = new_cell_b;
+            }
+        }
+    }
+    
+    // Update adhesion manager's cell indices after compaction
+    // We need to remap the adhesion indices stored in each cell
+    let init_indices = || {
+        let mut arr = [-1; crate::cell::MAX_ADHESIONS_PER_CELL];
+        arr
+    };
+    let mut new_adhesion_indices: Vec<[i32; crate::cell::MAX_ADHESIONS_PER_CELL]> = 
+        (0..state.capacity).map(|_| init_indices()).collect();
+    
+    for (new_idx, &old_idx) in active_indices.iter().enumerate() {
+        // Copy and remap adhesion indices for this cell
+        for slot in 0..crate::cell::MAX_ADHESIONS_PER_CELL {
+            let conn_idx = state.adhesion_manager.cell_adhesion_indices[old_idx][slot];
+            if conn_idx >= 0 {
+                new_adhesion_indices[new_idx][slot] = conn_idx;
+            }
+        }
+    }
+    
+    // Replace the adhesion indices with the remapped ones
+    state.adhesion_manager.cell_adhesion_indices = new_adhesion_indices;
     
     division_events
 }

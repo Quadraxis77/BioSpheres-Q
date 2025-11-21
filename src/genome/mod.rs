@@ -60,8 +60,8 @@ impl Default for AdhesionSettings {
             rest_length: 1.0,
             linear_spring_stiffness: 150.0,
             linear_spring_damping: 5.0,
-            orientation_spring_stiffness: 10.0,
-            orientation_spring_damping: 2.0,
+            orientation_spring_stiffness: 50.0,  // Increased from 10.0 to make rotation more responsive
+            orientation_spring_damping: 5.0,      // Increased from 2.0 to prevent oscillation
             max_angular_deviation: 0.0,
             twist_constraint_stiffness: 2.0,
             twist_constraint_damping: 0.5,

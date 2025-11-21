@@ -42,8 +42,6 @@ fn handle_drag_start(
     if !mouse_button.just_pressed(MouseButton::Left) {
         return;
     }
-    
-    println!("Mouse clicked! Cells in query: {}", cell_query.iter().count());
 
     // Skip if already dragging
     if drag_state.dragged_entity.is_some() {
@@ -90,8 +88,6 @@ fn handle_drag_start(
     // If we hit a cell, start dragging it
     if let Some((entity, _, _)) = closest_hit {
         let cell_pos = cell_query.get(entity).unwrap().1;
-        
-        println!("Hit cell at position: {:?}", cell_pos.position);
         
         // Calculate drag plane perpendicular to camera forward
         let camera_forward = camera_transform.forward();
@@ -168,11 +164,8 @@ fn handle_drag_update(
 
     // Update cell position in ECS
     if let Ok(mut cell_pos) = cell_query.get_mut(dragged_entity) {
-        println!("Updating drag position to: {:?}", new_position);
         cell_pos.position = new_position;
         cell_pos.velocity = Vec3::ZERO;
-    } else {
-        println!("ERROR: Could not get cell position for dragged entity!");
     }
 
     // Update the canonical state based on current simulation mode

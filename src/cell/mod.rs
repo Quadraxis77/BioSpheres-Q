@@ -1,10 +1,16 @@
 use bevy::prelude::*;
 
 pub mod adhesion;
+pub mod adhesion_forces;
+pub mod adhesion_manager;
+pub mod adhesion_zones;
 pub mod division;
 pub mod types;
 
-pub use adhesion::AdhesionPlugin;
+pub use adhesion::{AdhesionPlugin, AdhesionSettings, AdhesionConnections, AdhesionIndices, MAX_ADHESIONS_PER_CELL, MAX_ADHESION_CONNECTIONS};
+pub use adhesion_forces::compute_adhesion_forces;
+pub use adhesion_manager::AdhesionConnectionManager;
+pub use adhesion_zones::{AdhesionZone, classify_bond_direction, get_zone_color, EQUATORIAL_THRESHOLD_DEGREES};
 pub use division::{DivisionPlugin, DivisionQueue, has_pending_divisions};
 pub use types::TypesPlugin;
 

@@ -144,10 +144,11 @@ fn run_main_simulation(
         return;
     }
     
-    // Run canonical physics step
-    crate::simulation::physics_step(
+    // Run canonical physics step with genome-aware adhesion settings
+    crate::simulation::cpu_physics::physics_step_with_genome(
         &mut main_state.canonical_state,
         &config,
+        &genome.genome,
     );
     
     // Advance simulation time by the base timestep (64 Hz)

@@ -1,0 +1,265 @@
+use bevy::prelude::*;
+use super::adhesion::{AdhesionConnections, AdhesionIndices, MAX_ADHESIONS_PER_CELL, init_adhesion_indices};
+
+/// Adhesion connection manager
+/// Handles proper adhesion index slot management (20 slots per cell, -1 for empty)
+#[derive(Clone)]
+pub struct AdhesionConnectionManager {
+    /// Adhesion indices for each cell (20 slots per cell)
+    pub cell_adhesion_indices: Vec<AdhesionIndices>,
+}
+
+impl AdhesionConnectionManager {
+    pub fn new(max_cells: usize) -> Self {
+        Self {
+            cell_adhesion_indices: vec![init_adhesion_indices(); max_cells],
+        }
+    }
+    
+    /// Initialize adhesion indices for a cell (all slots to -1)
+    pub fn init_cell_adhesion_indices(&mut self, cell_index: usize) {
+        if cell_index < self.cell_adhesion_indices.len() {
+            self.cell_adhesion_indices[cell_index] = init_adhesion_indices();
+        }
+    }
+    
+    /// Find a free adhesion slot in a cell
+    pub fn find_free_adhesion_slot(&self, cell_index: usize) -> Option<usize> {
+        if cell_index >= self.cell_adhesion_indices.len() {
+            return None;
+        }
+        
+        for (slot_idx, &connection_idx) in self.cell_adhesion_indices[cell_index].iter().enumerate() {
+            if connection_idx < 0 {
+                return Some(slot_idx);
+            }
+        }
+        
+        None
+    }
+    
+    /// Set adhesion index in a cell slot
+    pub fn set_adhesion_index(&mut self, cell_index: usize, slot_index: usize, connection_index: i32) -> bool {
+        if cell_index >= self.cell_adhesion_indices.len() {
+            return false;
+        }
+        
+        if slot_index >= MAX_ADHESIONS_PER_CELL {
+            return false;
+        }
+        
+        self.cell_adhesion_indices[cell_index][slot_index] = connection_index;
+        true
+    }
+    
+    /// Remove adhesion index from a cell
+    pub fn remove_adhesion_index(&mut self, cell_index: usize, connection_index: i32) -> bool {
+        if cell_index >= self.cell_adhesion_indices.len() {
+            return false;
+        }
+        
+        for slot in &mut self.cell_adhesion_indices[cell_index] {
+            if *slot == connection_index {
+                *slot = -1;
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    /// Add adhesion connection with proper slot management and zone classification
+    /// 
+    /// # Arguments
+    /// * `connections` - Adhesion connections data
+    /// * `cell_a` - Index of cell A
+    /// * `cell_b` - Index of cell B
+    /// * `mode_index` - Mode index for adhesion settings
+    /// * `anchor_direction_a` - Anchor direction for cell A (local space)
+    /// * `anchor_direction_b` - Anchor direction for cell B (local space)
+    /// * `split_direction_a` - Split direction for cell A (for zone classification)
+    /// * `split_direction_b` - Split direction for cell B (for zone classification)
+    /// * `genome_orientation_a` - Genome orientation for cell A (for twist reference)
+    /// * `genome_orientation_b` - Genome orientation for cell B (for twist reference)
+    pub fn add_adhesion_with_directions(
+        &mut self,
+        connections: &mut AdhesionConnections,
+        cell_a: usize,
+        cell_b: usize,
+        mode_index: usize,
+        anchor_direction_a: Vec3,
+        anchor_direction_b: Vec3,
+        split_direction_a: Vec3,
+        split_direction_b: Vec3,
+        genome_orientation_a: Quat,
+        genome_orientation_b: Quat,
+    ) -> Option<usize> {
+        // Check if cells are the same
+        if cell_a == cell_b {
+            return None;
+        }
+        
+        // Check connection capacity
+        if connections.active_count >= connections.cell_a_index.len() {
+            return None;
+        }
+        
+        // Find free slots in both cells
+        let slot_a = match self.find_free_adhesion_slot(cell_a) {
+            Some(slot) => slot,
+            None => return None,
+        };
+        
+        let slot_b = match self.find_free_adhesion_slot(cell_b) {
+            Some(slot) => slot,
+            None => return None,
+        };
+        
+        // Find free connection slot
+        let connection_index = match self.find_free_connection_slot(connections) {
+            Some(idx) => idx,
+            None => return None,
+        };
+        
+        // Create the connection
+        connections.cell_a_index[connection_index] = cell_a;
+        connections.cell_b_index[connection_index] = cell_b;
+        connections.mode_index[connection_index] = mode_index;
+        connections.is_active[connection_index] = 1;
+        
+        // Classify zones using anchor directions and each cell's split direction
+        let zone_a = super::adhesion_zones::classify_bond_direction(anchor_direction_a, split_direction_a);
+        let zone_b = super::adhesion_zones::classify_bond_direction(anchor_direction_b, split_direction_b);
+        
+        connections.zone_a[connection_index] = zone_a as u8;
+        connections.zone_b[connection_index] = zone_b as u8;
+        
+        // Set anchor directions (normalized)
+        let normalized_anchor_a = if anchor_direction_a.length() > 0.001 {
+            anchor_direction_a.normalize()
+        } else {
+            Vec3::X
+        };
+        
+        let normalized_anchor_b = if anchor_direction_b.length() > 0.001 {
+            anchor_direction_b.normalize()
+        } else {
+            -Vec3::X
+        };
+        
+        connections.anchor_direction_a[connection_index] = normalized_anchor_a;
+        connections.anchor_direction_b[connection_index] = normalized_anchor_b;
+        
+        // Set twist references from genome orientations (matches C++ implementation)
+        // This is critical for proper twist constraint behavior
+        connections.twist_reference_a[connection_index] = genome_orientation_a;
+        connections.twist_reference_b[connection_index] = genome_orientation_b;
+        
+        // Update adhesion indices in both cells
+        if !self.set_adhesion_index(cell_a, slot_a, connection_index as i32) ||
+           !self.set_adhesion_index(cell_b, slot_b, connection_index as i32) {
+            // Rollback
+            connections.is_active[connection_index] = 0;
+            return None;
+        }
+        
+        // Update active count if needed
+        if connection_index >= connections.active_count {
+            connections.active_count = connection_index + 1;
+        }
+        
+        Some(connection_index)
+    }
+    
+    /// Remove adhesion connection
+    pub fn remove_adhesion(
+        &mut self,
+        connections: &mut AdhesionConnections,
+        connection_index: usize,
+    ) -> bool {
+        if connection_index >= connections.active_count {
+            return false;
+        }
+        
+        if connections.is_active[connection_index] == 0 {
+            return false;
+        }
+        
+        let cell_a = connections.cell_a_index[connection_index];
+        let cell_b = connections.cell_b_index[connection_index];
+        
+        // Remove adhesion indices from both cells
+        self.remove_adhesion_index(cell_a, connection_index as i32);
+        self.remove_adhesion_index(cell_b, connection_index as i32);
+        
+        // Mark connection as inactive
+        connections.is_active[connection_index] = 0;
+        
+        true
+    }
+    
+    /// Remove all connections for a cell
+    pub fn remove_all_connections_for_cell(
+        &mut self,
+        connections: &mut AdhesionConnections,
+        cell_index: usize,
+    ) {
+        if cell_index >= self.cell_adhesion_indices.len() {
+            return;
+        }
+        
+        // Collect connection indices to remove
+        let mut to_remove = Vec::new();
+        for &connection_idx in &self.cell_adhesion_indices[cell_index] {
+            if connection_idx >= 0 {
+                to_remove.push(connection_idx as usize);
+            }
+        }
+        
+        // Remove each connection
+        for connection_idx in to_remove {
+            self.remove_adhesion(connections, connection_idx);
+        }
+    }
+    
+    /// Find free connection slot
+    fn find_free_connection_slot(&self, connections: &AdhesionConnections) -> Option<usize> {
+        for i in 0..connections.cell_a_index.len() {
+            if i >= connections.active_count || connections.is_active[i] == 0 {
+                return Some(i);
+            }
+        }
+        None
+    }
+    
+    /// Get connections for a cell
+    pub fn get_connections_for_cell(&self, connections: &AdhesionConnections, cell_index: usize) -> Vec<usize> {
+        let mut result = Vec::new();
+        
+        if cell_index >= self.cell_adhesion_indices.len() {
+            return result;
+        }
+        
+        for &connection_idx in &self.cell_adhesion_indices[cell_index] {
+            if connection_idx >= 0 {
+                let idx = connection_idx as usize;
+                if idx < connections.active_count && connections.is_active[idx] == 1 {
+                    result.push(idx);
+                }
+            }
+        }
+        
+        result
+    }
+    
+    /// Get active connection count
+    pub fn get_active_connection_count(&self, connections: &AdhesionConnections) -> usize {
+        let mut count = 0;
+        for i in 0..connections.active_count {
+            if connections.is_active[i] == 1 {
+                count += 1;
+            }
+        }
+        count
+    }
+}
