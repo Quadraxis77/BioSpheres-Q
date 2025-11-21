@@ -355,13 +355,13 @@ fn update_anchor_gizmos(
             // Create anchor for cell A
             if !existing_anchors.contains(&(entity_a, i, true)) {
                 let pos_a = state.positions[cell_a_idx];
-                let rot_a = state.rotations[cell_a_idx];
+                let genome_rot_a = state.genome_orientations[cell_a_idx];  // Use genome orientation
                 let anchor_dir_a = connections.anchor_direction_a[i];
                 let cell_radius_a = state.radii[cell_a_idx];
                 let radius_a = cell_radius_a * 0.1; // Small sphere for visualization
 
                 // Transform anchor direction to world space
-                let world_anchor_a = rot_a * anchor_dir_a;
+                let world_anchor_a = genome_rot_a * anchor_dir_a;
                 let anchor_pos_a = pos_a + world_anchor_a * cell_radius_a;
 
                 // Get zone color
@@ -392,13 +392,13 @@ fn update_anchor_gizmos(
             // Create anchor for cell B
             if !existing_anchors.contains(&(entity_b, i, false)) {
                 let pos_b = state.positions[cell_b_idx];
-                let rot_b = state.rotations[cell_b_idx];
+                let genome_rot_b = state.genome_orientations[cell_b_idx];  // Use genome orientation
                 let anchor_dir_b = connections.anchor_direction_b[i];
                 let cell_radius_b = state.radii[cell_b_idx];
                 let radius_b = cell_radius_b * 0.1; // Small sphere for visualization
 
                 // Transform anchor direction to world space
-                let world_anchor_b = rot_b * anchor_dir_b;
+                let world_anchor_b = genome_rot_b * anchor_dir_b;
                 let anchor_pos_b = pos_b + world_anchor_b * cell_radius_b;
 
                 // Get zone color
@@ -493,18 +493,18 @@ fn update_anchor_transforms(
         if anchor.is_side_a {
             // This is cell A's anchor
             let pos_a = state.positions[cell_a_idx];
-            let rot_a = state.rotations[cell_a_idx];
+            let genome_rot_a = state.genome_orientations[cell_a_idx];  // Use genome orientation, not physics rotation
             let anchor_dir_a = connections.anchor_direction_a[i];
             let cell_radius_a = state.radii[cell_a_idx];
-            let world_anchor_a = rot_a * anchor_dir_a;
+            let world_anchor_a = genome_rot_a * anchor_dir_a;
             transform.translation = pos_a + world_anchor_a * cell_radius_a;
         } else {
             // This is cell B's anchor
             let pos_b = state.positions[cell_b_idx];
-            let rot_b = state.rotations[cell_b_idx];
+            let genome_rot_b = state.genome_orientations[cell_b_idx];  // Use genome orientation, not physics rotation
             let anchor_dir_b = connections.anchor_direction_b[i];
             let cell_radius_b = state.radii[cell_b_idx];
-            let world_anchor_b = rot_b * anchor_dir_b;
+            let world_anchor_b = genome_rot_b * anchor_dir_b;
             transform.translation = pos_b + world_anchor_b * cell_radius_b;
         }
     }

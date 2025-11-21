@@ -319,9 +319,13 @@ fn run_preview_resimulation(
     for step in 0..steps {
         let current_time = (start_step + step) as f32 * config.fixed_timestep;
 
-        // Run CPU physics step (single-threaded for preview)
+        // Run CPU physics step (single-threaded for preview) with genome-aware adhesion settings
         let physics_start = std::time::Instant::now();
-        crate::simulation::cpu_physics::physics_step_st(&mut preview_state.canonical_state, &config);
+        crate::simulation::cpu_physics::physics_step_st_with_genome(
+            &mut preview_state.canonical_state, 
+            &config,
+            &genome.genome,
+        );
         total_physics_time += physics_start.elapsed();
 
         // Run division step using CPU physics
