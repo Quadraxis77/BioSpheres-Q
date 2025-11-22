@@ -336,8 +336,8 @@ fn spawn_cpu_scene_without_camera(
     
     let cell_radius = 1.0;
     
-    // Create initial state (4000 cells to match CPU simulation limit)
-    let mut initial_state = InitialState::new((**config).clone(), 4_000, 0);
+    // Create initial state (4096 cells to match CPU simulation limit)
+    let mut initial_state = InitialState::new((**config).clone(), 4_096, 0);
     initial_state.add_cell(InitialCell {
         id: 0,
         position: Vec3::ZERO,

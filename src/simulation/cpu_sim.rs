@@ -91,7 +91,7 @@ impl Default for MainSimState {
     fn default() -> Self {
         // Create a minimal initial state with smaller spatial grid
         let config = PhysicsConfig::default();
-        let initial_state = InitialState::new(config, 4_000, 0);
+        let initial_state = InitialState::new(config, 4_096, 0);
         
         // Override the spatial grid with a smaller one (16x16x16 instead of 64x64x64)
         let mut canonical_state = initial_state.to_canonical_state();
@@ -443,7 +443,7 @@ fn setup_cpu_scene(
     let cell_radius = 1.0;
     
     // Create initial state
-    let mut initial_state = InitialState::new(config.clone(), 4_000, 0);
+    let mut initial_state = InitialState::new(config.clone(), 4_096, 0);
     initial_state.add_cell(InitialCell {
         id: 0,
         position: Vec3::ZERO,

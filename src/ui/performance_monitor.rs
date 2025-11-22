@@ -300,14 +300,14 @@ fn render_performance_window(
                         if let Some(main_state) = main_sim_state.as_ref() {
                             (main_state.canonical_state.cell_count, main_state.initial_state.max_cells)
                         } else {
-                            (0, 4000)
+                            (0, 4096)
                         }
                     }
                 }
             } else if let Some(main_state) = main_sim_state.as_ref() {
                 (main_state.canonical_state.cell_count, main_state.initial_state.max_cells)
             } else {
-                (0, 4000)
+                (0, 4096)
             };
 
             ui.text(format!("Cells: {} / {}", cell_count, max_capacity));
