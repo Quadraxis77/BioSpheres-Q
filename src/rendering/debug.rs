@@ -131,13 +131,13 @@ fn update_split_plane_gizmos(
             SplitPlaneRing { cell_entity },
         ));
 
-        // Create red ring (other side) - mesh with LOCAL offset, will be rotated by Transform
-        let red_local_offset = -split_direction_local * offset_distance;
-        let red_mesh = create_filled_ring_mesh(red_local_offset, split_direction_local, inner_radius, outer_radius, segments);
+        // Create green ring (other side) - mesh with LOCAL offset, will be rotated by Transform
+        let green_local_offset = -split_direction_local * offset_distance;
+        let green_mesh = create_filled_ring_mesh(green_local_offset, split_direction_local, inner_radius, outer_radius, segments);
         commands.spawn((
-            Mesh3d(meshes.add(red_mesh)),
+            Mesh3d(meshes.add(green_mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, 0.0, 0.0), // Opaque red
+                base_color: Color::srgb(0.0, 1.0, 0.0), // Opaque green
                 unlit: true,
                 cull_mode: None, // Render both sides
                 ..default()

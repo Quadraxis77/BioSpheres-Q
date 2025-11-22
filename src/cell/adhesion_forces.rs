@@ -210,9 +210,33 @@ fn compute_adhesion_force_pair(
         torque_b += twist_torque_b + twist_damping_b;
     }
     
-    // Apply tangential force from torque
-    force_a += (-delta_pos).cross(torque_b);
-    force_b += delta_pos.cross(torque_a);
+    // Apply tangential forces from torques to maintain organism shape
+    // IMPROVED: Use balanced tangential forces that conserve momentum
+    // 
+    // The issue with the original implementation was that it applied:
+    //   force_a += (-delta_pos).cross(torque_b)
+    //   force_b += delta_pos.cross(torque_a)
+    // 
+    // This creates unbalanced forces when torques differ, causing phantom drift.
+    // 
+    // The fix: Apply equal and opposite tangential forces based on the TOTAL torque
+    // that would be needed to maintain the constraint. This ensures momentum conservation.
+    
+    // Calculate the total corrective torque (sum of both cells' torques)
+    let total_torque = torque_a + torque_b;
+    
+    // Calculate tangential force that would create this torque
+    // F_tangential = torque × r / |r|²
+    // This ensures equal and opposite forces on both cells
+    let r_squared = delta_pos.length_squared();
+    if r_squared > QUATERNION_EPSILON {
+        let tangential_force = total_torque.cross(delta_pos) / r_squared;
+        
+        // Apply equal and opposite tangential forces
+        // This maintains shape while conserving momentum
+        force_a += tangential_force;
+        force_b -= tangential_force;
+    }
     
     // Angular momentum conservation (DISABLED - causes unstable flipping behavior)
     // The C++ comment says "makes cells look less natural, maybe better to comment it out"
