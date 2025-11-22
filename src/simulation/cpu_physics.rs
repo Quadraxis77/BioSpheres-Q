@@ -845,7 +845,6 @@ pub fn physics_step_st(
             &state.rotations[..state.cell_count],
             &state.angular_velocities[..state.cell_count],
             &state.masses[..state.cell_count],
-            &state.genome_orientations[..state.cell_count],
             &mode_settings,
             &mut state.forces[..state.cell_count],
             &mut state.torques[..state.cell_count],
@@ -938,7 +937,6 @@ pub fn physics_step_st_with_genome(
             &state.rotations[..state.cell_count],
             &state.angular_velocities[..state.cell_count],
             &state.masses[..state.cell_count],
-            &state.genome_orientations[..state.cell_count],
             &mode_settings,
             &mut state.forces[..state.cell_count],
             &mut state.torques[..state.cell_count],
@@ -1018,7 +1016,6 @@ pub fn physics_step(
             &state.rotations[..state.cell_count],
             &state.angular_velocities[..state.cell_count],
             &state.masses[..state.cell_count],
-            &state.genome_orientations[..state.cell_count],
             &mode_settings,
             &mut state.forces[..state.cell_count],
             &mut state.torques[..state.cell_count],
@@ -1111,7 +1108,6 @@ pub fn physics_step_with_genome(
             &state.rotations[..state.cell_count],
             &state.angular_velocities[..state.cell_count],
             &state.masses[..state.cell_count],
-            &state.genome_orientations[..state.cell_count],
             &mode_settings,
             &mut state.forces[..state.cell_count],
             &mut state.torques[..state.cell_count],
@@ -1426,16 +1422,17 @@ pub fn division_step(
                 let anchor_direction_a_parent_genome = split_dir_local;
                 let anchor_direction_b_parent_genome = -split_dir_local;
                 
-                // Get parent and child genome orientations
-                let parent_genome_orientation = state.genome_orientations[data.parent_idx];
-                let child_a_genome_orientation = state.genome_orientations[data.child_a_slot];
-                let child_b_genome_orientation = state.genome_orientations[data.child_b_slot];
+                // Get parent and child PHYSICS rotations (not genome orientations)
+                // Since anchors are now in physics rotation frame, we need to transform accordingly
+                let parent_rotation = state.rotations[data.parent_idx];
+                let child_a_rotation = state.rotations[data.child_a_slot];
+                let child_b_rotation = state.rotations[data.child_b_slot];
                 
-                // Transform from parent's genome frame to each child's genome frame
-                let parent_to_child_a = child_a_genome_orientation.inverse() * parent_genome_orientation;
+                // Transform from parent's rotation frame to each child's rotation frame
+                let parent_to_child_a = child_a_rotation.inverse() * parent_rotation;
                 let anchor_direction_a = (parent_to_child_a * anchor_direction_a_parent_genome).normalize();
                 
-                let parent_to_child_b = child_b_genome_orientation.inverse() * parent_genome_orientation;
+                let parent_to_child_b = child_b_rotation.inverse() * parent_rotation;
                 let anchor_direction_b = (parent_to_child_b * anchor_direction_b_parent_genome).normalize();
                 
                 // Get genome orientations for twist references

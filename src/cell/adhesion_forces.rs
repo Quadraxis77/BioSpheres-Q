@@ -17,7 +17,6 @@ pub fn compute_adhesion_forces(
     rotations: &[Quat],
     angular_velocities: &[Vec3],
     masses: &[f32],
-    genome_orientations: &[Quat],  // Added: genome orientations for anchor transformation
     mode_settings: &[AdhesionSettings],
     forces: &mut [Vec3],
     torques: &mut [Vec3],
@@ -50,13 +49,11 @@ pub fn compute_adhesion_forces(
             rotations[cell_a_idx],
             angular_velocities[cell_a_idx],
             masses[cell_a_idx],
-            genome_orientations[cell_a_idx],  // Pass genome orientation
             positions[cell_b_idx],
             velocities[cell_b_idx],
             rotations[cell_b_idx],
             angular_velocities[cell_b_idx],
             masses[cell_b_idx],
-            genome_orientations[cell_b_idx],  // Pass genome orientation
             connections.anchor_direction_a[i],
             connections.anchor_direction_b[i],
             connections.twist_reference_a[i],
@@ -81,13 +78,11 @@ fn compute_adhesion_force_pair(
     rot_a: Quat,
     ang_vel_a: Vec3,
     _mass_a: f32,
-    genome_rot_a: Quat,  // Genome orientation for cell A
     pos_b: Vec3,
     vel_b: Vec3,
     rot_b: Quat,
     ang_vel_b: Vec3,
     _mass_b: f32,
-    genome_rot_b: Quat,  // Genome orientation for cell B
     anchor_dir_a: Vec3,
     anchor_dir_b: Vec3,
     twist_ref_a: Quat,
@@ -121,18 +116,18 @@ fn compute_adhesion_force_pair(
     force_a += spring_force + damping_force;
     force_b -= spring_force + damping_force;
     
-    // Transform anchor directions to world space using GENOME orientations (not physics rotations!)
-    // This ensures anchors stay fixed on the cell surface and don't slide around
+    // Transform anchor directions to world space using PHYSICS rotations
+    // Anchors are stored in local space and rotate with the cell
     let anchor_a = if anchor_dir_a.length() < ANGLE_EPSILON && anchor_dir_b.length() < ANGLE_EPSILON {
         Vec3::X
     } else {
-        rotate_vector_by_quaternion(anchor_dir_a, genome_rot_a)
+        rotate_vector_by_quaternion(anchor_dir_a, rot_a)
     };
     
     let anchor_b = if anchor_dir_a.length() < ANGLE_EPSILON && anchor_dir_b.length() < ANGLE_EPSILON {
         -Vec3::X
     } else {
-        rotate_vector_by_quaternion(anchor_dir_b, genome_rot_b)
+        rotate_vector_by_quaternion(anchor_dir_b, rot_b)
     };
     
     // Apply orientation spring and damping
