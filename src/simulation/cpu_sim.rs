@@ -343,7 +343,7 @@ fn handle_divisions(
 fn sync_ecs_from_canonical(
     main_state: Res<MainSimState>,
     drag_state: Res<crate::input::cell_dragging::DragState>,
-    mut cells_query: Query<(Entity, &mut CellPosition, &mut Cell)>,
+    mut cells_query: Query<(Entity, &mut CellPosition, &mut CellOrientation, &mut Cell)>,
 ) {
     // Early return if no cells (scene not initialized yet)
     if main_state.canonical_state.cell_count == 0 {
@@ -359,9 +359,11 @@ fn sync_ecs_from_canonical(
                 continue;
             }
             
-            if let Ok((_, mut pos, mut cell)) = cells_query.get_mut(entity) {
+            if let Ok((_, mut pos, mut orientation, mut cell)) = cells_query.get_mut(entity) {
                 pos.position = main_state.canonical_state.positions[i];
                 pos.velocity = main_state.canonical_state.velocities[i];
+                orientation.rotation = main_state.canonical_state.rotations[i];
+                orientation.angular_velocity = main_state.canonical_state.angular_velocities[i];
                 cell.mass = main_state.canonical_state.masses[i];
                 cell.radius = main_state.canonical_state.radii[i];
                 cell.genome_id = main_state.canonical_state.genome_ids[i];

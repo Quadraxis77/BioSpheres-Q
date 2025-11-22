@@ -463,7 +463,7 @@ fn respawn_preview_cells_after_resimulation(
 /// This updates existing ECS entities to match the canonical state without respawning
 fn sync_preview_visuals(
     preview_state: Res<PreviewSimState>,
-    mut cells_query: Query<(Entity, &mut CellPosition), (With<Cell>, With<PreviewSceneEntity>)>,
+    mut cells_query: Query<(Entity, &mut CellPosition, &mut CellOrientation), (With<Cell>, With<PreviewSceneEntity>)>,
     drag_state: Res<crate::input::DragState>,
 ) {
     // Skip sync entirely if currently dragging a cell
@@ -471,9 +471,9 @@ fn sync_preview_visuals(
         return;
     }
     
-    // Sync positions from canonical state to existing entities
-    // Only update CellPosition - Transform will be synced by sync_transforms system
-    for (entity, mut cell_pos) in cells_query.iter_mut() {
+    // Sync positions and orientations from canonical state to existing entities
+    // Only update CellPosition and CellOrientation - Transform will be synced by sync_transforms system
+    for (entity, mut cell_pos, mut cell_orientation) in cells_query.iter_mut() {
         // Skip the dragged entity
         if Some(entity) == drag_state.dragged_entity {
             continue;
@@ -487,6 +487,8 @@ fn sync_preview_visuals(
                     if preview_state.canonical_state.cell_ids[i] == *cell_id {
                         cell_pos.position = preview_state.canonical_state.positions[i];
                         cell_pos.velocity = preview_state.canonical_state.velocities[i];
+                        cell_orientation.rotation = preview_state.canonical_state.rotations[i];
+                        cell_orientation.angular_velocity = preview_state.canonical_state.angular_velocities[i];
                         break;
                     }
                 }

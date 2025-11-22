@@ -109,28 +109,16 @@ fn update_split_plane_gizmos(
         
         // Use Euler rotation to match the actual division code
         let split_direction_local = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
-        
-        // Transform split direction to world space
-        let world_split_direction = orientation.rotation * split_direction_local;
 
-        // Create two rings perpendicular to the split direction
+        // Create two rings perpendicular to the split direction IN LOCAL SPACE
         let outer_radius = cell.radius * 1.2;
         let inner_radius = cell.radius * 1.4;
         let offset_distance = 0.001;
         let segments = 32;
 
-        // Calculate perpendicular vectors to create the ring plane (unused but kept for clarity)
-        let _up = if world_split_direction.y.abs() < 0.9 {
-            Vec3::Y
-        } else {
-            Vec3::X
-        };
-        let _right = world_split_direction.cross(_up).normalize();
-        let _up = _right.cross(world_split_direction).normalize();
-
-        // Create blue ring (one side) - mesh with local offset, positioned at cell center
-        let blue_local_offset = world_split_direction * offset_distance;
-        let blue_mesh = create_filled_ring_mesh(blue_local_offset, world_split_direction, inner_radius, outer_radius, segments);
+        // Create blue ring (one side) - mesh with LOCAL offset, will be rotated by Transform
+        let blue_local_offset = split_direction_local * offset_distance;
+        let blue_mesh = create_filled_ring_mesh(blue_local_offset, split_direction_local, inner_radius, outer_radius, segments);
         commands.spawn((
             Mesh3d(meshes.add(blue_mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -139,13 +127,13 @@ fn update_split_plane_gizmos(
                 cull_mode: None, // Render both sides
                 ..default()
             })),
-            Transform::from_translation(position.position),
+            Transform::from_translation(position.position).with_rotation(orientation.rotation),
             SplitPlaneRing { cell_entity },
         ));
 
-        // Create red ring (other side) - mesh with local offset, positioned at cell center
-        let red_local_offset = -world_split_direction * offset_distance;
-        let red_mesh = create_filled_ring_mesh(red_local_offset, world_split_direction, inner_radius, outer_radius, segments);
+        // Create red ring (other side) - mesh with LOCAL offset, will be rotated by Transform
+        let red_local_offset = -split_direction_local * offset_distance;
+        let red_mesh = create_filled_ring_mesh(red_local_offset, split_direction_local, inner_radius, outer_radius, segments);
         commands.spawn((
             Mesh3d(meshes.add(red_mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -154,7 +142,7 @@ fn update_split_plane_gizmos(
                 cull_mode: None, // Render both sides
                 ..default()
             })),
-            Transform::from_translation(position.position),
+            Transform::from_translation(position.position).with_rotation(orientation.rotation),
             SplitPlaneRing { cell_entity },
         ));
     }
@@ -172,7 +160,7 @@ fn update_split_plane_gizmos(
 /// Update split plane ring transforms to follow their parent cells
 fn update_split_plane_transforms(
     config: Res<RenderingConfig>,
-    cells_query: Query<(Entity, &CellPosition)>,
+    cells_query: Query<(Entity, &CellPosition, &CellOrientation)>,
     mut ring_query: Query<(&SplitPlaneRing, &mut Transform)>,
 ) {
     if !config.show_split_plane_gizmos {
@@ -181,10 +169,11 @@ fn update_split_plane_transforms(
 
     // Update each ring's transform to match its parent cell
     for (ring, mut transform) in ring_query.iter_mut() {
-        // Find the parent cell and update position
-        if let Ok((_, position)) = cells_query.get(ring.cell_entity) {
-            // Update position - just follow the cell center, offset is baked into mesh
+        // Find the parent cell and update position and rotation
+        if let Ok((_, position, orientation)) = cells_query.get(ring.cell_entity) {
+            // Update position and rotation to follow the cell
             transform.translation = position.position;
+            transform.rotation = orientation.rotation;
         }
     }
 }

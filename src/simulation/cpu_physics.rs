@@ -1304,9 +1304,10 @@ pub fn division_step(
             let child_a_genome_orientation = parent_genome_orientation * mode.child_a.orientation;
             let child_b_genome_orientation = parent_genome_orientation * mode.child_b.orientation;
             
-            // Physics rotations start the same as genome orientations
-            let child_a_orientation = child_a_genome_orientation;
-            let child_b_orientation = child_b_genome_orientation;
+            // Physics rotations inherit from parent's physics rotation + child orientation delta
+            // This preserves the parent's spin while applying the genome-specified orientation change
+            let child_a_orientation = parent_rotation * mode.child_a.orientation;
+            let child_b_orientation = parent_rotation * mode.child_b.orientation;
             
             division_data_list.push(DivisionData {
                 parent_idx,
