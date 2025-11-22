@@ -12,12 +12,16 @@ use crate::genome::GenomeData;
 /// - Zone A: Inherit to child B (adhesions pointing opposite to split direction)
 /// - Zone B: Inherit to child A (adhesions pointing same as split direction)
 /// - Zone C: Inherit to both children (adhesions in equatorial band)
+/// 
+/// CRITICAL: parent_genome_orientation must be the parent's orientation BEFORE division,
+/// since child A overwrites the parent's slot and changes the genome orientation.
 pub fn inherit_adhesions_on_division(
     state: &mut CanonicalState,
     genome: &GenomeData,
     parent_idx: usize,
     child_a_idx: usize,
     child_b_idx: usize,
+    parent_genome_orientation: Quat,
 ) {
     // Debug: Log inheritance attempt
     let parent_connections_debug: Vec<_> = (0..crate::cell::MAX_ADHESIONS_PER_CELL)
@@ -44,6 +48,8 @@ pub fn inherit_adhesions_on_division(
     
     // Get parent properties
     let parent_radius = state.radii[parent_idx];
+    // CRITICAL: parent_genome_orientation is passed as parameter, not read from state
+    // because child A has already overwritten the parent's slot with its own orientation
     
     // Calculate split direction from parent mode (in local space)
     let pitch = parent_mode.parent_split_direction.x.to_radians();
@@ -109,17 +115,23 @@ pub fn inherit_adhesions_on_division(
         // We now match this behavior in Rust
         let neighbor_radius = state.radii[neighbor_idx];
         
-        // CRITICAL: Use stored anchor direction in LOCAL SPACE (matches C++ implementation)
+        // CRITICAL: Use stored anchor directions in LOCAL SPACE (matches C++ implementation)
         // C++ uses the anchor direction stored in the adhesion connection, NOT world-space positions
-        let local_anchor_direction = if parent_is_a {
-            state.adhesion_connections.anchor_direction_a[connection_idx]
+        let (parent_anchor_direction, neighbor_anchor_direction) = if parent_is_a {
+            (
+                state.adhesion_connections.anchor_direction_a[connection_idx],
+                state.adhesion_connections.anchor_direction_b[connection_idx],
+            )
         } else {
-            state.adhesion_connections.anchor_direction_b[connection_idx]
+            (
+                state.adhesion_connections.anchor_direction_b[connection_idx],
+                state.adhesion_connections.anchor_direction_a[connection_idx],
+            )
         };
         
         // CRITICAL: Classify using LOCAL anchor direction and splitDirection from genome
         // This matches C++ implementation exactly - zones are classified in parent's local frame
-        let zone = classify_bond_direction(local_anchor_direction, split_direction_local);
+        let zone = classify_bond_direction(parent_anchor_direction, split_direction_local);
         
         // Get connection properties
         // IMPORTANT: Use the CHILD's mode index, not the old connection's mode index
@@ -143,7 +155,9 @@ pub fn inherit_adhesions_on_division(
                     parent_is_a,
                     parent_idx,
                     parent_mode,
-                    local_anchor_direction,
+                    parent_genome_orientation,
+                    parent_anchor_direction,
+                    neighbor_anchor_direction,
                     parent_radius,
                     neighbor_radius,
                     parent_mode.child_b.orientation,  // Use orientation DELTA from genome
@@ -163,7 +177,9 @@ pub fn inherit_adhesions_on_division(
                     parent_is_a,
                     parent_idx,
                     parent_mode,
-                    local_anchor_direction,
+                    parent_genome_orientation,
+                    parent_anchor_direction,
+                    neighbor_anchor_direction,
                     parent_radius,
                     neighbor_radius,
                     parent_mode.child_a.orientation,  // Use orientation DELTA from genome
@@ -184,7 +200,9 @@ pub fn inherit_adhesions_on_division(
                         parent_is_a,
                         parent_idx,
                         parent_mode,
-                        local_anchor_direction,
+                        parent_genome_orientation,
+                        parent_anchor_direction,
+                        neighbor_anchor_direction,
                         parent_radius,
                         neighbor_radius,
                         parent_mode.child_b.orientation,  // Use orientation DELTA from genome
@@ -203,7 +221,9 @@ pub fn inherit_adhesions_on_division(
                         parent_is_a,
                         parent_idx,
                         parent_mode,
-                        local_anchor_direction,
+                        parent_genome_orientation,
+                        parent_anchor_direction,
+                        neighbor_anchor_direction,
                         parent_radius,
                         neighbor_radius,
                         parent_mode.child_a.orientation,  // Use orientation DELTA from genome
@@ -224,7 +244,9 @@ pub fn inherit_adhesions_on_division(
 /// Create an inherited adhesion connection from parent to child
 /// 
 /// This matches the C++ implementation exactly:
-/// - Calculates anchor directions geometrically in parent's frame
+/// - Calculates child anchor from child position to neighbor in parent frame
+/// - Calculates neighbor anchor from neighbor position to child in parent frame
+/// - Transforms both to their respective local frames
 /// - Uses genome orientations for proper transformations
 /// - Preserves original side assignment
 fn create_inherited_adhesion(
@@ -234,9 +256,11 @@ fn create_inherited_adhesion(
     neighbor_idx: usize,
     mode_index: usize,
     parent_was_a: bool,
-    parent_idx: usize,
+    _parent_idx: usize,
     parent_mode: &crate::genome::ModeSettings,
-    local_anchor_direction: Vec3,
+    parent_genome_orientation: Quat,
+    parent_anchor_direction: Vec3,
+    _neighbor_anchor_direction: Vec3,
     parent_radius: f32,
     neighbor_radius: f32,
     child_orientation_delta: Quat,
@@ -244,32 +268,33 @@ fn create_inherited_adhesion(
     split_dir_parent: Vec3,
     is_child_a: bool,
 ) {
-    // CRITICAL FIX: Use genome orientations (NOT physics rotations)
-    // This matches C++ implementation which uses genomeQuat
-    let neighbor_genome_orientation = state.genome_orientations[neighbor_idx];
-    let parent_genome_orientation = state.genome_orientations[parent_idx];
+    // CRITICAL: Match C++ implementation for Zone C cases
+    // In Zone C, the neighbor needs TWO separate anchors (one to each child)
+    // We must calculate geometric positions in parent frame and derive anchors
     
-    // Get rest length from mode settings
+    // Get rest length from parent mode
     let rest_length = parent_mode.adhesion_settings.rest_length;
     
     // Calculate center-to-center distance using parent's adhesion rest length
     let center_to_center_dist = rest_length + parent_radius + neighbor_radius;
     
-    // CRITICAL: Preserve the parent's anchor direction, don't recalculate geometrically!
-    // The parent's anchor direction is already in the parent's genome-local frame.
-    // We just need to transform it to the child's genome-local frame.
+    // Calculate positions in parent frame for geometric anchor placement (MATCHES C++)
+    let child_pos_parent_frame = if is_child_a {
+        split_dir_parent * split_offset_magnitude  // Child A at +offset
+    } else {
+        -split_dir_parent * split_offset_magnitude  // Child B at -offset
+    };
+    let neighbor_pos_parent_frame = parent_anchor_direction * center_to_center_dist;
     
-    // The parent's anchor pointed at the neighbor. The child inherits this same anchor.
-    // Transform from parent's genome frame to child's genome frame using the orientation delta.
-    let child_anchor_direction = (child_orientation_delta.inverse() * local_anchor_direction).normalize();
+    // Child anchor: direction from child to neighbor, transformed by genome orientation
+    let direction_to_neighbor_parent_frame = (neighbor_pos_parent_frame - child_pos_parent_frame).normalize();
+    let child_anchor_direction = (child_orientation_delta.inverse() * direction_to_neighbor_parent_frame).normalize();
     
-    // For the neighbor's anchor, it originally pointed at the parent.
-    // It should now point at the child, but the child is in a different position.
-    // However, we want to preserve the anchor's position on the neighbor's surface.
-    // The neighbor's anchor direction in the parent's frame was -local_anchor_direction.
-    // Transform this to the neighbor's frame using the relative rotation.
+    // Neighbor anchor: direction from neighbor to child, transformed to neighbor's frame
+    let direction_to_child_parent_frame = (child_pos_parent_frame - neighbor_pos_parent_frame).normalize();
+    let neighbor_genome_orientation = state.genome_orientations[neighbor_idx];
     let relative_rotation = neighbor_genome_orientation.inverse() * parent_genome_orientation;
-    let neighbor_anchor_direction = (relative_rotation * (-local_anchor_direction)).normalize();
+    let neighbor_anchor_direction = (relative_rotation * direction_to_child_parent_frame).normalize();
     
     // Get child and neighbor mode indices for zone classification
     let child_mode_idx = state.mode_indices[child_idx];
@@ -343,7 +368,7 @@ fn create_inherited_adhesion(
         
         println!("[ANCHOR DEBUG] Inherited adhesion created:");
         println!("  Connection: {} <-> {}", cell_a_idx, cell_b_idx);
-        println!("  Parent anchor (local): {:?}", local_anchor_direction);
+        println!("  Parent anchor (local): {:?}", parent_anchor_direction);
         println!("  Child anchor (local): {:?}", anchor_a_local);
         println!("  Neighbor anchor (local): {:?}", anchor_b_local);
         println!("  Child anchor (world): {:?}", anchor_a_world);

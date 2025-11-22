@@ -1195,6 +1195,51 @@ pub fn division_step(
         }
     }
     
+    // CRITICAL: Prevent simultaneous splits of adhered cells (matches C++ GPU implementation)
+    // Use priority-based system where lower cell index has higher priority
+    // If an adhered cell also wants to split, defer the lower-priority cell
+    let mut filtered_divisions = Vec::new();
+    for &cell_idx in &divisions_to_process {
+        let mut should_defer = false;
+        
+        // Check all adhesions of this cell
+        for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
+            if *adhesion_idx < 0 {
+                continue;
+            }
+            let adhesion_idx = *adhesion_idx as usize;
+            
+            // Check if this adhesion is active
+            if state.adhesion_connections.is_active[adhesion_idx] == 0 {
+                continue;
+            }
+            
+            // Find the other cell in this adhesion
+            let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
+                state.adhesion_connections.cell_b_index[adhesion_idx]
+            } else {
+                state.adhesion_connections.cell_a_index[adhesion_idx]
+            };
+            
+            // Check if the other cell also wants to split
+            let other_age = current_time - state.birth_times[other_idx];
+            if other_age >= state.split_intervals[other_idx] {
+                // Both cells want to split - compare priority (lower index = higher priority)
+                if other_idx < cell_idx {
+                    // Other cell has higher priority, defer this split
+                    should_defer = true;
+                    break;
+                }
+            }
+        }
+        
+        if !should_defer {
+            filtered_divisions.push(cell_idx);
+        }
+    }
+    
+    let divisions_to_process = filtered_divisions;
+    
     // Early exit if no divisions - avoid expensive AllocationSim creation
     if divisions_to_process.is_empty() {
         return Vec::new();
@@ -1217,6 +1262,7 @@ pub fn division_step(
         parent_radius: f32,
         parent_genome_id: usize,
         parent_stiffness: f32,
+        parent_genome_orientation: bevy::prelude::Quat,  // CRITICAL: Save parent's genome orientation before overwriting
         child_a_pos: bevy::prelude::Vec3,
         child_b_pos: bevy::prelude::Vec3,
         child_a_orientation: bevy::prelude::Quat,
@@ -1315,6 +1361,7 @@ pub fn division_step(
                 parent_radius,
                 parent_genome_id,
                 parent_stiffness,
+                parent_genome_orientation,  // CRITICAL: Save parent's genome orientation before overwriting
                 child_a_pos,
                 child_b_pos,
                 child_a_orientation,
@@ -1396,12 +1443,14 @@ pub fn division_step(
     // Child A reuses parent index (matches C++), so neighborIndex automatically points to correct cell
     for data in &division_data_list {
         // Inherit adhesions from parent to children based on zone classification
+        // CRITICAL: Pass parent's saved genome orientation, not from state (child A has overwritten it)
         crate::simulation::inherit_adhesions_on_division(
             state,
             genome,
             data.parent_idx,
             data.child_a_slot,
             data.child_b_slot,
+            data.parent_genome_orientation,
         );
         
         // Create child-to-child adhesion if parent mode allows it
