@@ -1271,9 +1271,10 @@ pub fn division_step(
                 * bevy::prelude::Vec3::Z;
             
             // 75% overlap means centers are 25% of combined diameter apart
+            // Match C++ convention: Child A at +offset, Child B at -offset
             let offset_distance = parent_radius * 0.25;
-            let child_a_pos = parent_position - split_direction * offset_distance;
-            let child_b_pos = parent_position + split_direction * offset_distance;
+            let child_a_pos = parent_position + split_direction * offset_distance;
+            let child_b_pos = parent_position - split_direction * offset_distance;
             
             // Get child mode indices
             let child_a_mode_idx = mode.child_a.mode_number.max(0) as usize;
@@ -1416,24 +1417,17 @@ pub fn division_step(
                 let yaw = mode.parent_split_direction.y.to_radians();
                 let split_dir_local = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
                 
-                // Anchors point along the split direction in parent's genome frame
-                // Child A's anchor points toward B (+split direction)
-                // Child B's anchor points toward A (-split direction)
-                let anchor_direction_a_parent_genome = split_dir_local;
-                let anchor_direction_b_parent_genome = -split_dir_local;
+                // CRITICAL: Match C++ implementation exactly
+                // Direction vectors in parent's local frame:
+                // Child A is at +offset, child B is at -offset
+                // Child A points toward B (at -offset): -splitDirLocal
+                // Child B points toward A (at +offset): +splitDirLocal
+                // Transform to each child's local space using genome-derived orientation deltas
+                let direction_a_to_b_parent_local = -split_dir_local;
+                let direction_b_to_a_parent_local = split_dir_local;
                 
-                // Get parent and child PHYSICS rotations (not genome orientations)
-                // Since anchors are now in physics rotation frame, we need to transform accordingly
-                let parent_rotation = state.rotations[data.parent_idx];
-                let child_a_rotation = state.rotations[data.child_a_slot];
-                let child_b_rotation = state.rotations[data.child_b_slot];
-                
-                // Transform from parent's rotation frame to each child's rotation frame
-                let parent_to_child_a = child_a_rotation.inverse() * parent_rotation;
-                let anchor_direction_a = (parent_to_child_a * anchor_direction_a_parent_genome).normalize();
-                
-                let parent_to_child_b = child_b_rotation.inverse() * parent_rotation;
-                let anchor_direction_b = (parent_to_child_b * anchor_direction_b_parent_genome).normalize();
+                let anchor_direction_a = (mode.child_a.orientation.inverse() * direction_a_to_b_parent_local).normalize();
+                let anchor_direction_b = (mode.child_b.orientation.inverse() * direction_b_to_a_parent_local).normalize();
                 
                 // Get genome orientations for twist references
                 let child_a_genome_orientation = state.genome_orientations[data.child_a_slot];

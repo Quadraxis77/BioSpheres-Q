@@ -128,29 +128,12 @@ pub fn inherit_adhesions_on_division(
         let child_b_mode_idx = state.mode_indices[child_b_idx];
         
         // Inherit based on zone classification (matches C++ lines 170-340)
+        // CRITICAL: Child A is at +offset, Child B is at -offset
+        // Zone A (opposite to split) → Child B (at -offset)
+        // Zone B (same as split) → Child A (at +offset)
         match zone {
-            AdhesionZone::ZoneA if child_a_keep => {
-                // Zone A → Child A (adhesions pointing opposite to split stay with child at opposite side)
-                create_inherited_adhesion(
-                    state,
-                    genome,
-                    child_a_idx,
-                    neighbor_idx,
-                    child_a_mode_idx,  // Use child A's current mode index
-                    parent_is_a,
-                    parent_idx,
-                    parent_mode,
-                    local_anchor_direction,
-                    parent_radius,
-                    neighbor_radius,
-                    parent_mode.child_a.orientation,  // Use orientation DELTA from genome
-                    split_offset_magnitude,
-                    split_dir_parent,
-                    true,  // is_child_a = true (this is child A)
-                );
-            }
-            AdhesionZone::ZoneB if child_b_keep => {
-                // Zone B → Child B (adhesions pointing same as split stay with child at same side)
+            AdhesionZone::ZoneA if child_b_keep => {
+                // Zone A → Child B (adhesions pointing opposite to split stay with child at opposite side)
                 create_inherited_adhesion(
                     state,
                     genome,
@@ -167,6 +150,26 @@ pub fn inherit_adhesions_on_division(
                     split_offset_magnitude,
                     split_dir_parent,
                     false,  // is_child_a = false (this is child B)
+                );
+            }
+            AdhesionZone::ZoneB if child_a_keep => {
+                // Zone B → Child A (adhesions pointing same as split stay with child at same side)
+                create_inherited_adhesion(
+                    state,
+                    genome,
+                    child_a_idx,
+                    neighbor_idx,
+                    child_a_mode_idx,  // Use child A's current mode index
+                    parent_is_a,
+                    parent_idx,
+                    parent_mode,
+                    local_anchor_direction,
+                    parent_radius,
+                    neighbor_radius,
+                    parent_mode.child_a.orientation,  // Use orientation DELTA from genome
+                    split_offset_magnitude,
+                    split_dir_parent,
+                    true,  // is_child_a = true (this is child A)
                 );
             }
             AdhesionZone::ZoneC => {
