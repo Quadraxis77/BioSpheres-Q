@@ -554,22 +554,10 @@ pub fn detect_collisions_canonical(
 }
 
 /// Check if two cells are connected via an active adhesion connection
+/// Optimized version using adhesion manager's cell-local lookup
+#[inline]
 fn are_cells_connected(state: &CanonicalState, cell_a: usize, cell_b: usize) -> bool {
-    // Check all active adhesion connections
-    for i in 0..state.adhesion_connections.active_count {
-        if state.adhesion_connections.is_active[i] == 0 {
-            continue;
-        }
-        
-        let conn_a = state.adhesion_connections.cell_a_index[i];
-        let conn_b = state.adhesion_connections.cell_b_index[i];
-        
-        // Check if this connection links the two cells (in either direction)
-        if (conn_a == cell_a && conn_b == cell_b) || (conn_a == cell_b && conn_b == cell_a) {
-            return true;
-        }
-    }
-    false
+    state.adhesion_manager.are_cells_connected(&state.adhesion_connections, cell_a, cell_b)
 }
 
 /// Compute collision forces from detected collision pairs - Single-threaded version
@@ -838,7 +826,8 @@ pub fn physics_step_st(
         let default_settings = crate::cell::AdhesionSettings::default();
         let mode_settings = vec![default_settings; 10]; // Support up to 10 modes
         
-        crate::cell::compute_adhesion_forces(
+        // Use batched version for single-threaded (better cache locality)
+        crate::cell::compute_adhesion_forces_batched(
             &state.adhesion_connections,
             &state.positions[..state.cell_count],
             &state.velocities[..state.cell_count],
@@ -930,7 +919,8 @@ pub fn physics_step_st_with_genome(
             })
             .collect();
         
-        crate::cell::compute_adhesion_forces(
+        // Use batched version for single-threaded (better cache locality)
+        crate::cell::compute_adhesion_forces_batched(
             &state.adhesion_connections,
             &state.positions[..state.cell_count],
             &state.velocities[..state.cell_count],
@@ -1009,7 +999,8 @@ pub fn physics_step(
         let default_settings = crate::cell::AdhesionSettings::default();
         let mode_settings = vec![default_settings; 10]; // Support up to 10 modes
         
-        crate::cell::compute_adhesion_forces(
+        // Use parallel version for multithreaded physics
+        crate::cell::compute_adhesion_forces_parallel(
             &state.adhesion_connections,
             &state.positions[..state.cell_count],
             &state.velocities[..state.cell_count],
@@ -1101,7 +1092,8 @@ pub fn physics_step_with_genome(
             })
             .collect();
         
-        crate::cell::compute_adhesion_forces(
+        // Use parallel version for multithreaded physics
+        crate::cell::compute_adhesion_forces_parallel(
             &state.adhesion_connections,
             &state.positions[..state.cell_count],
             &state.velocities[..state.cell_count],
@@ -1631,8 +1623,7 @@ pub fn division_step(
     // Update adhesion manager's cell indices after compaction
     // We need to remap the adhesion indices stored in each cell
     let init_indices = || {
-        let mut arr = [-1; crate::cell::MAX_ADHESIONS_PER_CELL];
-        arr
+        [-1; crate::cell::MAX_ADHESIONS_PER_CELL]
     };
     let mut new_adhesion_indices: Vec<[i32; crate::cell::MAX_ADHESIONS_PER_CELL]> = 
         (0..state.capacity).map(|_| init_indices()).collect();

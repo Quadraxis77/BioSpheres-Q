@@ -262,4 +262,57 @@ impl AdhesionConnectionManager {
         }
         count
     }
+    
+    /// Get all active connections efficiently (returns iterator over connection indices)
+    /// This is more cache-friendly than repeated lookups
+    pub fn iter_active_connections<'a>(
+        &'a self,
+        connections: &'a AdhesionConnections,
+    ) -> impl Iterator<Item = usize> + 'a {
+        (0..connections.active_count)
+            .filter(move |&i| connections.is_active[i] == 1)
+    }
+    
+    /// Count active adhesions for a cell (optimized)
+    pub fn count_active_adhesions(&self, cell_index: usize) -> usize {
+        if cell_index >= self.cell_adhesion_indices.len() {
+            return 0;
+        }
+        
+        self.cell_adhesion_indices[cell_index]
+            .iter()
+            .filter(|&&idx| idx >= 0)
+            .count()
+    }
+    
+    /// Check if two cells are connected (optimized with early exit)
+    pub fn are_cells_connected(&self, connections: &AdhesionConnections, cell_a: usize, cell_b: usize) -> bool {
+        if cell_a >= self.cell_adhesion_indices.len() {
+            return false;
+        }
+        
+        // Check cell A's adhesion list (typically much smaller than all connections)
+        for &conn_idx in &self.cell_adhesion_indices[cell_a] {
+            if conn_idx < 0 {
+                continue;
+            }
+            
+            let conn_idx = conn_idx as usize;
+            if conn_idx >= connections.active_count || connections.is_active[conn_idx] == 0 {
+                continue;
+            }
+            
+            let other = if connections.cell_a_index[conn_idx] == cell_a {
+                connections.cell_b_index[conn_idx]
+            } else {
+                connections.cell_a_index[conn_idx]
+            };
+            
+            if other == cell_b {
+                return true;
+            }
+        }
+        
+        false
+    }
 }

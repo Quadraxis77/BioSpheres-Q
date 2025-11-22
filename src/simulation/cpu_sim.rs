@@ -83,6 +83,19 @@ pub struct MainSimState {
     /// Mapping from ECS entity to cell index in canonical state
     pub entity_to_index: HashMap<Entity, usize>,
     
+    /// OPTIMIZATION: Direct array mapping from cell index to entity
+    /// This avoids HashMap lookups in the hot sync path
+    pub index_to_entity: Vec<Option<Entity>>,
+    
+    /// OPTIMIZATION: Cached sphere mesh handle (reused for all cells)
+    /// Creating meshes is VERY expensive - reuse the same mesh for all cells
+    pub sphere_mesh: Handle<Mesh>,
+    
+    /// OPTIMIZATION: Material cache by color
+    /// Creating materials is expensive - cache and reuse by color
+    /// Key is (r, g, b) as u8 values for fast lookup
+    pub material_cache: HashMap<(u8, u8, u8), Handle<StandardMaterial>>,
+    
     /// Simulation time (advances based on speed multiplier)
     pub simulation_time: f32,
 }
@@ -97,11 +110,16 @@ impl Default for MainSimState {
         let mut canonical_state = initial_state.to_canonical_state();
         canonical_state.spatial_grid = crate::simulation::DeterministicSpatialGrid::new(16, 100.0, 50.0);
         
+        let capacity = canonical_state.capacity;
+        
         Self {
             canonical_state,
             initial_state,
             id_to_entity: HashMap::new(),
             entity_to_index: HashMap::new(),
+            index_to_entity: vec![None; capacity],
+            sphere_mesh: Handle::default(), // Will be initialized in setup
+            material_cache: HashMap::new(),
             simulation_time: 0.0,
         }
     }
@@ -172,13 +190,35 @@ fn run_main_simulation(
     );
 }
 
+/// Get or create a cached material for a given color
+/// OPTIMIZATION: Reuses materials to enable GPU instancing
+fn get_or_create_material(
+    color: Vec3,
+    material_cache: &mut HashMap<(u8, u8, u8), Handle<StandardMaterial>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) -> Handle<StandardMaterial> {
+    // Convert to u8 for cache key (reduces unique materials)
+    let key = (
+        (color.x * 255.0) as u8,
+        (color.y * 255.0) as u8,
+        (color.z * 255.0) as u8,
+    );
+    
+    material_cache.entry(key).or_insert_with(|| {
+        materials.add(StandardMaterial {
+            base_color: Color::srgb(color.x, color.y, color.z),
+            ..default()
+        })
+    }).clone()
+}
+
 /// Handle cell divisions in canonical state using the canonical division_step function
 fn handle_divisions(
     main_state: &mut MainSimState,
     genome: &crate::genome::CurrentGenome,
     current_time: f32,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
+    _meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     // Early exit if at capacity
@@ -218,7 +258,9 @@ fn handle_divisions(
     // Despawn parent entities (only for cells that actually divided)
     for parent_cell_id in parent_cell_ids {
         if let Some(parent_entity) = main_state.id_to_entity.remove(&parent_cell_id) {
-            main_state.entity_to_index.remove(&parent_entity);
+            if let Some(idx) = main_state.entity_to_index.remove(&parent_entity) {
+                main_state.index_to_entity[idx] = None;
+            }
             commands.entity(parent_entity).despawn();
         }
     }
@@ -252,6 +294,10 @@ fn handle_divisions(
         let child_a_color = child_a_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         let child_b_color = child_b_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         
+        // Get or create cached materials (enables GPU instancing)
+        let material_a = get_or_create_material(child_a_color, &mut main_state.material_cache, materials);
+        let material_b = get_or_create_material(child_b_color, &mut main_state.material_cache, materials);
+        
         // Spawn ECS entity for child A
         let cell_id_a = main_state.canonical_state.cell_ids[child_a_idx];
         let entity_a = commands.spawn((
@@ -276,18 +322,18 @@ fn handle_divisions(
             },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
-            Mesh3d(meshes.add(Sphere::new(child_a_radius).mesh().ico(5).unwrap())),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(child_a_color.x, child_a_color.y, child_a_color.z),
-                ..default()
-            })),
-            Transform::from_translation(child_a_pos).with_rotation(child_a_rotation),
+            Mesh3d(main_state.sphere_mesh.clone()),
+            MeshMaterial3d(material_a),
+            Transform::from_translation(child_a_pos)
+                .with_rotation(child_a_rotation)
+                .with_scale(Vec3::splat(child_a_radius)),
             Visibility::default(),
             CpuSceneEntity,
         )).id();
         
         main_state.id_to_entity.insert(cell_id_a, entity_a);
         main_state.entity_to_index.insert(entity_a, child_a_idx);
+        main_state.index_to_entity[child_a_idx] = Some(entity_a);
         
         // Spawn ECS entity for child B
         let cell_id_b = main_state.canonical_state.cell_ids[child_b_idx];
@@ -313,33 +359,36 @@ fn handle_divisions(
             },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
-            Mesh3d(meshes.add(Sphere::new(child_b_radius).mesh().ico(5).unwrap())),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(child_b_color.x, child_b_color.y, child_b_color.z),
-                ..default()
-            })),
-            Transform::from_translation(child_b_pos).with_rotation(child_b_rotation),
+            Mesh3d(main_state.sphere_mesh.clone()),
+            MeshMaterial3d(material_b),
+            Transform::from_translation(child_b_pos)
+                .with_rotation(child_b_rotation)
+                .with_scale(Vec3::splat(child_b_radius)),
             Visibility::default(),
             CpuSceneEntity,
         )).id();
         
         main_state.id_to_entity.insert(cell_id_b, entity_b);
         main_state.entity_to_index.insert(entity_b, child_b_idx);
+        main_state.index_to_entity[child_b_idx] = Some(entity_b);
     }
 
-    // Rebuild entity_to_index mapping for ALL cells after compaction
+    // Rebuild entity_to_index and index_to_entity mappings for ALL cells after compaction
     // Division and compaction can shift cell indices, so we need to rebuild
     // the mapping to keep it consistent with the canonical state
     main_state.entity_to_index.clear();
+    main_state.index_to_entity.fill(None);
     for i in 0..main_state.canonical_state.cell_count {
         let cell_id = main_state.canonical_state.cell_ids[i];
         if let Some(&entity) = main_state.id_to_entity.get(&cell_id) {
             main_state.entity_to_index.insert(entity, i);
+            main_state.index_to_entity[i] = Some(entity);
         }
     }
 }
 
 /// Sync ECS components from canonical state
+/// OPTIMIZED: Uses direct array indexing instead of HashMap lookups
 fn sync_ecs_from_canonical(
     main_state: Res<MainSimState>,
     drag_state: Res<crate::input::cell_dragging::DragState>,
@@ -350,16 +399,17 @@ fn sync_ecs_from_canonical(
         return;
     }
     
-    // For each cell in canonical state, update corresponding ECS entity
+    // OPTIMIZATION: Direct array access instead of HashMap lookups
+    // This is O(1) instead of O(log N) and has much better cache locality
     for i in 0..main_state.canonical_state.cell_count {
-        let cell_id = main_state.canonical_state.cell_ids[i];
-        if let Some(&entity) = main_state.id_to_entity.get(&cell_id) {
+        if let Some(entity) = main_state.index_to_entity[i] {
             // Skip syncing if this cell is currently being dragged
             if drag_state.dragged_entity == Some(entity) {
                 continue;
             }
             
             if let Ok((_, mut pos, mut orientation, mut cell)) = cells_query.get_mut(entity) {
+                // Batch read from canonical state (better cache locality)
                 pos.position = main_state.canonical_state.positions[i];
                 pos.velocity = main_state.canonical_state.velocities[i];
                 orientation.rotation = main_state.canonical_state.rotations[i];
@@ -464,7 +514,19 @@ fn setup_cpu_scene(
     main_state.initial_state = initial_state;
     main_state.id_to_entity.clear();
     main_state.entity_to_index.clear();
+    main_state.index_to_entity.fill(None);
     main_state.simulation_time = 0.0;
+    
+    // OPTIMIZATION: Create shared sphere mesh once (reused for all cells)
+    // This is a MASSIVE performance improvement - mesh generation is very expensive
+    let sphere_mesh = meshes.add(Sphere::new(1.0).mesh().ico(5).unwrap());
+    main_state.sphere_mesh = sphere_mesh.clone();
+    
+    // OPTIMIZATION: Clear material cache on scene reset
+    main_state.material_cache.clear();
+    
+    // Get or create cached material for initial cell
+    let initial_material = get_or_create_material(color, &mut main_state.material_cache, &mut materials);
     
     // Spawn ECS entity for the initial cell
     let entity = commands.spawn((
@@ -491,13 +553,11 @@ fn setup_cpu_scene(
         crate::cell::physics::CellForces::default(),
         crate::cell::physics::Cytoskeleton::default(),
         // Visual representation
-        Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(color.x, color.y, color.z),
-            ..default()
-        })),
+        Mesh3d(sphere_mesh.clone()),
+        MeshMaterial3d(initial_material),
         Transform::from_translation(Vec3::ZERO)
-            .with_rotation(genome.genome.initial_orientation),
+            .with_rotation(genome.genome.initial_orientation)
+            .with_scale(Vec3::splat(cell_radius)),
         Visibility::default(),
         CpuSceneEntity,
     )).id();
@@ -505,6 +565,7 @@ fn setup_cpu_scene(
     // Map cell ID to entity
     main_state.id_to_entity.insert(0, entity);
     main_state.entity_to_index.insert(entity, 0);
+    main_state.index_to_entity[0] = Some(entity);
 
     // Add basic lighting
     commands.spawn((
