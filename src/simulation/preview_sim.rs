@@ -5,7 +5,6 @@ use crate::ui::camera::MainCamera;
 use crate::simulation::cpu_physics::CanonicalState;
 use crate::simulation::initial_state::InitialState;
 use crate::simulation::PhysicsConfig;
-use std::collections::HashMap;
 
 /// Preview simulation plugin for genome testing
 /// Uses deterministic replay from time 0 with canonical physics
@@ -70,8 +69,9 @@ pub struct PreviewSimState {
     /// Current preview time
     pub current_time: f32,
     
-    /// Mapping from cell ID to ECS entity (preview entities only)
-    pub id_to_entity: HashMap<u32, Entity>,
+    /// Mapping from cell index to ECS entity (1D array for cache efficiency)
+    /// Index matches canonical_state cell indices
+    pub index_to_entity: Vec<Option<Entity>>,
 }
 
 impl Default for PreviewSimState {
@@ -84,7 +84,7 @@ impl Default for PreviewSimState {
             canonical_state,
             initial_state,
             current_time: 0.0,
-            id_to_entity: HashMap::new(),
+            index_to_entity: vec![None; 256],
         }
     }
 }
@@ -197,7 +197,8 @@ fn setup_preview_scene(
     preview_state.initial_state = initial_state;
     preview_state.canonical_state = canonical_state;
     preview_state.current_time = 0.0;
-    preview_state.id_to_entity.clear();
+    preview_state.index_to_entity.clear();
+    preview_state.index_to_entity.resize(256, None);
     
     // Spawn ECS entity for the initial cell
     let mode = genome.genome.modes.get(initial_mode_index)
@@ -248,8 +249,8 @@ fn setup_preview_scene(
         PreviewSceneEntity,
     )).id();
     
-    // Map cell ID to entity
-    preview_state.id_to_entity.insert(0, entity);
+    // Map cell index to entity
+    preview_state.index_to_entity[0] = Some(entity);
 }
 
 /// Cleanup Preview scene entities
@@ -319,7 +320,7 @@ fn run_preview_resimulation(
     for step in 0..steps {
         let current_time = (start_step + step) as f32 * config.fixed_timestep;
 
-        // Run CPU physics step (single-threaded for preview) with genome-aware adhesion settings
+        // Run CPU physics step (single-threaded for preview)
         let physics_start = std::time::Instant::now();
         crate::simulation::cpu_physics::physics_step_st_with_genome(
             &mut preview_state.canonical_state, 
@@ -375,21 +376,25 @@ fn respawn_preview_cells_after_resimulation(
     }
     
     {
-        let start_time = std::time::Instant::now();
-        
         // Despawn all existing cell entities
         for entity in cells_query.iter() {
             commands.entity(entity).despawn();
         }
         
-        preview_state.id_to_entity.clear();
+        // Clear entity mapping
+        for slot in preview_state.index_to_entity.iter_mut() {
+            *slot = None;
+        }
         
-        let _despawn_duration = start_time.elapsed();
-        let spawn_start = std::time::Instant::now();
+        // Pre-create shared mesh (reuse for all cells)
+        let sphere_mesh = meshes.add(Sphere::new(1.0).mesh().ico(5).unwrap());
         
-        // Spawn entities for all cells in canonical state
+        // Pre-create materials for each unique color (cache by mode as 1D array)
+        let max_modes = genome.genome.modes.len();
+        let mut material_cache: Vec<Option<Handle<StandardMaterial>>> = vec![None; max_modes];
+        
+        // Batch spawn all cells
         for i in 0..preview_state.canonical_state.cell_count {
-            let cell_id = preview_state.canonical_state.cell_ids[i];
             let mode_index = preview_state.canonical_state.mode_indices[i];
             let mass = preview_state.canonical_state.masses[i];
             let radius = preview_state.canonical_state.radii[i];
@@ -402,11 +407,30 @@ fn respawn_preview_cells_after_resimulation(
             let split_interval = preview_state.canonical_state.split_intervals[i];
             let stiffness = preview_state.canonical_state.stiffnesses[i];
             
-            let mode = genome.genome.modes.get(mode_index);
-            let color = if let Some(mode) = mode {
-                mode.color
+            // Get or create material for this mode
+            let material = if mode_index < material_cache.len() {
+                if let Some(mat) = &material_cache[mode_index] {
+                    mat.clone()
+                } else {
+                    let mode = genome.genome.modes.get(mode_index);
+                    let color = if let Some(mode) = mode {
+                        mode.color
+                    } else {
+                        Vec3::ONE
+                    };
+                    let mat = materials.add(StandardMaterial {
+                        base_color: Color::srgb(color.x, color.y, color.z),
+                        ..default()
+                    });
+                    material_cache[mode_index] = Some(mat.clone());
+                    mat
+                }
             } else {
-                Vec3::ONE
+                // Fallback for invalid mode index
+                materials.add(StandardMaterial {
+                    base_color: Color::srgb(1.0, 1.0, 1.0),
+                    ..default()
+                })
             };
             
             let entity = commands.spawn((
@@ -433,26 +457,17 @@ fn respawn_preview_cells_after_resimulation(
                 crate::cell::physics::Cytoskeleton {
                     stiffness,
                 },
-                Mesh3d(meshes.add(
-                    Sphere::new(radius)
-                        .mesh()
-                        .ico(5)
-                        .unwrap()
-                )),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgb(color.x, color.y, color.z),
-                    ..default()
-                })),
+                Mesh3d(sphere_mesh.clone()),
+                MeshMaterial3d(material),
                 Transform::from_translation(position)
-                    .with_rotation(rotation),
+                    .with_rotation(rotation)
+                    .with_scale(Vec3::splat(radius)),
                 Visibility::default(),
                 PreviewSceneEntity,
             )).id();
             
-            preview_state.id_to_entity.insert(cell_id, entity);
+            preview_state.index_to_entity[i] = Some(entity);
         }
-        
-        let _spawn_duration = spawn_start.elapsed();
         
         // Clear the respawn flag
         sim_state.needs_respawn = false;
@@ -473,26 +488,19 @@ fn sync_preview_visuals(
     
     // Sync positions and orientations from canonical state to existing entities
     // Only update CellPosition and CellOrientation - Transform will be synced by sync_transforms system
-    for (entity, mut cell_pos, mut cell_orientation) in cells_query.iter_mut() {
-        // Skip the dragged entity
-        if Some(entity) == drag_state.dragged_entity {
-            continue;
-        }
-        
-        // Find this entity in the id_to_entity map
-        for (cell_id, &mapped_entity) in preview_state.id_to_entity.iter() {
-            if mapped_entity == entity {
-                // Find the index of this cell_id in canonical state
-                for i in 0..preview_state.canonical_state.cell_count {
-                    if preview_state.canonical_state.cell_ids[i] == *cell_id {
-                        cell_pos.position = preview_state.canonical_state.positions[i];
-                        cell_pos.velocity = preview_state.canonical_state.velocities[i];
-                        cell_orientation.rotation = preview_state.canonical_state.rotations[i];
-                        cell_orientation.angular_velocity = preview_state.canonical_state.angular_velocities[i];
-                        break;
-                    }
-                }
-                break;
+    for i in 0..preview_state.canonical_state.cell_count {
+        if let Some(entity) = preview_state.index_to_entity[i] {
+            // Skip the dragged entity
+            if Some(entity) == drag_state.dragged_entity {
+                continue;
+            }
+            
+            // Update entity components directly using index
+            if let Ok((_, mut cell_pos, mut cell_orientation)) = cells_query.get_mut(entity) {
+                cell_pos.position = preview_state.canonical_state.positions[i];
+                cell_pos.velocity = preview_state.canonical_state.velocities[i];
+                cell_orientation.rotation = preview_state.canonical_state.rotations[i];
+                cell_orientation.angular_velocity = preview_state.canonical_state.angular_velocities[i];
             }
         }
     }

@@ -310,10 +310,9 @@ fn update_anchor_gizmos(
         }
         crate::simulation::SimulationMode::Preview => {
             if let Some(preview) = preview_state.as_ref() {
-                // For preview, use id_to_entity with cell_ids
+                // For preview, use index_to_entity directly
                 for i in 0..preview.canonical_state.cell_count {
-                    let cell_id = preview.canonical_state.cell_ids[i];
-                    if let Some(&entity) = preview.id_to_entity.get(&cell_id) {
+                    if let Some(entity) = preview.index_to_entity[i] {
                         index_to_entity.insert(i, entity);
                     }
                 }

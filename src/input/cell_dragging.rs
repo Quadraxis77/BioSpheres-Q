@@ -184,18 +184,14 @@ fn handle_drag_update(
         crate::simulation::SimulationMode::Preview => {
             if let Some(ref mut preview_state) = preview_sim_state {
                 // Find the cell index in preview canonical state by matching entity
-                for (cell_id, &entity) in preview_state.id_to_entity.iter() {
-                    if entity == dragged_entity {
-                        // Find the index of this cell_id in the canonical state
-                        for i in 0..preview_state.canonical_state.cell_count {
-                            if preview_state.canonical_state.cell_ids[i] == *cell_id {
-                                preview_state.canonical_state.positions[i] = new_position;
-                                preview_state.canonical_state.velocities[i] = Vec3::ZERO;
-                                preview_state.canonical_state.prev_positions[i] = new_position;
-                                break;
-                            }
+                for i in 0..preview_state.canonical_state.cell_count {
+                    if let Some(entity) = preview_state.index_to_entity[i] {
+                        if entity == dragged_entity {
+                            preview_state.canonical_state.positions[i] = new_position;
+                            preview_state.canonical_state.velocities[i] = Vec3::ZERO;
+                            preview_state.canonical_state.prev_positions[i] = new_position;
+                            break;
                         }
-                        break;
                     }
                 }
             }

@@ -23,13 +23,7 @@ pub fn inherit_adhesions_on_division(
     child_b_idx: usize,
     parent_genome_orientation: Quat,
 ) {
-    // Debug: Log inheritance attempt
-    let parent_connections_debug: Vec<_> = (0..crate::cell::MAX_ADHESIONS_PER_CELL)
-        .filter_map(|slot_idx| {
-            let conn_idx = state.adhesion_manager.cell_adhesion_indices[parent_idx][slot_idx];
-            if conn_idx >= 0 { Some(conn_idx) } else { None }
-        })
-        .collect();
+
     
     // Get parent mode settings
     let parent_mode_idx = state.mode_indices[parent_idx];
@@ -88,7 +82,10 @@ pub fn inherit_adhesions_on_division(
     state.adhesion_manager.init_cell_adhesion_indices(child_a_idx);
     state.adhesion_manager.init_cell_adhesion_indices(child_b_idx);
     
-    // Process each parent connection
+    // Process each parent connection (sequential for preview, parallel version available for main sim)
+    let child_a_mode_idx = state.mode_indices[child_a_idx];
+    let child_b_mode_idx = state.mode_indices[child_b_idx];
+    
     for &connection_idx in &parent_connections {
         if connection_idx >= state.adhesion_connections.active_count {
             continue;
@@ -98,7 +95,6 @@ pub fn inherit_adhesions_on_division(
             continue;
         }
         
-        // Determine which cell is the neighbor (not the parent)
         let cell_a_idx = state.adhesion_connections.cell_a_index[connection_idx];
         let cell_b_idx = state.adhesion_connections.cell_b_index[connection_idx];
         
@@ -107,16 +103,9 @@ pub fn inherit_adhesions_on_division(
         } else if cell_b_idx == parent_idx {
             (cell_a_idx, false)
         } else {
-            continue; // Connection doesn't involve parent
+            continue;
         };
         
-        // Get neighbor properties
-        // In C++, child A reuses parent index, so neighborIndex automatically points to correct cell
-        // We now match this behavior in Rust
-        let neighbor_radius = state.radii[neighbor_idx];
-        
-        // CRITICAL: Use stored anchor directions in LOCAL SPACE (matches C++ implementation)
-        // C++ uses the anchor direction stored in the adhesion connection, NOT world-space positions
         let (parent_anchor_direction, neighbor_anchor_direction) = if parent_is_a {
             (
                 state.adhesion_connections.anchor_direction_a[connection_idx],
@@ -129,29 +118,16 @@ pub fn inherit_adhesions_on_division(
             )
         };
         
-        // CRITICAL: Classify using LOCAL anchor direction and splitDirection from genome
-        // This matches C++ implementation exactly - zones are classified in parent's local frame
         let zone = classify_bond_direction(parent_anchor_direction, split_direction_local);
         
-        // Get connection properties
-        // IMPORTANT: Use the CHILD's mode index, not the old connection's mode index
-        // This ensures adhesion settings match the child's current mode after division
-        let child_a_mode_idx = state.mode_indices[child_a_idx];
-        let child_b_mode_idx = state.mode_indices[child_b_idx];
-        
-        // Inherit based on zone classification (matches C++ lines 170-340)
-        // CRITICAL: Child A is at +offset, Child B is at -offset
-        // Zone A (opposite to split) → Child B (at -offset)
-        // Zone B (same as split) → Child A (at +offset)
         match zone {
             AdhesionZone::ZoneA if child_b_keep => {
-                // Zone A → Child B (adhesions pointing opposite to split stay with child at opposite side)
                 create_inherited_adhesion(
                     state,
                     genome,
                     child_b_idx,
                     neighbor_idx,
-                    child_b_mode_idx,  // Use child B's current mode index
+                    child_b_mode_idx,
                     parent_is_a,
                     parent_idx,
                     parent_mode,
@@ -159,21 +135,20 @@ pub fn inherit_adhesions_on_division(
                     parent_anchor_direction,
                     neighbor_anchor_direction,
                     parent_radius,
-                    neighbor_radius,
-                    parent_mode.child_b.orientation,  // Use orientation DELTA from genome
+                    state.radii[neighbor_idx],
+                    parent_mode.child_b.orientation,
                     split_offset_magnitude,
                     split_dir_parent,
-                    false,  // is_child_a = false (this is child B)
+                    false,
                 );
             }
             AdhesionZone::ZoneB if child_a_keep => {
-                // Zone B → Child A (adhesions pointing same as split stay with child at same side)
                 create_inherited_adhesion(
                     state,
                     genome,
                     child_a_idx,
                     neighbor_idx,
-                    child_a_mode_idx,  // Use child A's current mode index
+                    child_a_mode_idx,
                     parent_is_a,
                     parent_idx,
                     parent_mode,
@@ -181,22 +156,21 @@ pub fn inherit_adhesions_on_division(
                     parent_anchor_direction,
                     neighbor_anchor_direction,
                     parent_radius,
-                    neighbor_radius,
-                    parent_mode.child_a.orientation,  // Use orientation DELTA from genome
+                    state.radii[neighbor_idx],
+                    parent_mode.child_a.orientation,
                     split_offset_magnitude,
                     split_dir_parent,
-                    true,  // is_child_a = true (this is child A)
+                    true,
                 );
             }
             AdhesionZone::ZoneC => {
-                // Zone C → Both children (equatorial adhesions)
                 if child_b_keep {
                     create_inherited_adhesion(
                         state,
                         genome,
                         child_b_idx,
                         neighbor_idx,
-                        child_b_mode_idx,  // Use child B's current mode index
+                        child_b_mode_idx,
                         parent_is_a,
                         parent_idx,
                         parent_mode,
@@ -204,11 +178,11 @@ pub fn inherit_adhesions_on_division(
                         parent_anchor_direction,
                         neighbor_anchor_direction,
                         parent_radius,
-                        neighbor_radius,
-                        parent_mode.child_b.orientation,  // Use orientation DELTA from genome
+                        state.radii[neighbor_idx],
+                        parent_mode.child_b.orientation,
                         split_offset_magnitude,
                         split_dir_parent,
-                        false,  // is_child_a = false (this is child B)
+                        false,
                     );
                 }
                 if child_a_keep {
@@ -217,7 +191,7 @@ pub fn inherit_adhesions_on_division(
                         genome,
                         child_a_idx,
                         neighbor_idx,
-                        child_a_mode_idx,  // Use child A's current mode index
+                        child_a_mode_idx,
                         parent_is_a,
                         parent_idx,
                         parent_mode,
@@ -225,18 +199,17 @@ pub fn inherit_adhesions_on_division(
                         parent_anchor_direction,
                         neighbor_anchor_direction,
                         parent_radius,
-                        neighbor_radius,
-                        parent_mode.child_a.orientation,  // Use orientation DELTA from genome
+                        state.radii[neighbor_idx],
+                        parent_mode.child_a.orientation,
                         split_offset_magnitude,
                         split_dir_parent,
-                        true,  // is_child_a = true (this is child A)
+                        true,
                     );
                 }
             }
-            _ => {} // No inheritance for this combination
+            _ => {}
         }
         
-        // Mark original connection as inactive
         state.adhesion_connections.is_active[connection_idx] = 0;
     }
 }
@@ -355,24 +328,5 @@ fn create_inherited_adhesion(
         )
     };
     
-    if let Some(conn_idx) = result {
-        // Debug: Record anchor positions for inherited adhesion
-        let anchor_a_local = state.adhesion_connections.anchor_direction_a[conn_idx];
-        let anchor_b_local = state.adhesion_connections.anchor_direction_b[conn_idx];
-        let cell_a_idx = state.adhesion_connections.cell_a_index[conn_idx];
-        let cell_b_idx = state.adhesion_connections.cell_b_index[conn_idx];
-        let genome_rot_a = state.genome_orientations[cell_a_idx];
-        let genome_rot_b = state.genome_orientations[cell_b_idx];
-        let anchor_a_world = genome_rot_a * anchor_a_local;
-        let anchor_b_world = genome_rot_b * anchor_b_local;
-        
-        println!("[ANCHOR DEBUG] Inherited adhesion created:");
-        println!("  Connection: {} <-> {}", cell_a_idx, cell_b_idx);
-        println!("  Parent anchor (local): {:?}", parent_anchor_direction);
-        println!("  Child anchor (local): {:?}", anchor_a_local);
-        println!("  Neighbor anchor (local): {:?}", anchor_b_local);
-        println!("  Child anchor (world): {:?}", anchor_a_world);
-        println!("  Neighbor anchor (world): {:?}", anchor_b_world);
-        println!("  Expected: Should preserve parent's anchor direction");
-    }
+    let _ = result; // Suppress unused warning
 }

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rayon::prelude::*;
 
 /// Canonical simulation state using Structure-of-Arrays (SoA) layout
 /// 
@@ -288,49 +289,99 @@ impl DeterministicSpatialGrid {
     /// Rebuild the spatial grid using prefix sum algorithm (zero allocations)
     /// 
     /// Algorithm:
-    /// 1. Count cells per grid cell
+    /// 1. Count cells per grid cell (parallel for large cell counts)
     /// 2. Compute offsets using prefix sum
-    /// 3. Insert cell indices into flat array
+    /// 3. Insert cell indices into flat array (parallel for large cell counts)
     pub fn rebuild(&mut self, positions: &[Vec3], cell_count: usize) {
-        // Optimization: Only clear grid cells that were used in the last rebuild
-        // instead of clearing the entire array (which can be 2000+ cells)
+        use rayon::prelude::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
         
-        // Step 1: Clear only previously used counts
+        // Clear only previously used counts
         for &idx in &self.used_grid_cells {
             self.cell_counts[idx] = 0;
         }
         self.used_grid_cells.clear();
         
-        // Step 2: Count cells per grid cell and track which cells are used
-        for i in 0..cell_count {
-            let grid_coord = self.world_to_grid(positions[i]);
-            if let Some(idx) = self.active_cell_index(grid_coord) {
-                if self.cell_counts[idx] == 0 {
+        // Use parallel counting for large cell counts (>500 cells)
+        if cell_count > 500 {
+            // Parallel counting with atomic operations
+            let atomic_counts: Vec<AtomicUsize> = (0..self.active_cells.len())
+                .map(|_| AtomicUsize::new(0))
+                .collect();
+            
+            (0..cell_count).into_par_iter().for_each(|i| {
+                let grid_coord = self.world_to_grid(positions[i]);
+                if let Some(idx) = self.active_cell_index(grid_coord) {
+                    atomic_counts[idx].fetch_add(1, Ordering::Relaxed);
+                }
+            });
+            
+            // Convert atomic counts and track used cells
+            for (idx, atomic_count) in atomic_counts.iter().enumerate() {
+                let count = atomic_count.load(Ordering::Relaxed);
+                if count > 0 {
+                    self.cell_counts[idx] = count;
                     self.used_grid_cells.push(idx);
                 }
-                self.cell_counts[idx] += 1;
+            }
+        } else {
+            // Sequential counting for small cell counts
+            for i in 0..cell_count {
+                let grid_coord = self.world_to_grid(positions[i]);
+                if let Some(idx) = self.active_cell_index(grid_coord) {
+                    if self.cell_counts[idx] == 0 {
+                        self.used_grid_cells.push(idx);
+                    }
+                    self.cell_counts[idx] += 1;
+                }
             }
         }
         
-        // Step 3: Compute offsets using prefix sum (only for used cells)
+        // Compute offsets using prefix sum (sequential - fast enough)
         let mut offset = 0;
         for &idx in &self.used_grid_cells {
             self.cell_offsets[idx] = offset;
             offset += self.cell_counts[idx];
         }
         
-        // Step 4: Reset counts for insertion phase (only used cells)
+        // Reset counts for insertion phase
         for &idx in &self.used_grid_cells {
             self.cell_counts[idx] = 0;
         }
         
-        // Step 5: Insert cell indices into flat array
-        for i in 0..cell_count {
-            let grid_coord = self.world_to_grid(positions[i]);
-            if let Some(idx) = self.active_cell_index(grid_coord) {
-                let insert_pos = self.cell_offsets[idx] + self.cell_counts[idx];
-                self.cell_contents[insert_pos] = i;
-                self.cell_counts[idx] += 1;
+        // Parallel insertion for large cell counts
+        if cell_count > 500 {
+            let atomic_offsets: Vec<AtomicUsize> = self.cell_offsets
+                .iter()
+                .map(|&offset| AtomicUsize::new(offset))
+                .collect();
+            
+            (0..cell_count).into_par_iter().for_each(|i| {
+                let grid_coord = self.world_to_grid(positions[i]);
+                if let Some(idx) = self.active_cell_index(grid_coord) {
+                    let insert_pos = atomic_offsets[idx].fetch_add(1, Ordering::Relaxed);
+                    unsafe {
+                        // Safe because each thread writes to a unique position
+                        let ptr = self.cell_contents.as_ptr() as *mut usize;
+                        *ptr.add(insert_pos) = i;
+                    }
+                }
+            });
+            
+            // Update counts from atomic offsets
+            for (idx, atomic_offset) in atomic_offsets.iter().enumerate() {
+                let final_offset = atomic_offset.load(Ordering::Relaxed);
+                self.cell_counts[idx] = final_offset - self.cell_offsets[idx];
+            }
+        } else {
+            // Sequential insertion for small cell counts
+            for i in 0..cell_count {
+                let grid_coord = self.world_to_grid(positions[i]);
+                if let Some(idx) = self.active_cell_index(grid_coord) {
+                    let insert_pos = self.cell_offsets[idx] + self.cell_counts[idx];
+                    self.cell_contents[insert_pos] = i;
+                    self.cell_counts[idx] += 1;
+                }
             }
         }
     }
@@ -1189,36 +1240,29 @@ pub fn division_step(
     
     // CRITICAL: Prevent simultaneous splits of adhered cells (matches C++ GPU implementation)
     // Use priority-based system where lower cell index has higher priority
-    // If an adhered cell also wants to split, defer the lower-priority cell
     let mut filtered_divisions = Vec::new();
     for &cell_idx in &divisions_to_process {
         let mut should_defer = false;
         
-        // Check all adhesions of this cell
         for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
             if *adhesion_idx < 0 {
                 continue;
             }
             let adhesion_idx = *adhesion_idx as usize;
             
-            // Check if this adhesion is active
             if state.adhesion_connections.is_active[adhesion_idx] == 0 {
                 continue;
             }
             
-            // Find the other cell in this adhesion
             let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
                 state.adhesion_connections.cell_b_index[adhesion_idx]
             } else {
                 state.adhesion_connections.cell_a_index[adhesion_idx]
             };
             
-            // Check if the other cell also wants to split
             let other_age = current_time - state.birth_times[other_idx];
             if other_age >= state.split_intervals[other_idx] {
-                // Both cells want to split - compare priority (lower index = higher priority)
                 if other_idx < cell_idx {
-                    // Other cell has higher priority, defer this split
                     should_defer = true;
                     break;
                 }
@@ -1509,137 +1553,22 @@ pub fn division_step(
                     child_b_genome_orientation,
                 );
                 
-                if let Some(conn_idx) = result {
-                    // Debug: Record anchor positions for child-to-child adhesion
-                    let anchor_a_local = state.adhesion_connections.anchor_direction_a[conn_idx];
-                    let anchor_b_local = state.adhesion_connections.anchor_direction_b[conn_idx];
-                    let genome_rot_a = state.genome_orientations[data.child_a_slot];
-                    let genome_rot_b = state.genome_orientations[data.child_b_slot];
-                    let anchor_a_world = genome_rot_a * anchor_a_local;
-                    let anchor_b_world = genome_rot_b * anchor_b_local;
-                    
-                    println!("[ANCHOR DEBUG] Child-to-child adhesion created:");
-                    println!("  Connection: {} <-> {}", data.child_a_slot, data.child_b_slot);
-                    println!("  Anchor A (local): {:?}", anchor_a_local);
-                    println!("  Anchor B (local): {:?}", anchor_b_local);
-                    println!("  Anchor A (world): {:?}", anchor_a_world);
-                    println!("  Anchor B (world): {:?}", anchor_b_world);
-                    println!("  Expected: Both should point along Z-axis (±Z)");
-                }
+                let _ = result; // Suppress unused warning
             }
         }
     }
     
-    // Compact the canonical state to remove gaps
-    // After division, we have children written to various slots, but parents are still in the array
-    // We need to collect all active cells (children) and compact them to indices 0..N
+    // Optimized compaction: Since child A reuses parent index, we only need to move child B cells
+    // from temporary slots to fill gaps left by non-dividing parents
     
-    // Mark which slots contain active cells
-    // Start by marking all existing cells (that aren't dividing) as active
-    let mut active_slots = vec![false; state.capacity];
-
-    // Create a set of parent indices that are dividing
-    let dividing_parents: std::collections::HashSet<usize> =
-        division_data_list.iter().map(|d| d.parent_idx).collect();
-
-    // Mark all cells that exist and are NOT dividing as active
-    for i in 0..state.cell_count {
-        if !dividing_parents.contains(&i) {
-            active_slots[i] = true;
-        }
-    }
-
-    // Mark child slots as active
-    for data in &division_data_list {
-        active_slots[data.child_a_slot] = true;
-        active_slots[data.child_b_slot] = true;
-    }
+    // Simply update cell count (child B cells are already written)
+    let new_cell_count = state.cell_count + division_data_list.len();
+    state.cell_count = new_cell_count;
     
-    // Collect indices of active cells
-    let mut active_indices: Vec<usize> = active_slots.iter()
-        .enumerate()
-        .filter_map(|(i, &active)| if active { Some(i) } else { None })
-        .collect();
-    
-    // Sort to maintain deterministic ordering
-    active_indices.sort_unstable();
-    
-    // Compact: move all active cells to the front of the arrays
-    // We need to copy data rather than swap to avoid corruption when
-    // old indices appear later in the active list
-    for (new_idx, &old_idx) in active_indices.iter().enumerate() {
-        if new_idx != old_idx {
-            // Copy data from old_idx to new_idx
-            state.cell_ids[new_idx] = state.cell_ids[old_idx];
-            state.positions[new_idx] = state.positions[old_idx];
-            state.prev_positions[new_idx] = state.prev_positions[old_idx];
-            state.velocities[new_idx] = state.velocities[old_idx];
-            state.masses[new_idx] = state.masses[old_idx];
-            state.radii[new_idx] = state.radii[old_idx];
-            state.genome_ids[new_idx] = state.genome_ids[old_idx];
-            state.mode_indices[new_idx] = state.mode_indices[old_idx];
-            state.rotations[new_idx] = state.rotations[old_idx];
-            state.genome_orientations[new_idx] = state.genome_orientations[old_idx];
-            state.angular_velocities[new_idx] = state.angular_velocities[old_idx];
-            state.forces[new_idx] = state.forces[old_idx];
-            state.torques[new_idx] = state.torques[old_idx];
-            state.accelerations[new_idx] = state.accelerations[old_idx];
-            state.prev_accelerations[new_idx] = state.prev_accelerations[old_idx];
-            state.stiffnesses[new_idx] = state.stiffnesses[old_idx];
-            state.birth_times[new_idx] = state.birth_times[old_idx];
-            state.split_intervals[new_idx] = state.split_intervals[old_idx];
-        }
-    }
-    
-    // Update cell count to reflect only active cells
-    state.cell_count = active_indices.len();
-    
-    // Update division events with new indices after compaction
-    let mut index_mapping: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
-    for (new_idx, &old_idx) in active_indices.iter().enumerate() {
-        index_mapping.insert(old_idx, new_idx);
-    }
-    
-    for event in &mut division_events {
-        event.child_a_idx = *index_mapping.get(&event.child_a_idx).unwrap_or(&event.child_a_idx);
-        event.child_b_idx = *index_mapping.get(&event.child_b_idx).unwrap_or(&event.child_b_idx);
-    }
-    
-    // Update adhesion connections to use new cell indices after compaction
-    for i in 0..state.adhesion_connections.active_count {
-        if state.adhesion_connections.is_active[i] == 1 {
-            let old_cell_a = state.adhesion_connections.cell_a_index[i];
-            let old_cell_b = state.adhesion_connections.cell_b_index[i];
-            
-            if let Some(&new_cell_a) = index_mapping.get(&old_cell_a) {
-                state.adhesion_connections.cell_a_index[i] = new_cell_a;
-            }
-            if let Some(&new_cell_b) = index_mapping.get(&old_cell_b) {
-                state.adhesion_connections.cell_b_index[i] = new_cell_b;
-            }
-        }
-    }
-    
-    // Update adhesion manager's cell indices after compaction
-    // We need to remap the adhesion indices stored in each cell
-    let init_indices = || {
-        [-1; crate::cell::MAX_ADHESIONS_PER_CELL]
-    };
-    let mut new_adhesion_indices: Vec<[i32; crate::cell::MAX_ADHESIONS_PER_CELL]> = 
-        (0..state.capacity).map(|_| init_indices()).collect();
-    
-    for (new_idx, &old_idx) in active_indices.iter().enumerate() {
-        // Copy and remap adhesion indices for this cell
-        for slot in 0..crate::cell::MAX_ADHESIONS_PER_CELL {
-            let conn_idx = state.adhesion_manager.cell_adhesion_indices[old_idx][slot];
-            if conn_idx >= 0 {
-                new_adhesion_indices[new_idx][slot] = conn_idx;
-            }
-        }
-    }
-    
-    // Replace the adhesion indices with the remapped ones
-    state.adhesion_manager.cell_adhesion_indices = new_adhesion_indices;
+    // No index remapping needed for adhesion connections since:
+    // - Child A reuses parent index (adhesions already point to correct cell)
+    // - Child B is at a new index (adhesions were created with correct index)
+    // - Non-dividing cells keep their indices
     
     division_events
 }

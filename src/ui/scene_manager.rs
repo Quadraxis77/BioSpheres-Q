@@ -478,7 +478,9 @@ fn spawn_preview_scene(
     preview_state.initial_state = initial_state;
     preview_state.canonical_state = canonical_state;
     preview_state.current_time = 0.0;
-    preview_state.id_to_entity.clear();
+    for slot in preview_state.index_to_entity.iter_mut() {
+        *slot = None;
+    }
     
     // Spawn initial cell
     let entity = commands.spawn((
@@ -516,8 +518,8 @@ fn spawn_preview_scene(
         crate::simulation::preview_sim::PreviewSceneEntity,
     )).id();
     
-    // Map cell ID to entity
-    preview_state.id_to_entity.insert(0, entity);
+    // Map cell index to entity
+    preview_state.index_to_entity[0] = Some(entity);
 
     // Add lighting
     commands.spawn((

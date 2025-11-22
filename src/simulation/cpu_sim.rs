@@ -87,6 +87,10 @@ pub struct MainSimState {
     /// This avoids HashMap lookups in the hot sync path
     pub index_to_entity: Vec<Option<Entity>>,
     
+    /// OPTIMIZATION: Entity pool for reusing despawned entities
+    /// Instead of despawning and spawning, we hide/show and update components
+    pub entity_pool: Vec<Entity>,
+    
     /// OPTIMIZATION: Cached sphere mesh handle (reused for all cells)
     /// Creating meshes is VERY expensive - reuse the same mesh for all cells
     pub sphere_mesh: Handle<Mesh>,
@@ -118,6 +122,7 @@ impl Default for MainSimState {
             id_to_entity: HashMap::new(),
             entity_to_index: HashMap::new(),
             index_to_entity: vec![None; capacity],
+            entity_pool: Vec::with_capacity(capacity),
             sphere_mesh: Handle::default(), // Will be initialized in setup
             material_cache: HashMap::new(),
             simulation_time: 0.0,
@@ -190,6 +195,16 @@ fn run_main_simulation(
     );
 }
 
+/// Convert color to cache key
+#[inline]
+fn color_to_key(color: Vec3) -> (u8, u8, u8) {
+    (
+        (color.x * 255.0) as u8,
+        (color.y * 255.0) as u8,
+        (color.z * 255.0) as u8,
+    )
+}
+
 /// Get or create a cached material for a given color
 /// OPTIMIZATION: Reuses materials to enable GPU instancing
 fn get_or_create_material(
@@ -197,12 +212,7 @@ fn get_or_create_material(
     material_cache: &mut HashMap<(u8, u8, u8), Handle<StandardMaterial>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) -> Handle<StandardMaterial> {
-    // Convert to u8 for cache key (reduces unique materials)
-    let key = (
-        (color.x * 255.0) as u8,
-        (color.y * 255.0) as u8,
-        (color.z * 255.0) as u8,
-    );
+    let key = color_to_key(color);
     
     material_cache.entry(key).or_insert_with(|| {
         materials.add(StandardMaterial {
@@ -255,136 +265,167 @@ fn handle_divisions(
         }
     }
 
-    // Despawn parent entities (only for cells that actually divided)
+    // Return parent entities to pool (instead of despawning)
     for parent_cell_id in parent_cell_ids {
         if let Some(parent_entity) = main_state.id_to_entity.remove(&parent_cell_id) {
             if let Some(idx) = main_state.entity_to_index.remove(&parent_entity) {
                 main_state.index_to_entity[idx] = None;
             }
-            commands.entity(parent_entity).despawn();
+            // Hide entity and return to pool
+            commands.entity(parent_entity).insert(Visibility::Hidden);
+            main_state.entity_pool.push(parent_entity);
         }
     }
     
-    // Process division events to spawn child entities
-    for event in division_events {
+    // Batch spawn child entities for better performance
+    // Pre-allocate materials to avoid repeated lookups
+    let mut materials_needed: std::collections::HashMap<(u8, u8, u8), Handle<StandardMaterial>> = std::collections::HashMap::new();
+    
+    for event in &division_events {
         let child_a_idx = event.child_a_idx;
         let child_b_idx = event.child_b_idx;
         
-        // Get child properties from canonical state
-        let child_a_pos = main_state.canonical_state.positions[child_a_idx];
-        let child_a_vel = main_state.canonical_state.velocities[child_a_idx];
-        let child_a_rotation = main_state.canonical_state.rotations[child_a_idx];
-        let child_a_mass = main_state.canonical_state.masses[child_a_idx];
-        let child_a_radius = main_state.canonical_state.radii[child_a_idx];
         let child_a_mode_idx = main_state.canonical_state.mode_indices[child_a_idx];
-        let child_a_split_interval = main_state.canonical_state.split_intervals[child_a_idx];
-        
-        let child_b_pos = main_state.canonical_state.positions[child_b_idx];
-        let child_b_vel = main_state.canonical_state.velocities[child_b_idx];
-        let child_b_rotation = main_state.canonical_state.rotations[child_b_idx];
-        let child_b_mass = main_state.canonical_state.masses[child_b_idx];
-        let child_b_radius = main_state.canonical_state.radii[child_b_idx];
         let child_b_mode_idx = main_state.canonical_state.mode_indices[child_b_idx];
-        let child_b_split_interval = main_state.canonical_state.split_intervals[child_b_idx];
         
-        // Get colors from genome
         let child_a_mode = genome.genome.modes.get(child_a_mode_idx);
         let child_b_mode = genome.genome.modes.get(child_b_mode_idx);
         
         let child_a_color = child_a_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         let child_b_color = child_b_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         
-        // Get or create cached materials (enables GPU instancing)
-        let material_a = get_or_create_material(child_a_color, &mut main_state.material_cache, materials);
-        let material_b = get_or_create_material(child_b_color, &mut main_state.material_cache, materials);
+        // Pre-fetch materials
+        if !materials_needed.contains_key(&color_to_key(child_a_color)) {
+            let mat = get_or_create_material(child_a_color, &mut main_state.material_cache, materials);
+            materials_needed.insert(color_to_key(child_a_color), mat);
+        }
+        if !materials_needed.contains_key(&color_to_key(child_b_color)) {
+            let mat = get_or_create_material(child_b_color, &mut main_state.material_cache, materials);
+            materials_needed.insert(color_to_key(child_b_color), mat);
+        }
+    }
+    
+    // Batch spawn all children
+    let sphere_mesh = main_state.sphere_mesh.clone();
+    
+    for event in division_events {
+        let child_a_idx = event.child_a_idx;
+        let child_b_idx = event.child_b_idx;
         
-        // Spawn ECS entity for child A
-        let cell_id_a = main_state.canonical_state.cell_ids[child_a_idx];
-        let entity_a = commands.spawn((
-            Cell {
-                mass: child_a_mass,
-                radius: child_a_radius,
-                genome_id: 0,
-                mode_index: child_a_mode_idx,
-            },
-            CellPosition {
-                position: child_a_pos,
-                velocity: child_a_vel,
-            },
-            CellOrientation {
-                rotation: child_a_rotation,
-                angular_velocity: Vec3::ZERO,
-            },
+        // Batch read child A properties
+        let (child_a_pos, child_a_vel, child_a_rotation, child_a_mass, child_a_radius, 
+             child_a_mode_idx, child_a_split_interval, cell_id_a) = (
+            main_state.canonical_state.positions[child_a_idx],
+            main_state.canonical_state.velocities[child_a_idx],
+            main_state.canonical_state.rotations[child_a_idx],
+            main_state.canonical_state.masses[child_a_idx],
+            main_state.canonical_state.radii[child_a_idx],
+            main_state.canonical_state.mode_indices[child_a_idx],
+            main_state.canonical_state.split_intervals[child_a_idx],
+            main_state.canonical_state.cell_ids[child_a_idx],
+        );
+        
+        // Batch read child B properties
+        let (child_b_pos, child_b_vel, child_b_rotation, child_b_mass, child_b_radius,
+             child_b_mode_idx, child_b_split_interval, cell_id_b) = (
+            main_state.canonical_state.positions[child_b_idx],
+            main_state.canonical_state.velocities[child_b_idx],
+            main_state.canonical_state.rotations[child_b_idx],
+            main_state.canonical_state.masses[child_b_idx],
+            main_state.canonical_state.radii[child_b_idx],
+            main_state.canonical_state.mode_indices[child_b_idx],
+            main_state.canonical_state.split_intervals[child_b_idx],
+            main_state.canonical_state.cell_ids[child_b_idx],
+        );
+        
+        let child_a_color = genome.genome.modes.get(child_a_mode_idx).map(|m| m.color).unwrap_or(Vec3::ONE);
+        let child_b_color = genome.genome.modes.get(child_b_mode_idx).map(|m| m.color).unwrap_or(Vec3::ONE);
+        
+        let material_a = materials_needed[&color_to_key(child_a_color)].clone();
+        let material_b = materials_needed[&color_to_key(child_b_color)].clone();
+        
+        // Get or spawn child A entity (reuse from pool if available)
+        let entity_a = if let Some(pooled_entity) = main_state.entity_pool.pop() {
+            // Reuse pooled entity - just update components
+            commands.entity(pooled_entity).insert((
+            Cell { mass: child_a_mass, radius: child_a_radius, genome_id: 0, mode_index: child_a_mode_idx },
+            CellPosition { position: child_a_pos, velocity: child_a_vel },
+            CellOrientation { rotation: child_a_rotation, angular_velocity: Vec3::ZERO },
             CellSignaling::default(),
-            crate::cell::division::DivisionTimer {
-                birth_time: current_time,
-                split_interval: child_a_split_interval,
-            },
+            crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_a_split_interval },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
-            Mesh3d(main_state.sphere_mesh.clone()),
+            Mesh3d(sphere_mesh.clone()),
             MeshMaterial3d(material_a),
-            Transform::from_translation(child_a_pos)
-                .with_rotation(child_a_rotation)
-                .with_scale(Vec3::splat(child_a_radius)),
-            Visibility::default(),
-            CpuSceneEntity,
-        )).id();
+            Transform::from_translation(child_a_pos).with_rotation(child_a_rotation).with_scale(Vec3::splat(child_a_radius)),
+            Visibility::Visible,
+            ));
+            pooled_entity
+        } else {
+            // No pooled entity available - spawn new one
+            commands.spawn((
+                Cell { mass: child_a_mass, radius: child_a_radius, genome_id: 0, mode_index: child_a_mode_idx },
+                CellPosition { position: child_a_pos, velocity: child_a_vel },
+                CellOrientation { rotation: child_a_rotation, angular_velocity: Vec3::ZERO },
+                CellSignaling::default(),
+                crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_a_split_interval },
+                crate::cell::physics::CellForces::default(),
+                crate::cell::physics::Cytoskeleton::default(),
+                Mesh3d(sphere_mesh.clone()),
+                MeshMaterial3d(material_a.clone()),
+                Transform::from_translation(child_a_pos).with_rotation(child_a_rotation).with_scale(Vec3::splat(child_a_radius)),
+                Visibility::Visible,
+                CpuSceneEntity,
+            )).id()
+        };
         
         main_state.id_to_entity.insert(cell_id_a, entity_a);
         main_state.entity_to_index.insert(entity_a, child_a_idx);
         main_state.index_to_entity[child_a_idx] = Some(entity_a);
         
-        // Spawn ECS entity for child B
-        let cell_id_b = main_state.canonical_state.cell_ids[child_b_idx];
-        let entity_b = commands.spawn((
-            Cell {
-                mass: child_b_mass,
-                radius: child_b_radius,
-                genome_id: 0,
-                mode_index: child_b_mode_idx,
-            },
-            CellPosition {
-                position: child_b_pos,
-                velocity: child_b_vel,
-            },
-            CellOrientation {
-                rotation: child_b_rotation,
-                angular_velocity: Vec3::ZERO,
-            },
+        // Get or spawn child B entity (reuse from pool if available)
+        let entity_b = if let Some(pooled_entity) = main_state.entity_pool.pop() {
+            // Reuse pooled entity - just update components
+            commands.entity(pooled_entity).insert((
+            Cell { mass: child_b_mass, radius: child_b_radius, genome_id: 0, mode_index: child_b_mode_idx },
+            CellPosition { position: child_b_pos, velocity: child_b_vel },
+            CellOrientation { rotation: child_b_rotation, angular_velocity: Vec3::ZERO },
             CellSignaling::default(),
-            crate::cell::division::DivisionTimer {
-                birth_time: current_time,
-                split_interval: child_b_split_interval,
-            },
+            crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_b_split_interval },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
-            Mesh3d(main_state.sphere_mesh.clone()),
+            Mesh3d(sphere_mesh.clone()),
             MeshMaterial3d(material_b),
-            Transform::from_translation(child_b_pos)
-                .with_rotation(child_b_rotation)
-                .with_scale(Vec3::splat(child_b_radius)),
-            Visibility::default(),
-            CpuSceneEntity,
-        )).id();
+            Transform::from_translation(child_b_pos).with_rotation(child_b_rotation).with_scale(Vec3::splat(child_b_radius)),
+            Visibility::Visible,
+            ));
+            pooled_entity
+        } else {
+            // No pooled entity available - spawn new one
+            commands.spawn((
+                Cell { mass: child_b_mass, radius: child_b_radius, genome_id: 0, mode_index: child_b_mode_idx },
+                CellPosition { position: child_b_pos, velocity: child_b_vel },
+                CellOrientation { rotation: child_b_rotation, angular_velocity: Vec3::ZERO },
+                CellSignaling::default(),
+                crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_b_split_interval },
+                crate::cell::physics::CellForces::default(),
+                crate::cell::physics::Cytoskeleton::default(),
+                Mesh3d(sphere_mesh.clone()),
+                MeshMaterial3d(material_b.clone()),
+                Transform::from_translation(child_b_pos).with_rotation(child_b_rotation).with_scale(Vec3::splat(child_b_radius)),
+                Visibility::Visible,
+                CpuSceneEntity,
+            )).id()
+        };
         
         main_state.id_to_entity.insert(cell_id_b, entity_b);
         main_state.entity_to_index.insert(entity_b, child_b_idx);
         main_state.index_to_entity[child_b_idx] = Some(entity_b);
     }
-
-    // Rebuild entity_to_index and index_to_entity mappings for ALL cells after compaction
-    // Division and compaction can shift cell indices, so we need to rebuild
-    // the mapping to keep it consistent with the canonical state
-    main_state.entity_to_index.clear();
-    main_state.index_to_entity.fill(None);
-    for i in 0..main_state.canonical_state.cell_count {
-        let cell_id = main_state.canonical_state.cell_ids[i];
-        if let Some(&entity) = main_state.id_to_entity.get(&cell_id) {
-            main_state.entity_to_index.insert(entity, i);
-            main_state.index_to_entity[i] = Some(entity);
-        }
-    }
+    
+    // No need to rebuild mappings since we removed compaction
+    // Child A reuses parent index, child B gets new index
+    // All indices remain stable
 }
 
 /// Sync ECS components from canonical state
