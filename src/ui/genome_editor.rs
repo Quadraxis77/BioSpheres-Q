@@ -404,10 +404,13 @@ fn render_genome_editor(
             }
         });
 
-    // Check if genome was modified and trigger instant resimulation
+    // Check if genome was modified and trigger instant resimulation in Preview mode
+    // Note: CPU mode automatically picks up genome changes on the next physics tick
     if current_genome.genome != genome_before_edit {
-        // Trigger resimulation to current preview time to apply genome changes
-        simulation_state.target_time = Some(preview_state.current_time);
+        if simulation_state.mode == SimulationMode::Preview {
+            // Trigger resimulation to current preview time to apply genome changes
+            simulation_state.target_time = Some(preview_state.current_time);
+        }
     }
 }
 

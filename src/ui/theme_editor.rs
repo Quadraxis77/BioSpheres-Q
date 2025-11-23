@@ -17,6 +17,10 @@ pub struct ThemeEditorState {
     pub show_editor: bool,
     pub custom_colors: CustomThemeColors,
     pub custom_shapes: CustomThemeShapes,
+    /// Name of currently active custom theme (if any)
+    pub active_custom_theme: Option<String>,
+    /// Text buffer for naming new custom themes
+    pub new_theme_name: String,
 }
 
 impl Default for ThemeEditorState {
@@ -25,6 +29,8 @@ impl Default for ThemeEditorState {
             show_editor: false,
             custom_colors: CustomThemeColors::default(),
             custom_shapes: CustomThemeShapes::default(),
+            active_custom_theme: None,
+            new_theme_name: String::new(),
         }
     }
 }
@@ -142,11 +148,60 @@ fn theme_editor_ui(
             }
             ui.separator();
             
-            // Quick theme selection
+            // Quick theme selection - Presets
+            ui.text("Preset Themes:");
             for theme in ImguiTheme::all() {
                 if ui.menu_item(theme.name()) {
                     theme_state.current_theme = *theme;
                     theme_state.theme_changed = true;
+                    editor_state.active_custom_theme = None;
+                }
+            }
+
+            // Custom themes
+            let settings = crate::ui::settings::UiSettings::load();
+            if !settings.custom_themes.is_empty() {
+                ui.separator();
+                ui.text("Custom Themes:");
+
+                let mut theme_to_load: Option<String> = None;
+                let mut theme_to_delete: Option<String> = None;
+
+                for custom_theme in &settings.custom_themes {
+                    if ui.menu_item(&custom_theme.name) {
+                        theme_to_load = Some(custom_theme.name.clone());
+                    }
+
+                    // Show delete option on right-click
+                    if ui.is_item_clicked_with_button(imgui::MouseButton::Right) {
+                        theme_to_delete = Some(custom_theme.name.clone());
+                    }
+
+                    if ui.is_item_hovered() {
+                        ui.tooltip_text("Right-click to delete");
+                    }
+                }
+
+                // Handle theme loading after iteration
+                if let Some(theme_name) = theme_to_load {
+                    if let Some(theme) = settings.custom_themes.iter().find(|t| t.name == theme_name) {
+                        load_custom_theme(&mut editor_state, theme);
+                        apply_custom_theme(&editor_state.custom_colors, &editor_state.custom_shapes, ui);
+                    }
+                }
+
+                // Handle theme deletion after iteration
+                if let Some(theme_name) = theme_to_delete {
+                    let mut settings = crate::ui::settings::UiSettings::load();
+                    settings.custom_themes.retain(|t| t.name != theme_name);
+                    if let Err(e) = settings.save() {
+                        error!("Failed to delete custom theme: {}", e);
+                    }
+
+                    // Clear active custom theme if it was deleted
+                    if editor_state.active_custom_theme.as_ref() == Some(&theme_name) {
+                        editor_state.active_custom_theme = None;
+                    }
                 }
             }
         }
@@ -159,18 +214,41 @@ fn theme_editor_ui(
             } else {
                 "🔓 Lock Windows"
             };
-            
+
             if ui.menu_item(lock_text) {
                 global_ui_state.windows_locked = !global_ui_state.windows_locked;
                 println!("Windows locked: {}", global_ui_state.windows_locked);
             }
-            
+
             if ui.is_item_hovered() {
                 ui.tooltip_text("Lock windows to prevent moving/resizing");
             }
-            
+
             ui.separator();
-            
+
+            // UI Scale radio buttons
+            ui.text("UI Scale");
+
+            let scale_options = [
+                (0.75, "75%"),
+                (1.0, "100%"),
+                (1.25, "125%"),
+                (1.5, "150%"),
+                (1.75, "175%"),
+                (2.0, "200%"),
+            ];
+
+            let mut current_scale = global_ui_state.ui_scale;
+            for (scale_value, label) in scale_options.iter() {
+                if ui.radio_button(label, &mut current_scale, *scale_value) {
+                    global_ui_state.ui_scale = *scale_value;
+                }
+                ui.same_line();
+            }
+            ui.new_line();
+
+            ui.separator();
+
             // Show lock status
             let status = if global_ui_state.windows_locked {
                 "Windows: LOCKED"
@@ -297,29 +375,174 @@ fn theme_editor_ui(
                 }
                 
                 ui.separator();
-                
-                // Apply button
+
+                // Save custom theme section
+                ui.text("Save Custom Theme:");
+                ui.set_next_item_width(-1.0);
+
+                // Create a buffer for the text input
+                let mut name_buffer = editor_state.new_theme_name.clone();
+                name_buffer.reserve(128);
+
+                if ui.input_text("##theme_name", &mut name_buffer).build() {
+                    editor_state.new_theme_name = name_buffer;
+                }
+
+                let can_save = !editor_state.new_theme_name.trim().is_empty();
+
+                let mut should_save = false;
+                ui.disabled(!can_save, || {
+                    should_save = ui.button("Save Theme");
+                });
+
+                if ui.is_item_hovered() && !can_save {
+                    ui.tooltip_text("Enter a theme name to save");
+                }
+
+                ui.separator();
+
+                // Apply and reset buttons
                 let should_apply = ui.button("Apply Custom Theme");
                 ui.same_line();
                 let should_reset = ui.button("Reset to Default");
-                
+
+                // Handle save action
+                if should_save && can_save {
+                    let theme_name = editor_state.new_theme_name.trim().to_string();
+
+                    // Load current settings
+                    let mut settings = crate::ui::settings::UiSettings::load();
+
+                    // Check if theme already exists
+                    if let Some(existing_idx) = settings.custom_themes.iter().position(|t| t.name == theme_name) {
+                        // Update existing theme
+                        settings.custom_themes[existing_idx] = crate::ui::settings::SavedCustomTheme {
+                            name: theme_name.clone(),
+                            colors: custom_colors_to_serde(&editor_state.custom_colors),
+                            shapes: custom_shapes_to_serde(&editor_state.custom_shapes),
+                        };
+                    } else {
+                        // Add new theme
+                        settings.custom_themes.push(crate::ui::settings::SavedCustomTheme {
+                            name: theme_name.clone(),
+                            colors: custom_colors_to_serde(&editor_state.custom_colors),
+                            shapes: custom_shapes_to_serde(&editor_state.custom_shapes),
+                        });
+                    }
+
+                    // Save settings
+                    if let Err(e) = settings.save() {
+                        error!("Failed to save custom theme: {}", e);
+                    }
+
+                    // Set this as the active custom theme
+                    editor_state.active_custom_theme = Some(theme_name);
+
+                    // Clear the name input
+                    editor_state.new_theme_name.clear();
+                }
+
                 // Handle actions after UI is built
                 if should_apply {
                     let colors_clone = editor_state.custom_colors.clone();
                     let shapes_clone = editor_state.custom_shapes.clone();
                     apply_custom_theme(&colors_clone, &shapes_clone, ui);
+
+                    // Mark as unnamed custom theme
+                    editor_state.active_custom_theme = None;
                 }
-                
+
                 if should_reset {
                     editor_state.custom_colors = CustomThemeColors::default();
                     editor_state.custom_shapes = CustomThemeShapes::default();
+                    editor_state.active_custom_theme = None;
                 }
-                
+
                 ui.separator();
-                ui.text_wrapped("Tip: Adjust colors and shapes, then click 'Apply Custom Theme' to see changes live!");
+                ui.text_wrapped("Tip: Adjust colors and shapes, name your theme, then click 'Save Theme' to add it to the theme list!");
             });
         
         editor_state.show_editor = show_editor;
+    }
+}
+
+/// Load a custom theme from saved settings into the editor
+fn load_custom_theme(editor_state: &mut ThemeEditorState, theme: &crate::ui::settings::SavedCustomTheme) {
+    // Load colors
+    editor_state.custom_colors = CustomThemeColors {
+        window_bg: theme.colors.window_bg,
+        text: theme.colors.text,
+        border: theme.colors.border,
+        button: theme.colors.button,
+        button_hovered: theme.colors.button_hovered,
+        button_active: theme.colors.button_active,
+        frame_bg: theme.colors.frame_bg,
+        frame_bg_hovered: theme.colors.frame_bg_hovered,
+        frame_bg_active: theme.colors.frame_bg_active,
+        slider_grab: theme.colors.slider_grab,
+        slider_grab_active: theme.colors.slider_grab_active,
+        header: theme.colors.header,
+        header_hovered: theme.colors.header_hovered,
+        checkmark: theme.colors.checkmark,
+    };
+
+    // Load shapes
+    editor_state.custom_shapes = CustomThemeShapes {
+        window_rounding: theme.shapes.window_rounding,
+        window_border_size: theme.shapes.window_border_size,
+        window_padding: theme.shapes.window_padding,
+        frame_rounding: theme.shapes.frame_rounding,
+        frame_border_size: theme.shapes.frame_border_size,
+        frame_padding: theme.shapes.frame_padding,
+        grab_rounding: theme.shapes.grab_rounding,
+        grab_min_size: theme.shapes.grab_min_size,
+        scrollbar_rounding: theme.shapes.scrollbar_rounding,
+        scrollbar_size: theme.shapes.scrollbar_size,
+        tab_rounding: theme.shapes.tab_rounding,
+        item_spacing: theme.shapes.item_spacing,
+        item_inner_spacing: theme.shapes.item_inner_spacing,
+    };
+
+    // Set the active custom theme name
+    editor_state.active_custom_theme = Some(theme.name.clone());
+}
+
+/// Convert CustomThemeColors to serializable format
+fn custom_colors_to_serde(colors: &CustomThemeColors) -> crate::ui::settings::CustomThemeColorsSerde {
+    crate::ui::settings::CustomThemeColorsSerde {
+        window_bg: colors.window_bg,
+        text: colors.text,
+        border: colors.border,
+        button: colors.button,
+        button_hovered: colors.button_hovered,
+        button_active: colors.button_active,
+        frame_bg: colors.frame_bg,
+        frame_bg_hovered: colors.frame_bg_hovered,
+        frame_bg_active: colors.frame_bg_active,
+        slider_grab: colors.slider_grab,
+        slider_grab_active: colors.slider_grab_active,
+        header: colors.header,
+        header_hovered: colors.header_hovered,
+        checkmark: colors.checkmark,
+    }
+}
+
+/// Convert CustomThemeShapes to serializable format
+fn custom_shapes_to_serde(shapes: &CustomThemeShapes) -> crate::ui::settings::CustomThemeShapesSerde {
+    crate::ui::settings::CustomThemeShapesSerde {
+        window_rounding: shapes.window_rounding,
+        window_border_size: shapes.window_border_size,
+        window_padding: shapes.window_padding,
+        frame_rounding: shapes.frame_rounding,
+        frame_border_size: shapes.frame_border_size,
+        frame_padding: shapes.frame_padding,
+        grab_rounding: shapes.grab_rounding,
+        grab_min_size: shapes.grab_min_size,
+        scrollbar_rounding: shapes.scrollbar_rounding,
+        scrollbar_size: shapes.scrollbar_size,
+        tab_rounding: shapes.tab_rounding,
+        item_spacing: shapes.item_spacing,
+        item_inner_spacing: shapes.item_inner_spacing,
     }
 }
 

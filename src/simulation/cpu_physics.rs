@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use rayon::prelude::*;
 
 /// Canonical simulation state using Structure-of-Arrays (SoA) layout
 /// 
@@ -1198,22 +1197,56 @@ pub struct DivisionEvent {
     pub child_b_idx: usize,
 }
 
+/// Generate a pseudo-random rotation quaternion with magnitude ~0.001 radians
+///
+/// Uses a simple LCG-style hash to generate deterministic pseudo-random values
+/// based on cell_id and rng_seed. This ensures reproducibility while adding
+/// small perturbations to cell rotations during division.
+///
+/// # Arguments
+/// * `cell_id` - Unique cell identifier
+/// * `rng_seed` - Global random seed
+///
+/// # Returns
+/// A quaternion representing a small random rotation (~0.001 radians)
+fn pseudo_random_rotation(cell_id: u32, rng_seed: u64) -> Quat {
+    // Simple hash combining cell_id and rng_seed
+    let hash = ((cell_id as u64).wrapping_mul(2654435761))
+        .wrapping_add(rng_seed)
+        .wrapping_mul(2654435761);
+
+    // Extract three pseudo-random values in range [0, 1)
+    let x = ((hash & 0xFFFF) as f32) / 65536.0;
+    let y = (((hash >> 16) & 0xFFFF) as f32) / 65536.0;
+    let z = (((hash >> 32) & 0xFFFF) as f32) / 65536.0;
+
+    // Convert to range [-1, 1) and scale to 0.001 radians
+    let angle_scale = 0.001;
+    let axis_x = (x - 0.5) * 2.0 * angle_scale;
+    let axis_y = (y - 0.5) * 2.0 * angle_scale;
+    let axis_z = (z - 0.5) * 2.0 * angle_scale;
+
+    // Create rotation from small angle approximation
+    // For small angles, sin(θ) ≈ θ and cos(θ) ≈ 1
+    Quat::from_xyzw(axis_x, axis_y, axis_z, 1.0).normalize()
+}
+
 /// Deterministic division step for canonical state
-/// 
+///
 /// This function handles cell division in a deterministic manner:
 /// - Checks which cells are ready to divide based on age
 /// - Uses the cell_allocation system for deterministic slot assignment
 /// - Creates child cells with properties derived from parent and genome
 /// - Respects capacity limits
 /// - Assigns unique IDs maintaining deterministic ordering
-/// 
+///
 /// # Arguments
 /// * `state` - Mutable reference to the canonical state
 /// * `genome` - Reference to the genome data
 /// * `current_time` - Current simulation time
 /// * `max_cells` - Maximum cell capacity
-/// * `_rng_seed` - Random seed (currently unused, reserved for future stochastic division)
-/// 
+/// * `_rng_seed` - Random seed (used for pseudo-random rotation perturbations)
+///
 /// # Returns
 /// Vector of DivisionEvent describing which divisions occurred
 pub fn division_step(
@@ -1418,7 +1451,8 @@ pub fn division_step(
     for data in &division_data_list {
         if data.child_a_slot < state.capacity {
             // Write child A
-            state.cell_ids[data.child_a_slot] = state.next_cell_id;
+            let child_a_id = state.next_cell_id;
+            state.cell_ids[data.child_a_slot] = child_a_id;
             state.next_cell_id += 1;
             state.positions[data.child_a_slot] = data.child_a_pos;
             state.prev_positions[data.child_a_slot] = data.child_a_pos;
@@ -1427,7 +1461,11 @@ pub fn division_step(
             state.radii[data.child_a_slot] = data.parent_radius;
             state.genome_ids[data.child_a_slot] = data.parent_genome_id;
             state.mode_indices[data.child_a_slot] = data.child_a_mode_idx;
-            state.rotations[data.child_a_slot] = data.child_a_orientation;
+
+            // Apply pseudo-random rotation perturbation (0.001 radians)
+            let random_rotation_a = pseudo_random_rotation(child_a_id, _rng_seed);
+            state.rotations[data.child_a_slot] = data.child_a_orientation * random_rotation_a;
+
             state.genome_orientations[data.child_a_slot] = data.child_a_genome_orientation;
             state.angular_velocities[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.forces[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
@@ -1437,13 +1475,14 @@ pub fn division_step(
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
             state.birth_times[data.child_a_slot] = current_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
-            
+
             // Adhesion indices will be initialized in inheritance function (matches C++)
         }
-        
+
         if data.child_b_slot < state.capacity {
             // Write child B
-            state.cell_ids[data.child_b_slot] = state.next_cell_id;
+            let child_b_id = state.next_cell_id;
+            state.cell_ids[data.child_b_slot] = child_b_id;
             state.next_cell_id += 1;
             state.positions[data.child_b_slot] = data.child_b_pos;
             state.prev_positions[data.child_b_slot] = data.child_b_pos;
@@ -1452,7 +1491,11 @@ pub fn division_step(
             state.radii[data.child_b_slot] = data.parent_radius;
             state.genome_ids[data.child_b_slot] = data.parent_genome_id;
             state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
-            state.rotations[data.child_b_slot] = data.child_b_orientation;
+
+            // Apply pseudo-random rotation perturbation (0.001 radians)
+            let random_rotation_b = pseudo_random_rotation(child_b_id, _rng_seed);
+            state.rotations[data.child_b_slot] = data.child_b_orientation * random_rotation_b;
+
             state.genome_orientations[data.child_b_slot] = data.child_b_genome_orientation;
             state.angular_velocities[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.forces[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
@@ -1462,7 +1505,7 @@ pub fn division_step(
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
             state.birth_times[data.child_b_slot] = current_time;
             state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
-            
+
             // Initialize adhesion indices for child B
             state.adhesion_manager.init_cell_adhesion_indices(data.child_b_slot);
         }

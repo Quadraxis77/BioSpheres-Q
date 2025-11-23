@@ -31,18 +31,22 @@ impl Plugin for RenderingPlugin {
 fn update_wireframe_mode(
     mut commands: Commands,
     rendering_config: Res<RenderingConfig>,
-    cell_query: Query<Entity, With<crate::cell::Cell>>,
+    cells_with_wireframe: Query<Entity, (With<crate::cell::Cell>, With<Wireframe>)>,
+    cells_without_wireframe: Query<Entity, (With<crate::cell::Cell>, Without<Wireframe>)>,
 ) {
     // Only update if the config changed
     if !rendering_config.is_changed() {
         return;
     }
-    
-    // Add or remove Wireframe component from all cells
-    for entity in cell_query.iter() {
-        if rendering_config.wireframe_mode {
+
+    if rendering_config.wireframe_mode {
+        // Add Wireframe to cells that don't have it
+        for entity in cells_without_wireframe.iter() {
             commands.entity(entity).insert(Wireframe);
-        } else {
+        }
+    } else {
+        // Remove Wireframe from cells that have it
+        for entity in cells_with_wireframe.iter() {
             commands.entity(entity).remove::<Wireframe>();
         }
     }

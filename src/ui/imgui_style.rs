@@ -39,23 +39,30 @@ impl Default for ImguiThemeState {
     }
 }
 
-/// System to apply and update ImGui styling
+/// System to apply and update ImGui styling and scaling
 #[allow(invalid_reference_casting)]
 pub fn apply_imgui_style_system(
     mut context: NonSendMut<ImguiContext>,
     mut theme_state: ResMut<ImguiThemeState>,
+    global_ui_state: Res<crate::ui::GlobalUiState>,
 ) {
-    if theme_state.theme_changed {
-        let ui = context.ui();
+    let ui = context.ui();
 
+    // Apply theme only when it changes
+    if theme_state.theme_changed {
         // Get a pointer to the style and modify it
         // This is safe because we have exclusive access to the ImguiContext
         unsafe {
             let style_ptr = ui.style() as *const imgui::Style as *mut imgui::Style;
             apply_theme(&mut *style_ptr, theme_state.current_theme);
         }
-
         theme_state.theme_changed = false;
+    }
+
+    // Always update font scale (this is cheap and doesn't compound)
+    unsafe {
+        let io_ptr = ui.io() as *const imgui::Io as *mut imgui::Io;
+        (*io_ptr).font_global_scale = global_ui_state.ui_scale;
     }
 }
 

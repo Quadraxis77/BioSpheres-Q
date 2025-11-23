@@ -57,7 +57,7 @@ fn check_and_divide_cells(
     time: Res<Time<Fixed>>,
     simulation: Option<Res<crate::simulation::cell_allocation::Simulation>>,
     cells_query: Query<(Entity, &Cell, &CellPosition, &CellOrientation, &DivisionTimer), With<CpuSceneEntity>>,
-    mut division_queue: ResMut<DivisionQueue>,
+    _division_queue: ResMut<DivisionQueue>,
 ) {
     // Check if we've reached the cell capacity limit
     let current_cell_count = cells_query.iter().count();

@@ -12,6 +12,7 @@ pub mod scene_manager;
 pub mod theme_editor;
 pub mod time_scrubber;
 pub mod rendering_controls;
+pub mod settings;
 
 pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState};
 pub use debug_info::DebugInfoPlugin;
@@ -28,13 +29,151 @@ pub use rendering_controls::RenderingControlsPlugin;
 #[derive(Resource)]
 pub struct GlobalUiState {
     pub windows_locked: bool,
+    pub ui_scale: f32,
 }
 
 impl Default for GlobalUiState {
     fn default() -> Self {
+        // Load settings from disk, defaults to unlocked on first startup
+        let saved_settings = settings::UiSettings::load();
         Self {
-            windows_locked: true,
+            windows_locked: saved_settings.windows_locked,
+            ui_scale: saved_settings.ui_scale,
         }
+    }
+}
+
+/// System to load theme from saved settings on startup
+/// This runs once on startup and applies custom theme on first Update frame
+pub(crate) fn load_theme_from_settings(
+    mut theme_state: ResMut<imgui_style::ImguiThemeState>,
+    mut theme_editor_state: ResMut<theme_editor::ThemeEditorState>,
+    mut commands: Commands,
+) {
+    let saved_settings = settings::UiSettings::load();
+
+    // Check if the saved theme is a custom theme
+    if saved_settings.theme.is_custom_theme {
+        // Find the custom theme by name
+        if let Some(custom_theme) = saved_settings.custom_themes.iter()
+            .find(|t| t.name == saved_settings.theme.current_theme_name) {
+            // Load custom theme data
+            theme_editor_state.custom_colors = theme_editor::CustomThemeColors {
+                window_bg: custom_theme.colors.window_bg,
+                text: custom_theme.colors.text,
+                border: custom_theme.colors.border,
+                button: custom_theme.colors.button,
+                button_hovered: custom_theme.colors.button_hovered,
+                button_active: custom_theme.colors.button_active,
+                frame_bg: custom_theme.colors.frame_bg,
+                frame_bg_hovered: custom_theme.colors.frame_bg_hovered,
+                frame_bg_active: custom_theme.colors.frame_bg_active,
+                slider_grab: custom_theme.colors.slider_grab,
+                slider_grab_active: custom_theme.colors.slider_grab_active,
+                header: custom_theme.colors.header,
+                header_hovered: custom_theme.colors.header_hovered,
+                checkmark: custom_theme.colors.checkmark,
+            };
+
+            theme_editor_state.custom_shapes = theme_editor::CustomThemeShapes {
+                window_rounding: custom_theme.shapes.window_rounding,
+                window_border_size: custom_theme.shapes.window_border_size,
+                window_padding: custom_theme.shapes.window_padding,
+                frame_rounding: custom_theme.shapes.frame_rounding,
+                frame_border_size: custom_theme.shapes.frame_border_size,
+                frame_padding: custom_theme.shapes.frame_padding,
+                grab_rounding: custom_theme.shapes.grab_rounding,
+                grab_min_size: custom_theme.shapes.grab_min_size,
+                scrollbar_rounding: custom_theme.shapes.scrollbar_rounding,
+                scrollbar_size: custom_theme.shapes.scrollbar_size,
+                tab_rounding: custom_theme.shapes.tab_rounding,
+                item_spacing: custom_theme.shapes.item_spacing,
+                item_inner_spacing: custom_theme.shapes.item_inner_spacing,
+            };
+
+            theme_editor_state.active_custom_theme = Some(custom_theme.name.clone());
+
+            // Schedule custom theme application on first Update frame
+            commands.insert_resource(ApplyCustomThemeOnStartup);
+        }
+    } else {
+        // Load preset theme by matching name
+        for theme in imgui_style::ImguiTheme::all() {
+            if theme.name() == saved_settings.theme.current_theme_name {
+                theme_state.current_theme = *theme;
+                theme_state.theme_changed = true;
+                break;
+            }
+        }
+    }
+}
+
+/// Resource marker to trigger custom theme application on first Update frame
+#[derive(Resource)]
+pub(crate) struct ApplyCustomThemeOnStartup;
+
+/// System to apply custom theme on first Update frame after startup
+/// This runs once on the first Update frame to apply custom themes loaded from disk
+#[allow(invalid_reference_casting)]
+pub(crate) fn apply_custom_theme_on_startup(
+    mut commands: Commands,
+    marker: Option<Res<ApplyCustomThemeOnStartup>>,
+    mut context: Option<NonSendMut<bevy_mod_imgui::ImguiContext>>,
+    theme_editor_state: Res<theme_editor::ThemeEditorState>,
+) {
+    if marker.is_none() {
+        return;
+    }
+
+    if let Some(context) = context.as_mut() {
+        let ui = context.ui();
+
+        // Apply custom theme
+        let colors = &theme_editor_state.custom_colors;
+        let shapes = &theme_editor_state.custom_shapes;
+
+        use imgui::StyleColor;
+
+        // Apply the custom theme directly
+        unsafe {
+            let style_ptr = ui.style() as *const imgui::Style as *mut imgui::Style;
+            let style = &mut *style_ptr;
+
+            // Apply custom shapes
+            style.window_rounding = shapes.window_rounding;
+            style.window_border_size = shapes.window_border_size;
+            style.window_padding = shapes.window_padding;
+            style.frame_rounding = shapes.frame_rounding;
+            style.frame_border_size = shapes.frame_border_size;
+            style.frame_padding = shapes.frame_padding;
+            style.grab_rounding = shapes.grab_rounding;
+            style.grab_min_size = shapes.grab_min_size;
+            style.scrollbar_rounding = shapes.scrollbar_rounding;
+            style.scrollbar_size = shapes.scrollbar_size;
+            style.tab_rounding = shapes.tab_rounding;
+            style.item_spacing = shapes.item_spacing;
+            style.item_inner_spacing = shapes.item_inner_spacing;
+
+            // Apply custom colors
+            let style_colors = &mut style.colors;
+            style_colors[StyleColor::WindowBg as usize] = colors.window_bg;
+            style_colors[StyleColor::Text as usize] = colors.text;
+            style_colors[StyleColor::Border as usize] = colors.border;
+            style_colors[StyleColor::Button as usize] = colors.button;
+            style_colors[StyleColor::ButtonHovered as usize] = colors.button_hovered;
+            style_colors[StyleColor::ButtonActive as usize] = colors.button_active;
+            style_colors[StyleColor::FrameBg as usize] = colors.frame_bg;
+            style_colors[StyleColor::FrameBgHovered as usize] = colors.frame_bg_hovered;
+            style_colors[StyleColor::FrameBgActive as usize] = colors.frame_bg_active;
+            style_colors[StyleColor::SliderGrab as usize] = colors.slider_grab;
+            style_colors[StyleColor::SliderGrabActive as usize] = colors.slider_grab_active;
+            style_colors[StyleColor::Header as usize] = colors.header;
+            style_colors[StyleColor::HeaderHovered as usize] = colors.header_hovered;
+            style_colors[StyleColor::CheckMark as usize] = colors.checkmark;
+        }
+
+        // Remove the marker so this doesn't run again
+        commands.remove_resource::<ApplyCustomThemeOnStartup>();
     }
 }
 
@@ -42,6 +181,7 @@ impl Default for GlobalUiState {
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
+    #[allow(private_interfaces)]
     fn build(&self, app: &mut App) {
         app.init_resource::<GlobalUiState>()
             .add_plugins(CameraPlugin)
@@ -49,6 +189,11 @@ impl Plugin for UiPlugin {
             .add_plugins(ImguiPanelPlugin)
             .add_plugins(PerformanceMonitorPlugin)
             .add_plugins(RenderingControlsPlugin)
-            .add_plugins(ThemeEditorPlugin);
+            .add_plugins(ThemeEditorPlugin)
+            .add_systems(Startup, load_theme_from_settings)
+            .add_systems(Update, (
+                apply_custom_theme_on_startup,
+                settings::save_ui_settings_on_change,
+            ));
     }
 }
