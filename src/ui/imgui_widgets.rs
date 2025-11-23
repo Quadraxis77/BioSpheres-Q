@@ -51,9 +51,17 @@ pub fn circular_slider_float(
     let col_slider = ui.style_color(StyleColor::SliderGrabActive);
     let col_slider_hovered = ui.style_color(StyleColor::SliderGrab);
 
-    // Initialize text buffer if empty
+    // Initialize text buffer if empty or update if value changed externally
     if state.text_buffer.is_empty() {
         state.text_buffer = format!("{}", *v);
+    } else {
+        // Check if the value was changed externally (e.g., by loading a genome)
+        if let Ok(current_buffer_value) = state.text_buffer.parse::<f32>() {
+            // Only update if there's a significant difference (to avoid floating point precision issues)
+            if (current_buffer_value - *v).abs() > 0.01 && !state.is_active {
+                state.text_buffer = format!("{}", *v);
+            }
+        }
     }
 
     // Check mouse position for grab zone

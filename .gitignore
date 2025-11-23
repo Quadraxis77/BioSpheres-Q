@@ -12,6 +12,10 @@ Cargo.lock
 # ImGui settings (user-specific)
 imgui.ini
 
+# User genomes (keep these local, share via separate repo if desired)
+genomes/*
+!genomes/README.md
+
 # OS files
 .DS_Store
 Thumbs.db

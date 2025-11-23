@@ -133,12 +133,62 @@ fn render_genome_editor(
 
             ui.same_line();
             if ui.button("Save Genome") {
-                // TODO: Implement genome saving functionality
+                // Use native file dialog to save genome
+                // Default to genomes/ folder if it exists
+                let default_dir = std::env::current_dir()
+                    .ok()
+                    .map(|d| d.join("genomes"))
+                    .filter(|d| d.exists());
+
+                let mut dialog = rfd::FileDialog::new()
+                    .add_filter("JSON", &["json"])
+                    .set_file_name(&format!("{}.json", current_genome.genome.name));
+
+                if let Some(dir) = default_dir {
+                    dialog = dialog.set_directory(dir);
+                }
+
+                if let Some(path) = dialog.save_file() {
+                    match current_genome.genome.save_to_file(&path) {
+                        Ok(_) => {
+                            println!("Genome saved to: {}", path.display());
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to save genome: {}", e);
+                        }
+                    }
+                }
             }
 
             ui.same_line();
             if ui.button("Load Genome") {
-                // TODO: Implement genome loading functionality
+                // Use native file dialog to load genome
+                // Default to genomes/ folder if it exists
+                let default_dir = std::env::current_dir()
+                    .ok()
+                    .map(|d| d.join("genomes"))
+                    .filter(|d| d.exists());
+
+                let mut dialog = rfd::FileDialog::new()
+                    .add_filter("JSON", &["json"]);
+
+                if let Some(dir) = default_dir {
+                    dialog = dialog.set_directory(dir);
+                }
+
+                if let Some(path) = dialog.pick_file() {
+                    match GenomeData::load_from_file(&path) {
+                        Ok(loaded_genome) => {
+                            current_genome.genome = loaded_genome;
+                            current_genome.selected_mode_index = 0;
+                            node_graph.mark_for_rebuild();
+                            println!("Genome loaded from: {}", path.display());
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to load genome: {}", e);
+                        }
+                    }
+                }
             }
 
             ui.same_line();

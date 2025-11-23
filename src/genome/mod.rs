@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::{Serialize, Deserialize};
 
 pub mod node_graph;
 pub use node_graph::GenomeNodeGraph;
@@ -37,7 +38,7 @@ impl Default for CurrentGenome {
 }
 
 /// Adhesion configuration
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdhesionSettings {
     pub can_break: bool,
     pub break_force: f32,
@@ -71,7 +72,7 @@ impl Default for AdhesionSettings {
 }
 
 /// Child settings for mode transitions
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChildSettings {
     pub mode_number: i32,
     pub orientation: Quat,
@@ -91,7 +92,7 @@ impl Default for ChildSettings {
 }
 
 /// A single mode within a genome
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModeSettings {
     pub name: String,
     pub default_name: String, // Original/default name to revert to when user clears the name
@@ -164,7 +165,7 @@ impl Default for ModeSettings {
 }
 
 /// A complete genome definition
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GenomeData {
     pub name: String,
     pub initial_mode: i32,
@@ -197,5 +198,21 @@ impl Default for GenomeData {
             "Default Mode".to_string(),
         ));
         genome
+    }
+}
+
+impl GenomeData {
+    /// Save genome to a JSON file
+    pub fn save_to_file(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    /// Load genome from a JSON file
+    pub fn load_from_file(path: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let json = std::fs::read_to_string(path)?;
+        let genome = serde_json::from_str(&json)?;
+        Ok(genome)
     }
 }
