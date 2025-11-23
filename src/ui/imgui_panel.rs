@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use super::imgui_style;
 
 #[derive(Resource, Default)]
 pub struct ImguiPanelState {
@@ -24,6 +25,7 @@ impl Plugin for ImguiPanelPlugin {
             apply_display_scale_to_font_size: false, // Disable automatic DPI scaling
             apply_display_scale_to_font_oversample: false, // Disable oversampling scaling
             ..Default::default()
-        });
+        })
+        .add_systems(Update, imgui_style::apply_imgui_style_system);
     }
 }

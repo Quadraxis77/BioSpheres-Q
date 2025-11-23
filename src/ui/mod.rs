@@ -3,6 +3,7 @@ use bevy::prelude::*;
 pub mod camera;
 pub mod debug_info;
 pub mod imgui_panel;
+pub mod imgui_style;
 pub mod imgui_widgets;
 pub mod genome_editor;
 pub mod imnodes_extensions;
