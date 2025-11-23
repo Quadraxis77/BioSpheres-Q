@@ -154,6 +154,7 @@ fn render_performance_window(
     main_sim_state: Option<Res<crate::simulation::cpu_sim::MainSimState>>,
     preview_sim_state: Option<Res<crate::simulation::preview_sim::PreviewSimState>>,
     time: Res<Time<Fixed>>,
+    global_ui_state: Res<super::GlobalUiState>,
 ) {
     if !perf_monitor.window_open {
         return;
@@ -175,10 +176,19 @@ fn render_performance_window(
 
     let ui = imgui_context.ui();
 
+    // Build flags based on lock state
+    use imgui::WindowFlags;
+    let flags = if global_ui_state.windows_locked {
+        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
+    } else {
+        WindowFlags::empty()
+    };
+
     ui.window("Advanced Performance Monitor")
         .position([405.0, 621.0], Condition::FirstUseEver)
         .size([400.0, 690.0], Condition::FirstUseEver)
         .opened(&mut perf_monitor.window_open)
+        .flags(flags)
         .build(|| {
             // Performance Overview Section
             ui.text_colored([1.0, 1.0, 1.0, 1.0], "Performance Overview");

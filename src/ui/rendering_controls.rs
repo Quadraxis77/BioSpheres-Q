@@ -17,13 +17,24 @@ fn render_controls_ui(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut rendering_config: ResMut<RenderingConfig>,
     mut theme_state: ResMut<crate::ui::ImguiThemeState>,
+    global_ui_state: Res<crate::ui::GlobalUiState>,
 ) {
     let ui = imgui_context.ui();
 
     // Create a window for rendering controls
+    use imgui::WindowFlags;
+    
+    // Build flags based on lock state
+    let flags = if global_ui_state.windows_locked {
+        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
+    } else {
+        WindowFlags::empty()
+    };
+    
     ui.window("Rendering Controls")
         .size([300.0, 280.0], imgui::Condition::FirstUseEver)
         .position([10.0, 100.0], imgui::Condition::FirstUseEver)
+        .flags(flags)
         .build(|| {
             ui.text("Visualization:");
             ui.separator();

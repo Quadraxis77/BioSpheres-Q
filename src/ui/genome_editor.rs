@@ -96,6 +96,7 @@ fn render_genome_editor(
     preview_state: Res<crate::simulation::preview_sim::PreviewSimState>,
     mut graph_state: ResMut<GenomeGraphState>,
     mut node_graph: ResMut<GenomeNodeGraph>,
+    global_ui_state: Res<super::GlobalUiState>,
 ) {
     // Only show genome editor in Preview mode
     if simulation_state.mode != SimulationMode::Preview {
@@ -107,10 +108,19 @@ fn render_genome_editor(
 
     let ui = imgui_context.ui();
 
+    // Build flags based on lock state
+    use imgui::WindowFlags;
+    let flags = if global_ui_state.windows_locked {
+        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
+    } else {
+        WindowFlags::empty()
+    };
+
     ui.window("Genome Editor")
         .position([4.0, 13.0], Condition::FirstUseEver)
         .size([800.0, 600.0], Condition::FirstUseEver)
         .size_constraints([800.0, 500.0], [f32::MAX, f32::MAX])
+        .flags(flags)
         .build(|| {
             // Genome name input
             ui.text("Genome Name:");
@@ -721,6 +731,7 @@ fn render_genome_graph(
     simulation_state: Res<SimulationState>,
     mut current_genome: ResMut<CurrentGenome>,
     mut node_graph: ResMut<GenomeNodeGraph>,
+    global_ui_state: Res<super::GlobalUiState>,
 ) {
     // Only show in Preview mode and if window is open
     if simulation_state.mode != SimulationMode::Preview || !graph_state.show_window {
@@ -742,12 +753,20 @@ fn render_genome_graph(
 
     let mut show_window = graph_state.show_window;
     
+    // Build flags based on lock state
+    use imgui::WindowFlags;
+    let flags = if global_ui_state.windows_locked {
+        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE | WindowFlags::NO_NAV
+    } else {
+        WindowFlags::NO_NAV
+    };
+    
     ui.window("Genome Graph")
         .opened(&mut show_window)
         .position([820.0, 13.0], Condition::FirstUseEver)
         .size([800.0, 600.0], Condition::FirstUseEver)
         .bg_alpha(1.0) // Make window fully opaque
-        .no_nav() // Disable navigation to allow mouse input to pass through
+        .flags(flags)
         .build(|| {
             // Show help text
             ui.text_colored([0.7, 0.7, 0.7, 1.0], "Shift+Click: Add mode | Shift+Right-click node: Remove | Right-click link: Self-ref | Middle drag: Pan");

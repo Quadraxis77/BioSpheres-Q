@@ -20,16 +20,31 @@ pub use imgui_style::{ImguiTheme, ImguiThemeState};
 pub use genome_editor::GenomeEditorPlugin;
 pub use performance_monitor::PerformanceMonitorPlugin;
 pub use scene_manager::{SceneManagerPlugin, SceneManagerState};
-pub use theme_editor::ThemeEditorPlugin;
+pub use theme_editor::{ThemeEditorPlugin, ThemeEditorState};
 pub use time_scrubber::{TimeScrubberPlugin, TimeScrubberState};
 pub use rendering_controls::RenderingControlsPlugin;
+
+/// Global UI state shared across all UI components
+#[derive(Resource)]
+pub struct GlobalUiState {
+    pub windows_locked: bool,
+}
+
+impl Default for GlobalUiState {
+    fn default() -> Self {
+        Self {
+            windows_locked: true,
+        }
+    }
+}
 
 /// Main UI plugin - provides core UI functionality
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(CameraPlugin)
+        app.init_resource::<GlobalUiState>()
+            .add_plugins(CameraPlugin)
             .add_plugins(DebugInfoPlugin)
             .add_plugins(ImguiPanelPlugin)
             .add_plugins(PerformanceMonitorPlugin)

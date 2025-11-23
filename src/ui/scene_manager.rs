@@ -45,6 +45,7 @@ fn render_scene_manager_window(
     next_gpu_scene_state: Option<ResMut<NextState<GpuSceneState>>>,
     next_preview_scene_state: Option<ResMut<NextState<PreviewSceneState>>>,
     mut reset_scene_events: MessageWriter<ResetSceneEvent>,
+    global_ui_state: Res<super::GlobalUiState>,
 ) {
     // Early return if states aren't initialized yet
     let Some(cpu_scene_state) = cpu_scene_state else { return };
@@ -61,12 +62,21 @@ fn render_scene_manager_window(
         return;
     }
 
+    // Build flags based on lock state
+    use imgui::WindowFlags;
+    let flags = if global_ui_state.windows_locked {
+        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
+    } else {
+        WindowFlags::empty()
+    };
+
     ui.window("Scene Manager")
         .position([10.0, 10.0], Condition::FirstUseEver)
         .size([300.0, 200.0], Condition::FirstUseEver)
         .size_constraints([250.0, 150.0], [f32::MAX, f32::MAX])
         .collapsible(true)
         .opened(&mut scene_manager_state.window_open)
+        .flags(flags)
         .build(|| {
             // Exit button at the top in red
             let red = [0.8, 0.2, 0.2, 1.0];

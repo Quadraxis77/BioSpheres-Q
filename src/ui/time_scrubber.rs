@@ -39,6 +39,7 @@ fn render_time_scrubber(
     preview_state: Res<PreviewSimState>,
     mut sim_state: ResMut<SimulationState>,
     config: Res<PhysicsConfig>,
+    global_ui_state: Res<super::GlobalUiState>,
 ) {
     // Only show time scrubber in Preview mode
     if sim_state.mode != crate::simulation::SimulationMode::Preview {
@@ -47,10 +48,19 @@ fn render_time_scrubber(
 
     let ui = imgui_context.ui();
     
+    // Build flags based on lock state
+    use imgui::WindowFlags;
+    let flags = if global_ui_state.windows_locked {
+        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
+    } else {
+        WindowFlags::empty()
+    };
+    
     // Create time scrubber window
     ui.window("Time Scrubber")
         .size([400.0, 120.0], imgui::Condition::FirstUseEver)
         .position([10.0, 100.0], imgui::Condition::FirstUseEver)
+        .flags(flags)
         .build(|| {
             let mut current_time = preview_state.current_time;
             

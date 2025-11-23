@@ -129,11 +129,13 @@ fn theme_editor_ui(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut editor_state: ResMut<ThemeEditorState>,
     mut theme_state: ResMut<ImguiThemeState>,
+    mut global_ui_state: ResMut<super::GlobalUiState>,
 ) {
     let ui = imgui_context.ui();
 
-    // Main menu bar with theme editor toggle
+    // Main menu bar with theme editor toggle and options
     if let Some(_menu_bar) = ui.begin_main_menu_bar() {
+        // Theme menu
         if let Some(_menu) = ui.begin_menu("Theme") {
             if ui.menu_item("Theme Editor") {
                 editor_state.show_editor = !editor_state.show_editor;
@@ -148,15 +150,56 @@ fn theme_editor_ui(
                 }
             }
         }
+        
+        // Options menu
+        if let Some(_menu) = ui.begin_menu("Options") {
+            // Window lock toggle
+            let lock_text = if global_ui_state.windows_locked {
+                "🔒 Unlock Windows"
+            } else {
+                "🔓 Lock Windows"
+            };
+            
+            if ui.menu_item(lock_text) {
+                global_ui_state.windows_locked = !global_ui_state.windows_locked;
+                println!("Windows locked: {}", global_ui_state.windows_locked);
+            }
+            
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Lock windows to prevent moving/resizing");
+            }
+            
+            ui.separator();
+            
+            // Show lock status
+            let status = if global_ui_state.windows_locked {
+                "Windows: LOCKED"
+            } else {
+                "Windows: Unlocked"
+            };
+            ui.text(status);
+        }
     }
 
     // Theme editor window
     let mut show_editor = editor_state.show_editor;
+    let windows_locked = global_ui_state.windows_locked;
+    
     if show_editor {
+        use imgui::WindowFlags;
+        
+        // Build flags based on lock state
+        let flags = if windows_locked {
+            WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
+        } else {
+            WindowFlags::empty()
+        };
+        
         ui.window("Theme Editor")
             .size([400.0, 600.0], imgui::Condition::FirstUseEver)
             .position([50.0, 50.0], imgui::Condition::FirstUseEver)
             .opened(&mut show_editor)
+            .flags(flags)
             .build(|| {
                 ui.text("Customize Your Theme");
                 ui.separator();
@@ -355,4 +398,15 @@ fn apply_custom_theme(colors: &CustomThemeColors, shapes: &CustomThemeShapes, ui
     style_colors[StyleColor::Header as usize] = colors.header;
     style_colors[StyleColor::HeaderHovered as usize] = colors.header_hovered;
     style_colors[StyleColor::CheckMark as usize] = colors.checkmark;
+}
+
+
+/// Helper function to apply window lock flags
+/// Use this when creating windows to respect the lock setting
+pub fn apply_window_lock_flags(flags: imgui::WindowFlags, locked: bool) -> imgui::WindowFlags {
+    if locked {
+        flags | imgui::WindowFlags::NO_MOVE | imgui::WindowFlags::NO_RESIZE
+    } else {
+        flags
+    }
 }
