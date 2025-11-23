@@ -464,16 +464,6 @@ fn sync_ecs_from_canonical(
     }
 }
 
-
-
-
-
-
-
-
-
-
-
 /// State for CPU simulation scene
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum CpuSceneState {

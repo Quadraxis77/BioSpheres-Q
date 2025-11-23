@@ -18,7 +18,7 @@ use crate::genome::GenomeData;
 pub fn inherit_adhesions_on_division(
     state: &mut CanonicalState,
     genome: &GenomeData,
-    parent_idx: usize,
+    parent_mode_idx: usize,
     child_a_idx: usize,
     child_b_idx: usize,
     parent_genome_orientation: Quat,
@@ -26,7 +26,7 @@ pub fn inherit_adhesions_on_division(
 
     
     // Get parent mode settings
-    let parent_mode_idx = state.mode_indices[parent_idx];
+    //let parent_mode_idx = state.mode_indices[parent_idx];
     let parent_mode = match genome.modes.get(parent_mode_idx) {
         Some(mode) => mode,
         None => return, // Invalid mode
@@ -41,7 +41,7 @@ pub fn inherit_adhesions_on_division(
     }
     
     // Get parent properties
-    let parent_radius = state.radii[parent_idx];
+    let parent_radius = state.radii[child_a_idx];
     // CRITICAL: parent_genome_orientation is passed as parameter, not read from state
     // because child A has already overwritten the parent's slot with its own orientation
     
@@ -70,7 +70,7 @@ pub fn inherit_adhesions_on_division(
     // (since child A reuses parent index, initializing would clear the connections)
     let mut parent_connections = Vec::new();
     for slot_idx in 0..crate::cell::MAX_ADHESIONS_PER_CELL {
-        let connection_idx = state.adhesion_manager.cell_adhesion_indices[parent_idx][slot_idx];
+        let connection_idx = state.adhesion_manager.cell_adhesion_indices[child_a_idx][slot_idx];
         if connection_idx >= 0 {
             parent_connections.push(connection_idx as usize);
         }
@@ -98,9 +98,9 @@ pub fn inherit_adhesions_on_division(
         let cell_a_idx = state.adhesion_connections.cell_a_index[connection_idx];
         let cell_b_idx = state.adhesion_connections.cell_b_index[connection_idx];
         
-        let (neighbor_idx, parent_is_a) = if cell_a_idx == parent_idx {
+        let (neighbor_idx, parent_is_a) = if cell_a_idx == child_a_idx {
             (cell_b_idx, true)
-        } else if cell_b_idx == parent_idx {
+        } else if cell_b_idx == child_a_idx {
             (cell_a_idx, false)
         } else {
             continue;
@@ -127,9 +127,9 @@ pub fn inherit_adhesions_on_division(
                     genome,
                     child_b_idx,
                     neighbor_idx,
-                    child_b_mode_idx,
+                    parent_mode_idx,
                     parent_is_a,
-                    parent_idx,
+                    child_a_idx,
                     parent_mode,
                     parent_genome_orientation,
                     parent_anchor_direction,
@@ -148,9 +148,9 @@ pub fn inherit_adhesions_on_division(
                     genome,
                     child_a_idx,
                     neighbor_idx,
-                    child_a_mode_idx,
+                    parent_mode_idx,
                     parent_is_a,
-                    parent_idx,
+                    child_a_idx,
                     parent_mode,
                     parent_genome_orientation,
                     parent_anchor_direction,
@@ -170,9 +170,9 @@ pub fn inherit_adhesions_on_division(
                         genome,
                         child_b_idx,
                         neighbor_idx,
-                        child_b_mode_idx,
+                        parent_mode_idx,
                         parent_is_a,
-                        parent_idx,
+                        child_a_idx,
                         parent_mode,
                         parent_genome_orientation,
                         parent_anchor_direction,
@@ -191,9 +191,9 @@ pub fn inherit_adhesions_on_division(
                         genome,
                         child_a_idx,
                         neighbor_idx,
-                        child_a_mode_idx,
+                        parent_mode_idx,
                         parent_is_a,
-                        parent_idx,
+                        child_a_idx,
                         parent_mode,
                         parent_genome_orientation,
                         parent_anchor_direction,

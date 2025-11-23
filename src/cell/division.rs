@@ -91,10 +91,10 @@ fn check_and_divide_cells(
 
     // Populate the division queue with entities that will divide
     // This allows the cell allocation system to run conditionally (Phase 1 optimization P1.2)
-    division_queue.pending_divisions.clear();
-    for (entity, _, _, _) in &divisions {
-        division_queue.pending_divisions.push(*entity);
-    }
+    // division_queue.pending_divisions.clear();
+    // for (entity, _, _, _) in &divisions {
+    //     division_queue.pending_divisions.push(*entity);
+    // }
 
     // Process divisions
     for (parent_entity, cell, position, orientation) in divisions {

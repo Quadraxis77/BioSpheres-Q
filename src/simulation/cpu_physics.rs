@@ -1478,21 +1478,22 @@ pub fn division_step(
     // Now handle adhesion inheritance and creation AFTER all children are written
     // Child A reuses parent index (matches C++), so neighborIndex automatically points to correct cell
     for data in &division_data_list {
+        // Create child-to-child adhesion if parent mode allows it
+        let mode_index = data.parent_mode_idx;
+        let mode = genome.modes.get(mode_index);
+
         // Inherit adhesions from parent to children based on zone classification
         // CRITICAL: Pass parent's saved genome orientation, not from state (child A has overwritten it)
         crate::simulation::inherit_adhesions_on_division(
             state,
             genome,
-            data.parent_idx,
+            data.parent_mode_idx,
             data.child_a_slot,
             data.child_b_slot,
             data.parent_genome_orientation,
         );
-        
-        // Create child-to-child adhesion if parent mode allows it
-        let mode_index = data.parent_mode_idx;
-        let mode = genome.modes.get(mode_index);
-        
+
+
         if let Some(mode) = mode {
             if mode.parent_make_adhesion && mode.child_a.keep_adhesion && mode.child_b.keep_adhesion {
                 // CRITICAL: Use split direction from parent's GENOME orientation (not world positions!)
@@ -1538,13 +1539,12 @@ pub fn division_step(
                     Vec3::Z
                 };
                 
-                // Create child-to-child connection with child A's mode index
-                // (child A inherits the parent's slot and is the "parent" of the connection)
+                // Create child-to-child connection with parent's mode index
                 let result = state.adhesion_manager.add_adhesion_with_directions(
                     &mut state.adhesion_connections,
                     data.child_a_slot,
                     data.child_b_slot,
-                    data.child_a_mode_idx,  // Use child A's mode index, not parent's
+                    mode_index,  // Use parent's mode index
                     anchor_direction_a,
                     anchor_direction_b,
                     child_a_split_dir,
