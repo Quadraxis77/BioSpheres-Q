@@ -9,15 +9,18 @@ pub mod genome_editor;
 pub mod imnodes_extensions;
 pub mod performance_monitor;
 pub mod scene_manager;
+pub mod theme_editor;
 pub mod time_scrubber;
 pub mod rendering_controls;
 
 pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState};
 pub use debug_info::DebugInfoPlugin;
 pub use imgui_panel::{ImguiPanelPlugin, ImguiPanelState};
+pub use imgui_style::{ImguiTheme, ImguiThemeState};
 pub use genome_editor::GenomeEditorPlugin;
 pub use performance_monitor::PerformanceMonitorPlugin;
 pub use scene_manager::{SceneManagerPlugin, SceneManagerState};
+pub use theme_editor::ThemeEditorPlugin;
 pub use time_scrubber::{TimeScrubberPlugin, TimeScrubberState};
 pub use rendering_controls::RenderingControlsPlugin;
 
@@ -30,6 +33,7 @@ impl Plugin for UiPlugin {
             .add_plugins(DebugInfoPlugin)
             .add_plugins(ImguiPanelPlugin)
             .add_plugins(PerformanceMonitorPlugin)
-            .add_plugins(RenderingControlsPlugin);
+            .add_plugins(RenderingControlsPlugin)
+            .add_plugins(ThemeEditorPlugin);
     }
 }

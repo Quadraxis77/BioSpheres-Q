@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use super::imgui_style;
+use super::imgui_style::{self, ImguiThemeState};
 
 #[derive(Resource, Default)]
 pub struct ImguiPanelState {
@@ -14,6 +14,7 @@ impl Plugin for ImguiPanelPlugin {
         app.insert_resource(ImguiPanelState {
             show_debug_info: true,
         })
+        .insert_resource(ImguiThemeState::default())
         .add_plugins(bevy_mod_imgui::ImguiPlugin {
             ini_filename: Some("imgui.ini".into()),
             // Use a fixed font size instead of automatic DPI scaling

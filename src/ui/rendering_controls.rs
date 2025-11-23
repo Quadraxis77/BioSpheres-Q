@@ -16,12 +16,13 @@ impl Plugin for RenderingControlsPlugin {
 fn render_controls_ui(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut rendering_config: ResMut<RenderingConfig>,
+    mut theme_state: ResMut<crate::ui::ImguiThemeState>,
 ) {
     let ui = imgui_context.ui();
 
     // Create a window for rendering controls
     ui.window("Rendering Controls")
-        .size([300.0, 200.0], imgui::Condition::FirstUseEver)
+        .size([300.0, 280.0], imgui::Condition::FirstUseEver)
         .position([10.0, 100.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.text("Visualization:");
@@ -50,5 +51,17 @@ fn render_controls_ui(
             
             ui.separator();
             ui.checkbox("Wireframe Mode", &mut rendering_config.wireframe_mode);
+            
+            // Theme selector
+            ui.separator();
+            ui.text("UI Theme:");
+            
+            for theme in crate::ui::ImguiTheme::all() {
+                let is_selected = theme_state.current_theme == *theme;
+                if ui.radio_button_bool(theme.name(), is_selected) && !is_selected {
+                    theme_state.current_theme = *theme;
+                    theme_state.theme_changed = true;
+                }
+            }
         });
 }
