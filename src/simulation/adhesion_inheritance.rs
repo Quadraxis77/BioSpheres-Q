@@ -83,9 +83,6 @@ pub fn inherit_adhesions_on_division(
     state.adhesion_manager.init_cell_adhesion_indices(child_b_idx);
     
     // Process each parent connection (sequential for preview, parallel version available for main sim)
-    let child_a_mode_idx = state.mode_indices[child_a_idx];
-    let child_b_mode_idx = state.mode_indices[child_b_idx];
-    
     for &connection_idx in &parent_connections {
         if connection_idx >= state.adhesion_connections.active_count {
             continue;
@@ -227,10 +224,10 @@ fn create_inherited_adhesion(
     genome: &GenomeData,
     child_idx: usize,
     neighbor_idx: usize,
-    mode_index: usize,
+    _mode_index: usize,
     parent_was_a: bool,
     _parent_idx: usize,
-    parent_mode: &crate::genome::ModeSettings,
+    _parent_mode: &crate::genome::ModeSettings,
     parent_genome_orientation: Quat,
     parent_anchor_direction: Vec3,
     _neighbor_anchor_direction: Vec3,
@@ -245,8 +242,15 @@ fn create_inherited_adhesion(
     // In Zone C, the neighbor needs TWO separate anchors (one to each child)
     // We must calculate geometric positions in parent frame and derive anchors
     
-    // Get rest length from parent mode
-    let rest_length = parent_mode.adhesion_settings.rest_length;
+    // Get child mode to use its adhesion settings (not parent's)
+    let child_mode_idx = state.mode_indices[child_idx];
+    let child_mode = match genome.modes.get(child_mode_idx) {
+        Some(mode) => mode,
+        None => return, // Invalid mode
+    };
+    
+    // Get rest length from child's mode (not parent's)
+    let rest_length = child_mode.adhesion_settings.rest_length;
     
     // Calculate center-to-center distance using parent's adhesion rest length
     let center_to_center_dist = rest_length + parent_radius + neighbor_radius;
@@ -298,13 +302,14 @@ fn create_inherited_adhesion(
     let neighbor_genome_orientation_for_twist = state.genome_orientations[neighbor_idx];
     
     // Preserve original side assignment: if neighbor was originally cellA, keep them as cellA
+    // Use child's mode index for the new adhesion (not parent's)
     let result = if parent_was_a {
         // Parent was cellA, neighbor was cellB, so neighbor becomes cellB
         state.adhesion_manager.add_adhesion_with_directions(
             &mut state.adhesion_connections,
             child_idx,
             neighbor_idx,
-            mode_index,
+            child_mode_idx,
             child_anchor_direction,
             neighbor_anchor_direction,
             child_split_dir,
@@ -318,7 +323,7 @@ fn create_inherited_adhesion(
             &mut state.adhesion_connections,
             neighbor_idx,
             child_idx,
-            mode_index,
+            child_mode_idx,
             neighbor_anchor_direction,
             child_anchor_direction,
             neighbor_split_dir,
