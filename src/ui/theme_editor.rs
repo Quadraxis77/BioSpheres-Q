@@ -196,8 +196,8 @@ fn theme_editor_ui(
         };
         
         ui.window("Theme Editor")
-            .size([400.0, 600.0], imgui::Condition::FirstUseEver)
-            .position([50.0, 50.0], imgui::Condition::FirstUseEver)
+            .size([398.0, 615.0], imgui::Condition::FirstUseEver)
+            .position([994.0, 421.0], imgui::Condition::FirstUseEver)
             .opened(&mut show_editor)
             .flags(flags)
             .build(|| {

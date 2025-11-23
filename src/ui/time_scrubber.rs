@@ -58,8 +58,8 @@ fn render_time_scrubber(
     
     // Create time scrubber window
     ui.window("Time Scrubber")
-        .size([400.0, 120.0], imgui::Condition::FirstUseEver)
-        .position([10.0, 100.0], imgui::Condition::FirstUseEver)
+        .size([2143.0, 210.0], imgui::Condition::FirstUseEver)
+        .position([887.0, 28.0], imgui::Condition::FirstUseEver)
         .flags(flags)
         .build(|| {
             let mut current_time = preview_state.current_time;
