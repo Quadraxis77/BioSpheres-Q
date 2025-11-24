@@ -32,8 +32,8 @@ fn render_controls_ui(
     };
     
     ui.window("Rendering Controls")
-        .size([403.0, 219.0], imgui::Condition::FirstUseEver)
-        .position([3031.0, 880.0], imgui::Condition::FirstUseEver)
+        .size([300.0, 220.0], imgui::Condition::FirstUseEver)
+        .position([1615.0, 850.0], imgui::Condition::FirstUseEver)
         .flags(flags)
         .build(|| {
             ui.text("Visualization:");

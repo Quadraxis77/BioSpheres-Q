@@ -71,8 +71,8 @@ fn render_scene_manager_window(
     };
 
     ui.window("Scene Manager")
-        .position([3031.0, 30.0], Condition::FirstUseEver)
-        .size([403.0, 280.0], Condition::FirstUseEver)
+        .position([1615.0, 30.0], Condition::FirstUseEver)
+        .size([300.0, 245.0], Condition::FirstUseEver)
         .size_constraints([250.0, 150.0], [f32::MAX, f32::MAX])
         .collapsible(true)
         .opened(&mut scene_manager_state.window_open)

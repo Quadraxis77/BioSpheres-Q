@@ -117,9 +117,9 @@ fn render_genome_editor(
     };
 
     ui.window("Genome Editor")
-        .position([0.0, 28.0], Condition::FirstUseEver)
-        .size([888.0, 683.0], Condition::FirstUseEver)
-        .size_constraints([800.0, 500.0], [f32::MAX, f32::MAX])
+        .position([5.0, 30.0], Condition::FirstUseEver)
+        .size([600.0, 680.0], Condition::FirstUseEver)
+        .size_constraints([550.0, 500.0], [f32::MAX, f32::MAX])
         .flags(flags)
         .build(|| {
             // Genome name input
@@ -816,8 +816,8 @@ fn render_genome_graph(
     
     ui.window("Genome Graph")
         .opened(&mut show_window)
-        .position([1048.0, 486.0], Condition::FirstUseEver)
-        .size([1338.0, 806.0], Condition::FirstUseEver)
+        .position([610.0, 430.0], Condition::FirstUseEver)
+        .size([1000.0, 640.0], Condition::FirstUseEver)
         .bg_alpha(1.0) // Make window fully opaque
         .flags(flags)
         .build(|| {

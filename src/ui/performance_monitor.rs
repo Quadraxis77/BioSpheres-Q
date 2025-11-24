@@ -185,8 +185,8 @@ fn render_performance_window(
     };
 
     ui.window("Advanced Performance Monitor")
-        .position([3031.0, 312.0], Condition::FirstUseEver)
-        .size([403.0, 566.0], Condition::FirstUseEver)
+        .position([1615.0, 280.0], Condition::FirstUseEver)
+        .size([300.0, 565.0], Condition::FirstUseEver)
         .opened(&mut perf_monitor.window_open)
         .flags(flags)
         .build(|| {
