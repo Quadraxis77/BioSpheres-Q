@@ -147,7 +147,10 @@ pub fn camera_update(
 ) {
     let dt = time.delta_secs();
 
-    let (mut transform, mut cam) = query.single_mut().unwrap();
+    // Gracefully handle case when no MainCamera exists (e.g., GPU scene)
+    let Ok((mut transform, mut cam)) = query.single_mut() else {
+        return;
+    };
 
     // -------------------------------
     // 0. RESET ORBIT (middle click)

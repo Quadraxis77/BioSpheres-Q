@@ -5,9 +5,25 @@ pub mod cells;
 pub mod debug;
 pub mod adhesion_lines;
 
+// GPU rendering modules
+pub mod gpu_types;
+pub mod gpu_renderer;
+pub mod gpu_icosphere;
+pub mod gpu_camera;
+pub mod gpu_triple_buffer;
+pub mod gpu_shaders;
+
 pub use cells::CellRenderingPlugin;
 pub use debug::DebugRenderingPlugin;
 pub use adhesion_lines::{AdhesionLineRenderPlugin, AdhesionLineSettings, AdhesionLines};
+
+// GPU rendering exports
+pub use gpu_types::{CellInstanceData, WebGpuError};
+pub use gpu_renderer::{WebGpuRendererPlugin, GpuSceneData, GpuSceneImguiEdgePlugin};
+pub use gpu_icosphere::{IcosphereMesh, IcosphereMeshBuffers, IcosphereVertex};
+pub use gpu_camera::{GpuCamera, CameraUniform};
+pub use gpu_triple_buffer::{TripleBufferSystem, DEFAULT_MAX_INSTANCES};
+pub use gpu_shaders::{ShaderSystem, ShaderError};
 
 /// Main rendering plugin
 pub struct RenderingPlugin;
@@ -18,6 +34,8 @@ impl Plugin for RenderingPlugin {
             .add_plugins(CellRenderingPlugin)
             .add_plugins(DebugRenderingPlugin)
             .add_plugins(AdhesionLineRenderPlugin)
+            // Add WebGPU renderer plugin for GPU scene
+            .add_plugins(WebGpuRendererPlugin)
             .init_resource::<RenderingConfig>()
             .init_resource::<AdhesionLineSettings>()
             .add_systems(Update, (

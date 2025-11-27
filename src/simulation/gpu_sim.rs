@@ -1,5 +1,11 @@
+//! GPU-based simulation plugin.
+//!
+//! This module provides the GPU simulation scene that uses WebGPU for rendering
+//! instead of Bevy's standard rendering system. Cell rendering is handled by
+//! WebGpuRenderer, but we spawn a Camera3d to keep Bevy's Core3d render graph
+//! active (required for ImGui overlay).
+
 use bevy::prelude::*;
-use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
 use crate::ui::camera::MainCamera;
 
 /// GPU-based simulation plugin
@@ -26,84 +32,34 @@ pub enum GpuSceneState {
 #[derive(Component)]
 pub struct GpuSceneEntity;
 
-/// Setup the GPU simulation scene with camera and single cell at origin
-fn setup_gpu_scene(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // Spawn 3D camera
+/// Setup the GPU simulation scene.
+///
+/// Spawns a Camera3d with MainCamera to:
+/// 1. Keep Bevy's Core3d render graph active (required for ImGui overlay)
+/// 2. Enable existing camera controls (WASD, mouse, scroll)
+///
+/// Cell rendering is handled by WebGpuRenderer, not Bevy's standard pipeline.
+/// No Mesh3d, lights, or other Bevy rendering components are spawned.
+fn setup_gpu_scene(mut commands: Commands) {
+    // Spawn camera to keep Core3d render graph active for ImGui
+    // WebGPU pass clears with its own color, Bevy camera doesn't need to clear
     commands.spawn((
+        Camera {
+            // Don't clear - WebGPU render pass handles background
+            clear_color: Color::NONE.into(),
+            ..default()
+        },
         Camera3d::default(),
-        MainCamera{
-            center: Vec3::new(0.0, 0.0, 10.0), // Orbit center offset from world origin
-            distance: 0.0, // No orbit offset (camera at orbit center)
+        MainCamera {
+            center: Vec3::ZERO,
+            distance: 50.0, // Start zoomed out to see cells
             rotation: Quat::IDENTITY,
         },
+        Transform::from_translation(Vec3::new(0.0, 0.0, 50.0)),
         GpuSceneEntity,
     ));
     
-    // Spawn orbit reference ball
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(0.5))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(0.5, 0.8, 1.0, 0.0), // Start invisible
-            alpha_mode: AlphaMode::Blend,
-            unlit: true,
-            ..default()
-        })),
-        Transform::from_translation(Vec3::ZERO),
-        crate::ui::camera::OrbitReferenceBall,
-        GpuSceneEntity,
-    ));
-
-    // Spawn a single cell at the origin
-    let cell_radius = 1.0;
-    commands.spawn((
-        // Cell data components
-        Cell {
-            mass: 1.0,
-            radius: cell_radius,
-            genome_id: 0,
-            mode_index: 0,
-        },
-        CellPosition {
-            position: Vec3::ZERO,
-            velocity: Vec3::ZERO,
-        },
-        CellOrientation::default(),
-        CellSignaling::default(),
-        // Visual representation
-        Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.8, 0.3, 0.5),
-            ..default()
-        })),
-        Transform::from_translation(Vec3::ZERO),
-        Visibility::default(),
-        GpuSceneEntity,
-    ));
-
-    // Add basic lighting
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 10000.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
-        GpuSceneEntity,
-    ));
-
-    // Add ambient light as an entity
-    commands.spawn((
-        AmbientLight {
-            color: Color::WHITE,
-            brightness: 500.0,
-            ..default()
-        },
-        GpuSceneEntity,
-    ));
+    info!("GPU scene activated - WebGPU rendering enabled");
 }
 
 /// Cleanup GPU scene entities
@@ -114,4 +70,5 @@ fn cleanup_gpu_scene(
     for entity in query.iter() {
         commands.entity(entity).despawn();
     }
+    info!("GPU scene deactivated");
 }
