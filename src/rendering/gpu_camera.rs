@@ -88,6 +88,7 @@ impl GpuCamera {
     /// Create a new GPU camera with default settings
     pub fn new() -> Self {
         Self {
+            // Match other scenes: camera at (0, 0, 10) looking toward origin
             position: Vec3::new(0.0, 0.0, 10.0),
             rotation: Quat::IDENTITY,
             fov_y: Self::DEFAULT_FOV_Y,
@@ -120,14 +121,14 @@ impl GpuCamera {
     ///
     /// The view matrix transforms world coordinates to camera-relative coordinates.
     pub fn view_matrix(&self) -> Mat4 {
-        // Build the camera's world transform matrix
-        // Transform = Translation * Rotation * Scale (scale is 1)
-        let rotation_matrix = Mat4::from_quat(self.rotation);
-        let translation_matrix = Mat4::from_translation(self.position);
-        let world_transform = translation_matrix * rotation_matrix;
-        
-        // View matrix is the inverse of the camera's world transform
-        world_transform.inverse()
+        // MainCamera's offset is along +Z from center, so camera looks down -Z
+        // Forward direction in camera local space is -Z
+        let forward = self.rotation * Vec3::NEG_Z;
+        let up = self.rotation * Vec3::Y;
+        // Target is far along the forward direction (distance doesn't matter for direction)
+        let target = self.position + forward * 100.0;
+
+        Mat4::look_at_rh(self.position, target, up)
     }
 
     /// Compute the projection matrix (camera to clip space transformation).

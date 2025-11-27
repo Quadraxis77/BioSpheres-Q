@@ -377,7 +377,7 @@ impl Node for GpuSceneCompositeNode {
 
         // Pass 1: Render GPU scene to offscreen texture
         {
-            let _render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("GPU Scene Offscreen Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &composite.scene_view,
@@ -405,7 +405,24 @@ impl Node for GpuSceneCompositeNode {
                 occlusion_query_set: None,
             });
 
-            // TODO: Draw cells here with cell pipeline
+            // Draw cells if we have render resources and instances
+            if let Some(resources) = world.get_resource::<WebGpuRenderResources>() {
+                if resources.instance_count > 0 {
+                    render_pass.set_pipeline(&resources.shader_system.render_pipeline);
+                    render_pass.set_bind_group(0, &resources.camera_bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, resources.icosphere_mesh.vertex_buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, resources.instance_buffer.slice(..));
+                    render_pass.set_index_buffer(
+                        resources.icosphere_mesh.index_buffer.slice(..),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    render_pass.draw_indexed(
+                        0..resources.icosphere_mesh.index_count(),
+                        0,
+                        0..resources.instance_count,
+                    );
+                }
+            }
         }
 
         // Pass 2: Blit offscreen texture to swap chain
@@ -608,8 +625,21 @@ fn prepare_gpu_resources(
 // Main App Systems
 // ============================================================================
 
-fn on_enter_gpu_scene(mut commands: Commands, current_genome: Option<Res<CurrentGenome>>) {
+fn on_enter_gpu_scene(
+    mut commands: Commands,
+    current_genome: Option<Res<CurrentGenome>>,
+    mut main_camera_query: Query<(&mut MainCamera, &mut Transform)>,
+) {
     info!("GPU scene activated - WebGPU composite rendering enabled");
+
+    // Set MainCamera to match other scenes: center at (0, 0, 10) with 0 orbit distance
+    if let Ok((mut main_camera, mut transform)) = main_camera_query.single_mut() {
+        main_camera.center = Vec3::new(0.0, 0.0, 10.0);
+        main_camera.distance = 0.0;
+        // Update transform to match
+        let offset = main_camera.rotation * Vec3::new(0.0, 0.0, main_camera.distance);
+        transform.translation = main_camera.center + offset;
+    }
 
     let gpu_camera = GpuCamera::default();
     commands.insert_resource(gpu_camera);
@@ -628,11 +658,17 @@ fn on_exit_gpu_scene(mut commands: Commands) {
 fn sync_gpu_camera_from_main(
     mut gpu_camera: Option<ResMut<GpuCamera>>,
     main_camera_query: Query<(&MainCamera, &Transform)>,
+    windows: Query<&Window>,
 ) {
     let Some(gpu_camera) = gpu_camera.as_mut() else { return };
 
     if let Ok((main_camera, transform)) = main_camera_query.single() {
         gpu_camera.sync_from_main_camera(main_camera, transform);
+    }
+
+    // Update aspect ratio from window dimensions
+    if let Ok(window) = windows.single() {
+        gpu_camera.set_aspect_ratio(window.physical_width() as f32, window.physical_height() as f32);
     }
 }
 
