@@ -20,7 +20,10 @@ use super::gpu_camera::{CameraUniform, GpuCamera};
 use super::gpu_icosphere::{IcosphereMesh, IcosphereMeshBuffers};
 use super::gpu_shaders::ShaderSystem;
 use super::gpu_triple_buffer::DEFAULT_MAX_INSTANCES;
-use super::gpu_types::{CellInstanceData, WebGpuError};
+use super::gpu_types::{CellInstanceData, CellPhysicsData, WebGpuError};
+use super::gpu_compute::*;
+use super::gpu_compute_pipeline::GpuComputePipelines;
+use super::gpu_compute_dispatcher::*;
 use crate::genome::CurrentGenome;
 use crate::simulation::GpuSceneState;
 use crate::ui::camera::MainCamera;
@@ -31,11 +34,22 @@ pub struct WebGpuRendererPlugin;
 
 impl Plugin for WebGpuRendererPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GpuSceneState::Active), on_enter_gpu_scene)
+        app.init_resource::<GpuDragState>()
+            .add_systems(OnEnter(GpuSceneState::Active), on_enter_gpu_scene)
             .add_systems(OnExit(GpuSceneState::Active), on_exit_gpu_scene)
             .add_systems(
                 Update,
-                sync_gpu_camera_from_main.run_if(in_state(GpuSceneState::Active)),
+                (
+                    sync_gpu_camera_from_main,
+                    handle_gpu_drag_start,
+                    handle_gpu_drag_update,
+                    handle_gpu_drag_end,
+                ).run_if(in_state(GpuSceneState::Active)),
+            )
+            // Run cell division in Last schedule so it happens right before extraction
+            .add_systems(
+                Last,
+                check_cell_division_system.run_if(in_state(GpuSceneState::Active)),
             );
     }
 
@@ -43,22 +57,19 @@ impl Plugin for WebGpuRendererPlugin {
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .add_systems(ExtractSchedule, extract_gpu_scene_data)
-                .add_systems(Render, prepare_gpu_resources.in_set(RenderSystems::Prepare));
+                .add_systems(Render, (
+                    prepare_gpu_resources.in_set(RenderSystems::Prepare),
+                    prepare_compute_resources.in_set(RenderSystems::Prepare),
+                ));
 
-            // Add composite node that renders GPU scene to offscreen texture then blits to swap chain
-            render_app.add_render_graph_node::<GpuSceneCompositeNode>(Core3d, GpuSceneNodeLabel);
-
-            // Run after Upscaling - this is the final stage before presentation
+            render_app.add_render_graph_node::<GpuSceneDirectNode>(Core3d, GpuSceneNodeLabel);
             render_app.add_render_graph_edges(Core3d, (Node3d::Upscaling, GpuSceneNodeLabel));
-
-            // Note: We can't add edge to ImGui here because ImguiPlugin hasn't run yet
-            // The GpuSceneImguiEdgePlugin (added after UiPlugin) will add that edge
         }
     }
 }
 
-/// Separate plugin to add the render graph edge after all plugins are initialized.
-/// This MUST be added after UiPlugin (which contains ImguiPlugin).
+/// Plugin to add render graph edge after ImGui node exists
+/// This MUST be added after UiPlugin (which contains ImguiPlugin)
 pub struct GpuSceneImguiEdgePlugin;
 
 impl Plugin for GpuSceneImguiEdgePlugin {
@@ -330,23 +341,23 @@ impl CompositeResources {
 }
 
 
-/// Composite render node: renders GPU scene to offscreen texture, then blits to swap chain
-pub struct GpuSceneCompositeNode;
+/// Simplified direct render node - accesses main world resources directly
+pub struct GpuSceneDirectNode;
 
-impl FromWorld for GpuSceneCompositeNode {
+impl FromWorld for GpuSceneDirectNode {
     fn from_world(_world: &mut World) -> Self {
-        GpuSceneCompositeNode
+        GpuSceneDirectNode
     }
 }
 
-impl Node for GpuSceneCompositeNode {
+impl Node for GpuSceneDirectNode {
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        // Check if GPU scene is active
+        // Use extracted resources (standard Bevy approach)
         let Some(state) = world.get_resource::<ExtractedGpuSceneState>() else {
             return Ok(());
         };
@@ -354,12 +365,26 @@ impl Node for GpuSceneCompositeNode {
             return Ok(());
         }
 
-        // Get composite resources
+        let Some(physics) = world.get_resource::<ExtractedCellPhysicsData>() else {
+            return Ok(());
+        };
+        
+        let cell_count = physics.cells.len() as u32;
+        if cell_count == 0 {
+            return Ok(());
+        }
+        
+        let Some(device) = world.get_resource::<RenderDevice>() else {
+            return Ok(());
+        };
+        let Some(queue) = world.get_resource::<RenderQueue>() else {
+            return Ok(());
+        };
+        
         let Some(composite) = world.get_resource::<CompositeResources>() else {
             return Ok(());
         };
 
-        // Get swap chain texture
         let Some(extracted_windows) = world.get_resource::<ExtractedWindows>() else {
             return Ok(());
         };
@@ -372,6 +397,63 @@ impl Node for GpuSceneCompositeNode {
         let Some(swap_chain_texture_view) = extracted_window.swap_chain_texture_view.as_ref() else {
             return Ok(());
         };
+
+        let compute_ready = world.get_resource::<GpuComputeReady>()
+            .map(|r| r.ready)
+            .unwrap_or(false);
+
+        if !compute_ready {
+            return Ok(());
+        }
+
+        let Some(pipelines) = world.get_resource::<GpuComputePipelines>() else {
+            return Ok(());
+        };
+        
+        let dragged_cell_index = world.get_resource::<ExtractedGpuDragState>()
+            .and_then(|drag| drag.dragged_cell_index);
+        
+        // SAFETY: Get mutable access to buffers
+        unsafe {
+            let world_mut = world as *const World as *mut World;
+            if let Some(mut buffers) = (*world_mut).get_resource_mut::<GpuComputeBuffers>() {
+                // Upload extracted cell data to ALL three buffers to ensure consistency
+                let compute_cells: Vec<ComputeCell> = physics.cells
+                    .iter()
+                    .map(|cell| cell.to_compute_cell())
+                    .collect();
+                let data: &[u8] = bytemuck::cast_slice(&compute_cells);
+                
+                // Upload to all buffers so they all have the current cell data
+                queue.write_buffer(&buffers.cell_buffers[0], 0, data);
+                queue.write_buffer(&buffers.cell_buffers[1], 0, data);
+                queue.write_buffer(&buffers.cell_buffers[2], 0, data);
+                
+                // Debug: Log cell positions when count changes
+                static mut LAST_UPLOAD_COUNT: u32 = 0;
+                unsafe {
+                    if cell_count != LAST_UPLOAD_COUNT {
+                        info!("[UPLOAD] {} cells uploaded to GPU buffers", cell_count);
+                        info!("  ComputeCell size: {} bytes, buffer size: {} bytes", 
+                            std::mem::size_of::<ComputeCell>(), data.len());
+                        for (i, cell) in physics.cells.iter().enumerate().take(5) {
+                            info!("  Cell {}: pos=({:.2}, {:.2}, {:.2}), radius={:.2}", 
+                                i, cell.position.x, cell.position.y, cell.position.z, cell.radius);
+                        }
+                        LAST_UPLOAD_COUNT = cell_count;
+                    }
+                }
+                
+                // Update uniforms
+                if let Some(time) = world.get_resource::<Time>() {
+                    update_compute_uniforms(&queue, &buffers, time.delta_secs(), cell_count, dragged_cell_index);
+                }
+
+                // SKIP COMPUTE FOR NOW - just test rendering
+                // Don't advance buffers - render from buffer[0] which we just uploaded to
+                // buffers.advance_frame();
+            }
+        }
 
         let command_encoder = render_context.command_encoder();
 
@@ -405,22 +487,36 @@ impl Node for GpuSceneCompositeNode {
                 occlusion_query_set: None,
             });
 
-            // Draw cells if we have render resources and instances
+            // Draw cells using extracted data
             if let Some(resources) = world.get_resource::<WebGpuRenderResources>() {
-                if resources.instance_count > 0 {
-                    render_pass.set_pipeline(&resources.shader_system.render_pipeline);
-                    render_pass.set_bind_group(0, &resources.camera_bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, resources.icosphere_mesh.vertex_buffer.slice(..));
-                    render_pass.set_vertex_buffer(1, resources.instance_buffer.slice(..));
-                    render_pass.set_index_buffer(
-                        resources.icosphere_mesh.index_buffer.slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    render_pass.draw_indexed(
-                        0..resources.icosphere_mesh.index_count(),
-                        0,
-                        0..resources.instance_count,
-                    );
+                if let Some(compute_buffers) = world.get_resource::<GpuComputeBuffers>() {
+                    let instance_count = cell_count;
+                    if instance_count > 0 {
+                        static mut LAST_RENDER_COUNT: u32 = 0;
+                        unsafe {
+                            if instance_count != LAST_RENDER_COUNT {
+                                info!("[RENDER] Drawing {} instances (was {})", instance_count, LAST_RENDER_COUNT);
+                                LAST_RENDER_COUNT = instance_count;
+                            }
+                        }
+                        
+                        render_pass.set_pipeline(&resources.shader_system.render_pipeline);
+                        render_pass.set_bind_group(0, &resources.camera_bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, resources.icosphere_mesh.vertex_buffer.slice(..));
+                        // Use compute buffer as instance buffer (contains GPU-updated cell data)
+                        let wgpu_buffer: &wgpu::Buffer = compute_buffers.render_buffer();
+                        render_pass.set_vertex_buffer(1, wgpu_buffer.slice(..));
+                        render_pass.set_index_buffer(
+                            resources.icosphere_mesh.index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint32,
+                        );
+                        // Draw all instances at once
+                        render_pass.draw_indexed(
+                            0..resources.icosphere_mesh.index_count(),
+                            0,
+                            0..instance_count,
+                        );
+                    }
                 }
             }
         }
@@ -459,6 +555,17 @@ pub struct ExtractedGpuSceneState {
     pub is_active: bool,
 }
 
+/// Tracks when GPU compute resources are fully initialized and ready for use
+#[derive(Resource, Default)]
+pub struct GpuComputeReady {
+    pub ready: bool,
+}
+
+#[derive(Resource, Default)]
+pub struct ExtractedGpuDragState {
+    pub dragged_cell_index: Option<usize>,
+}
+
 #[derive(Resource, Default)]
 pub struct ExtractedGpuCamera {
     pub uniform: CameraUniform,
@@ -469,15 +576,38 @@ pub struct ExtractedInstanceData {
     pub instances: Vec<CellInstanceData>,
 }
 
+#[derive(Resource, Default)]
+pub struct ExtractedCellPhysicsData {
+    pub cells: Vec<CellPhysicsData>,
+}
+
 #[derive(Resource)]
 pub struct GpuSceneData {
+    /// Physics state for all cells
+    pub cells: Vec<CellPhysicsData>,
+    /// Rendering data (synced from physics each frame)
     pub triple_buffer_data: Vec<CellInstanceData>,
+    /// Maximum number of cells allowed (GPU limit)
+    pub max_cells: usize,
 }
 
 impl Default for GpuSceneData {
     fn default() -> Self {
-        Self { triple_buffer_data: Vec::new() }
+        Self {
+            cells: Vec::new(),
+            triple_buffer_data: Vec::new(),
+            max_cells: 100_000, // GPU target: 100K cells
+        }
     }
+}
+
+/// Resource tracking GPU scene cell dragging state
+#[derive(Resource, Default)]
+pub struct GpuDragState {
+    pub dragged_cell_index: Option<usize>,
+    pub drag_offset: Vec3,
+    pub drag_plane_normal: Vec3,
+    pub drag_plane_distance: f32,
 }
 
 
@@ -533,6 +663,7 @@ fn extract_gpu_scene_data(
     gpu_scene_state: Extract<Res<State<GpuSceneState>>>,
     gpu_camera: Extract<Option<Res<GpuCamera>>>,
     gpu_scene_data: Extract<Option<Res<GpuSceneData>>>,
+    gpu_drag_state: Extract<Option<Res<GpuDragState>>>,
 ) {
     let is_active = **gpu_scene_state == GpuSceneState::Active;
     commands.insert_resource(ExtractedGpuSceneState { is_active });
@@ -543,9 +674,23 @@ fn extract_gpu_scene_data(
         });
     }
 
+    // Extract drag state
+    if let Some(drag_state) = gpu_drag_state.as_ref() {
+        commands.insert_resource(ExtractedGpuDragState {
+            dragged_cell_index: drag_state.dragged_cell_index,
+        });
+    } else {
+        commands.insert_resource(ExtractedGpuDragState::default());
+    }
+
     if let Some(scene_data) = gpu_scene_data.as_ref() {
         commands.insert_resource(ExtractedInstanceData {
             instances: scene_data.triple_buffer_data.clone(),
+        });
+
+        // Also extract physics data for GPU compute
+        commands.insert_resource(ExtractedCellPhysicsData {
+            cells: scene_data.cells.clone(),
         });
     }
 }
@@ -646,6 +791,10 @@ fn on_enter_gpu_scene(
 
     let mut scene_data = GpuSceneData::default();
     create_initial_cell_from_genome(&mut scene_data, current_genome.as_deref());
+
+    // Sync physics to rendering data for initial display
+    sync_physics_to_rendering(&mut scene_data);
+
     commands.insert_resource(scene_data);
 }
 
@@ -676,44 +825,564 @@ fn create_initial_cell_from_genome(
     scene_data: &mut GpuSceneData,
     current_genome: Option<&CurrentGenome>,
 ) {
-    let default_color = [0.8, 0.3, 0.5, 1.0];
-    let default_radius = 1.0;
-    let default_orientation = [1.0, 0.0, 0.0, 0.0];
+    let default_color = Vec3::new(0.8, 0.3, 0.5);
+    let default_mass = 1.0;
+    let default_orientation = Quat::IDENTITY;
 
-    let (color, radius, orientation) = if let Some(genome_res) = current_genome {
+    let (color, mass, orientation, mode_index) = if let Some(genome_res) = current_genome {
         let genome = &genome_res.genome;
-        let initial_mode_index = genome.initial_mode as usize;
+        let initial_mode_index = genome.initial_mode.max(0) as usize;
 
         if let Some(mode) = genome.modes.get(initial_mode_index) {
-            let color = [mode.color.x, mode.color.y, mode.color.z, 1.0];
-            let radius = mode.split_mass.powf(1.0 / 3.0);
-            let quat = genome.initial_orientation;
-            let orientation = [quat.w, quat.x, quat.y, quat.z];
-            (color, radius, orientation)
+            (mode.color, mode.split_mass, genome.initial_orientation, initial_mode_index)
         } else if let Some(first_mode) = genome.modes.first() {
-            let color = [first_mode.color.x, first_mode.color.y, first_mode.color.z, 1.0];
-            let radius = first_mode.split_mass.powf(1.0 / 3.0);
-            let quat = genome.initial_orientation;
-            let orientation = [quat.w, quat.x, quat.y, quat.z];
-            (color, radius, orientation)
+            (first_mode.color, first_mode.split_mass, genome.initial_orientation, 0)
         } else {
-            (default_color, default_radius, default_orientation)
+            (default_color, default_mass, default_orientation, 0)
         }
     } else {
-        (default_color, default_radius, default_orientation)
+        (default_color, default_mass, default_orientation, 0)
     };
 
-    let initial_cell = CellInstanceData::from_components(
-        [0.0, 0.0, 0.0],
-        radius,
-        color,
-        orientation,
-    );
+    let radius = mass.powf(1.0 / 3.0);
 
-    scene_data.triple_buffer_data.push(initial_cell);
+    let mut initial_cell = CellPhysicsData::new();
+    initial_cell.position = Vec3::ZERO; // Start at origin
+    initial_cell.velocity = Vec3::ZERO; // No initial velocity
+    initial_cell.orientation = orientation;
+    initial_cell.genome_orientation = orientation; // Initialize genome orientation to match physical orientation
+    initial_cell.mass = mass;
+    initial_cell.radius = radius;
+    initial_cell.color = color;
+    initial_cell.mode_index = mode_index;
+    initial_cell.age = 0.0;
+    initial_cell.energy = 1.0;
+    initial_cell.genome_id = 0;
+    initial_cell.cell_type = 0;
+    initial_cell.flags = 0;
+
+    scene_data.cells.push(initial_cell);
 
     info!(
-        "Initial cell created: color={:?}, radius={}, orientation={:?}",
-        color, radius, orientation
+        "Initial cell created: color={:?}, mass={}, radius={}, orientation={:?}",
+        color, mass, radius, orientation
     );
+}
+
+// ============================================================================
+// GPU Compute Physics Systems (Render World)
+// ============================================================================
+
+/// Prepare compute resources (buffers and pipelines)
+fn prepare_compute_resources(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    scene_state: Option<Res<ExtractedGpuSceneState>>,
+    extracted_physics: Option<Res<ExtractedCellPhysicsData>>,
+    buffers: Option<Res<GpuComputeBuffers>>,
+    pipelines: Option<Res<GpuComputePipelines>>,
+    compute_ready: Option<Res<GpuComputeReady>>,
+) {
+    let Some(state) = scene_state else { return };
+    if !state.is_active {
+        return;
+    }
+
+    // Track if we're creating resources this frame (they won't be ready until next frame)
+    let mut creating_resources = false;
+
+    // Create buffers if they don't exist
+    if buffers.is_none() {
+        info!("Creating GPU compute buffers");
+        info!("ComputeCell size: {} bytes (expected 384)", std::mem::size_of::<ComputeCell>());
+        commands.insert_resource(GpuComputeBuffers::new(&render_device));
+        creating_resources = true;
+    }
+
+    // Create pipelines if they don't exist
+    if pipelines.is_none() {
+        info!("Creating GPU compute pipelines");
+        commands.insert_resource(GpuComputePipelines::new(&render_device));
+        creating_resources = true;
+    }
+
+    // Note: Bind groups are now created dynamically during dispatch_gpu_physics_to_encoder
+    // This allows us to rebuild them when buffers are swapped between compute passes
+
+    // Mark compute as ready only if all resources exist and we're not creating any this frame
+    if !creating_resources && buffers.is_some() && pipelines.is_some() {
+        if compute_ready.is_none() || !compute_ready.as_ref().unwrap().ready {
+            info!("GPU compute resources ready");
+            commands.insert_resource(GpuComputeReady { ready: true });
+        }
+    }
+
+    // Upload cell data to GPU buffers in prepare phase
+    if let (Some(physics), Some(bufs)) = (extracted_physics.as_ref(), buffers.as_ref()) {
+        if !physics.cells.is_empty() {
+            let compute_cells: Vec<ComputeCell> = physics.cells
+                .iter()
+                .map(|cell| cell.to_compute_cell())
+                .collect();
+            let data: &[u8] = bytemuck::cast_slice(&compute_cells);
+            
+            // Upload to read_buffer only - compute will process and write to write_buffer
+            render_queue.write_buffer(bufs.read_buffer(), 0, data);
+            
+            static mut LAST_UPLOAD_COUNT: usize = 0;
+            unsafe {
+                if physics.cells.len() != LAST_UPLOAD_COUNT {
+                    info!("[PREPARE] Uploaded {} cells to read_buffer", physics.cells.len());
+                    info!("  ComputeCell size: {} bytes, buffer size: {} bytes", 
+                        std::mem::size_of::<ComputeCell>(), data.len());
+                    for (i, cell) in physics.cells.iter().enumerate().take(5) {
+                        info!("  Cell {}: pos=({:.2}, {:.2}, {:.2}), radius={:.2}", 
+                            i, cell.position.x, cell.position.y, cell.position.z, cell.radius);
+                    }
+                    LAST_UPLOAD_COUNT = physics.cells.len();
+                }
+            }
+        }
+    }
+}
+
+// GPU compute physics now runs directly in the render graph node (GpuSceneCompositeNode)
+// This was removed because it was trying to use Bevy's render systems
+// The GPU compute bypasses Bevy and uses raw wgpu, just like the rendering does
+
+/// Check and perform cell division based on age and division threshold
+/// Matches C++ implementation in cpu_simd_physics_engine.cpp:1241-1473
+fn check_cell_division(scene_data: &mut GpuSceneData, genome: &crate::genome::GenomeData) {
+    // Collect cells that need to split
+    let mut cells_to_split = Vec::new();
+
+    for (index, cell) in scene_data.cells.iter().enumerate() {
+        // Get division threshold from the cell's current mode
+        let division_threshold = if let Some(mode) = genome.modes.get(cell.mode_index) {
+            mode.split_interval
+        } else {
+            2.0 // Default threshold
+        };
+
+        if cell.age >= division_threshold {
+            cells_to_split.push(index);
+        }
+    }
+
+    // Process cell divisions
+    for cell_index in cells_to_split {
+        // Check capacity (GPU limit: 100K cells)
+        if scene_data.cells.len() >= scene_data.max_cells {
+            warn!("GPU scene at maximum capacity ({}), skipping remaining divisions", scene_data.max_cells);
+            break;
+        }
+
+        // Get parent cell data (need to clone to avoid borrow issues)
+        let parent = scene_data.cells[cell_index].clone();
+
+        // Get mode settings from genome
+        let mode = genome.modes.get(parent.mode_index);
+        let Some(mode) = mode else {
+            warn!("Cell has invalid mode_index {}, skipping division", parent.mode_index);
+            continue;
+        };
+
+        let division_threshold = mode.split_interval;
+
+        // Initialize genome orientation if uninitialized (first division)
+        // C++: lines 1268-1277
+        if parent.genome_orientation.w == 0.0 && parent.genome_orientation.x == 0.0 &&
+           parent.genome_orientation.y == 0.0 && parent.genome_orientation.z == 0.0 {
+            scene_data.cells[cell_index].genome_orientation = Quat::IDENTITY;
+        }
+
+        // Get parent's genome orientation before division (needed for inheritance)
+        let parent_genome_orientation = scene_data.cells[cell_index].genome_orientation;
+
+        // Apply child orientations from genome (C++: lines 1296-1319)
+        let child_orientation_a = mode.child_a.orientation;
+        let child_orientation_b = mode.child_b.orientation;
+
+        // New orientation = parentOrientation * childOrientation (matching GPU)
+        let new_orientation_a = (parent.orientation * child_orientation_a).normalize();
+        let new_orientation_b = (parent.orientation * child_orientation_b).normalize();
+
+        // Update parent cell orientation (becomes child A)
+        scene_data.cells[cell_index].orientation = new_orientation_a;
+
+        // GPU behavior: Mass is NOT split - both children keep parent's mass (C++: lines 1321-1324)
+        let original_mass = parent.mass;
+        let radius = original_mass.powf(1.0 / 3.0); // C++: line 1327
+
+        scene_data.cells[cell_index].mass = original_mass;
+        scene_data.cells[cell_index].radius = radius;
+
+        // GPU behavior: Age is reset to excess beyond split interval (C++: lines 1332-1335)
+        let start_age = parent.age - division_threshold;
+        scene_data.cells[cell_index].age = start_age;
+
+        // Split energy (C++: lines 1338-1339)
+        scene_data.cells[cell_index].energy = parent.energy * 0.5;
+
+        // Calculate split direction from pitch/yaw (matching CPU division.rs:108-110)
+        let pitch = mode.parent_split_direction.x.to_radians();
+        let yaw = mode.parent_split_direction.y.to_radians();
+        let split_direction = parent.orientation * Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
+
+        // 75% overlap means centers are 25% of combined diameter apart
+        // Combined diameter = 2 * radius, so offset = 0.25 * 2 * radius = 0.5 * radius
+        // Match C++ convention and CPU implementation (C++: lines 1362-1374)
+        let offset_distance = radius * 0.25;
+        let offset = split_direction * offset_distance;
+
+        // Child A gets +offset (C++: lines 1368-1370)
+        scene_data.cells[cell_index].position = parent.position + offset;
+
+        // Update genome orientations for child cells (C++: lines 1399-1402)
+        let child_a_genome_orientation = (parent_genome_orientation * child_orientation_a).normalize();
+        let child_b_genome_orientation = (parent_genome_orientation * child_orientation_b).normalize();
+
+        scene_data.cells[cell_index].genome_orientation = child_a_genome_orientation;
+
+        // Create daughter cell (child B) (C++: lines 1279-1281)
+        let mut daughter = parent.clone();
+
+        // Apply child B properties
+        daughter.position = parent.position - offset; // Child B gets -offset (C++: lines 1372-1374)
+        daughter.orientation = new_orientation_b;
+        daughter.genome_orientation = child_b_genome_orientation;
+        daughter.mass = original_mass;
+        daughter.radius = radius;
+        daughter.age = start_age + 0.001; // Slight offset like GPU (C++: line 1335)
+        daughter.energy = parent.energy * 0.5;
+
+        // Copy other properties (C++: lines 1341-1347)
+        daughter.cell_type = parent.cell_type;
+        daughter.genome_id = parent.genome_id;
+        daughter.flags = parent.flags;
+        daughter.color = parent.color;
+        daughter.velocity = parent.velocity; // GPU behavior: No velocity separation (C++: line 1376)
+        daughter.angular_velocity = parent.angular_velocity;
+
+        // Add daughter cell
+        scene_data.cells.push(daughter);
+
+        let parent_pos = scene_data.cells[cell_index].position;
+        let daughter_pos = scene_data.cells[scene_data.cells.len() - 1].position;
+        info!(
+            "[DIVISION] Split complete: {} cells total",
+            scene_data.cells.len()
+        );
+        info!(
+            "  Parent[{}]: pos=({:.2}, {:.2}, {:.2})",
+            cell_index, parent_pos.x, parent_pos.y, parent_pos.z
+        );
+        info!(
+            "  Daughter[{}]: pos=({:.2}, {:.2}, {:.2})",
+            scene_data.cells.len() - 1, daughter_pos.x, daughter_pos.y, daughter_pos.z
+        );
+        info!(
+            "  Split: direction={:?}, offset={:.2}, radius={:.2}",
+            split_direction, offset_distance, radius
+        );
+    }
+}
+
+/// System that ages cells and checks for cell division
+/// This runs in the main world and operates on GpuSceneData
+/// The GPU also ages cells independently - they stay roughly in sync
+fn check_cell_division_system(
+    mut scene_data: ResMut<GpuSceneData>,
+    current_genome: Option<Res<CurrentGenome>>,
+    time: Res<Time>,
+) {
+    let dt = time.delta_secs();
+
+    // Age all cells (GPU does this too: 0.5 in position shader + 0.5 in velocity shader = 1.0 total)
+    for cell in scene_data.cells.iter_mut() {
+        cell.age += dt;
+    }
+
+    // Debug: Log cell count every frame when it changes
+    static mut LAST_CELL_COUNT: usize = 0;
+    unsafe {
+        let current_count = scene_data.cells.len();
+        if current_count != LAST_CELL_COUNT {
+            info!("[MAIN WORLD - Last schedule] Cell count changed: {} -> {}", LAST_CELL_COUNT, current_count);
+            LAST_CELL_COUNT = current_count;
+        }
+    }
+
+    // Check for division
+    if let Some(genome) = current_genome.as_deref() {
+        check_cell_division(&mut scene_data, &genome.genome);
+    } else {
+        warn!("No current genome available for division check!");
+    }
+}
+
+/// Sync physics data to rendering buffer
+fn sync_physics_to_rendering(scene_data: &mut GpuSceneData) {
+    // Clear rendering buffer and collect new instance data
+    let instance_data: Vec<CellInstanceData> = scene_data
+        .cells
+        .iter()
+        .map(|cell| cell.to_instance_data())
+        .collect();
+
+    scene_data.triple_buffer_data = instance_data;
+}
+
+/// TEMPORARY: Simple CPU physics update for MVP
+/// This runs in the main world and updates GpuSceneData.cells
+/// Eventually this will be replaced by full GPU compute pipeline with proper feedback
+fn simple_cpu_physics_update(
+    mut scene_data: ResMut<GpuSceneData>,
+    time: Res<Time>,
+) {
+    let dt = time.delta_secs();
+    let damping = 0.98_f32.powf(dt * 100.0);
+    let sphere_radius = 50.0;
+
+    for cell in scene_data.cells.iter_mut() {
+        // Verlet integration: velocity update
+        cell.velocity += cell.acceleration * dt;
+        cell.velocity *= damping;
+
+        // Sphere boundary check
+        let dist = cell.position.length();
+        if dist > sphere_radius - cell.radius {
+            let normal = cell.position.normalize();
+            let penetration = dist - (sphere_radius - cell.radius);
+            cell.position -= normal * penetration;
+
+            // Reflect velocity
+            let vel_normal = cell.velocity.dot(normal);
+            if vel_normal > 0.0 {
+                cell.velocity -= normal * vel_normal * 1.8;
+                cell.velocity *= 0.8; // Energy loss on bounce
+            }
+        }
+
+        // Verlet integration: position update
+        cell.position += cell.velocity * dt;
+
+        // Reset acceleration for next frame
+        cell.acceleration = Vec3::ZERO;
+    }
+}
+
+/// Sync rendering data from physics after update
+fn sync_rendering_data(mut scene_data: ResMut<GpuSceneData>) {
+    sync_physics_to_rendering(&mut scene_data);
+}
+
+// ============================================================================
+// GPU Scene Cell Dragging Systems
+// ============================================================================
+
+use bevy::window::PrimaryWindow;
+
+/// System to handle starting a drag operation in GPU scene
+fn handle_gpu_drag_start(
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    mut drag_state: ResMut<GpuDragState>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    scene_data: Res<GpuSceneData>,
+) {
+    // Only start drag on left mouse button press
+    if !mouse_button.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    // Skip if already dragging
+    if drag_state.dragged_cell_index.is_some() {
+        return;
+    }
+
+    let Ok(window) = window_query.single() else {
+        return;
+    };
+
+    let Ok((camera, camera_transform)) = camera_query.single() else {
+        return;
+    };
+
+    // Get cursor position
+    let Some(cursor_pos) = window.cursor_position() else {
+        return;
+    };
+
+    // Raycast from camera through cursor
+    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_pos) else {
+        return;
+    };
+
+    // Find closest cell intersected by ray
+    let mut closest_hit: Option<(usize, f32)> = None;
+
+    for (index, cell) in scene_data.cells.iter().enumerate() {
+        // Ray-sphere intersection test
+        if let Some(hit_distance) = ray_sphere_intersection(
+            ray.origin,
+            *ray.direction,
+            cell.position,
+            cell.radius,
+        ) {
+            // Keep track of closest hit
+            if closest_hit.is_none() || hit_distance < closest_hit.unwrap().1 {
+                closest_hit = Some((index, hit_distance));
+            }
+        }
+    }
+
+    // If we hit a cell, start dragging it
+    if let Some((cell_index, _)) = closest_hit {
+        let cell = &scene_data.cells[cell_index];
+        
+        // Calculate drag plane perpendicular to camera forward
+        let camera_forward = camera_transform.forward();
+        let drag_plane_normal = Vec3::from(*camera_forward);
+        let drag_plane_distance = cell.position.dot(drag_plane_normal);
+        
+        // Project the cell center onto the drag plane
+        let ray_to_plane = ray_plane_intersection(
+            ray.origin,
+            *ray.direction,
+            drag_plane_normal,
+            drag_plane_distance,
+        );
+        
+        let drag_offset = if let Some(plane_point) = ray_to_plane {
+            plane_point - cell.position
+        } else {
+            Vec3::ZERO
+        };
+        
+        drag_state.dragged_cell_index = Some(cell_index);
+        drag_state.drag_offset = drag_offset;
+        drag_state.drag_plane_normal = drag_plane_normal;
+        drag_state.drag_plane_distance = drag_plane_distance;
+        
+        info!("Started dragging GPU cell {}", cell_index);
+    }
+}
+
+/// System to update dragged cell position in GPU scene
+fn handle_gpu_drag_update(
+    drag_state: Res<GpuDragState>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    mut scene_data: ResMut<GpuSceneData>,
+) {
+    // Skip if not dragging
+    let Some(cell_index) = drag_state.dragged_cell_index else {
+        return;
+    };
+
+    // Validate cell index
+    if cell_index >= scene_data.cells.len() {
+        return;
+    }
+
+    let Ok(window) = window_query.single() else {
+        return;
+    };
+
+    let Ok((camera, camera_transform)) = camera_query.single() else {
+        return;
+    };
+
+    // Get cursor position
+    let Some(cursor_pos) = window.cursor_position() else {
+        return;
+    };
+
+    // Raycast from camera through cursor
+    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_pos) else {
+        return;
+    };
+
+    // Intersect ray with drag plane
+    let Some(plane_hit) = ray_plane_intersection(
+        ray.origin,
+        *ray.direction,
+        drag_state.drag_plane_normal,
+        drag_state.drag_plane_distance,
+    ) else {
+        return;
+    };
+
+    // Calculate new position
+    let new_position = plane_hit - drag_state.drag_offset;
+
+    // Update cell position and zero velocity
+    scene_data.cells[cell_index].position = new_position;
+    scene_data.cells[cell_index].velocity = Vec3::ZERO;
+    scene_data.cells[cell_index].acceleration = Vec3::ZERO;
+}
+
+/// System to handle ending a drag operation in GPU scene
+fn handle_gpu_drag_end(
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    mut drag_state: ResMut<GpuDragState>,
+) {
+    // End drag on left mouse button release
+    if mouse_button.just_released(MouseButton::Left) {
+        if drag_state.dragged_cell_index.is_some() {
+            info!("Ended dragging GPU cell");
+        }
+        drag_state.dragged_cell_index = None;
+    }
+}
+
+/// Ray-sphere intersection test
+fn ray_sphere_intersection(
+    ray_origin: Vec3,
+    ray_direction: Vec3,
+    sphere_center: Vec3,
+    sphere_radius: f32,
+) -> Option<f32> {
+    let oc = ray_origin - sphere_center;
+    let a = ray_direction.dot(ray_direction);
+    let b = 2.0 * oc.dot(ray_direction);
+    let c = oc.dot(oc) - sphere_radius * sphere_radius;
+    let discriminant = b * b - 4.0 * a * c;
+
+    if discriminant < 0.0 {
+        None
+    } else {
+        let t = (-b - discriminant.sqrt()) / (2.0 * a);
+        if t > 0.0 {
+            Some(t)
+        } else {
+            None
+        }
+    }
+}
+
+/// Ray-plane intersection test
+fn ray_plane_intersection(
+    ray_origin: Vec3,
+    ray_direction: Vec3,
+    plane_normal: Vec3,
+    plane_distance: f32,
+) -> Option<Vec3> {
+    let denom = ray_direction.dot(plane_normal);
+    
+    // Check if ray is parallel to plane
+    if denom.abs() < 0.0001 {
+        return None;
+    }
+    
+    let t = (plane_distance - ray_origin.dot(plane_normal)) / denom;
+    
+    // Only return intersection if it's in front of the ray
+    if t >= 0.0 {
+        Some(ray_origin + ray_direction * t)
+    } else {
+        None
+    }
 }

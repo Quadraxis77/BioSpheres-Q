@@ -197,7 +197,8 @@ fn handle_drag_update(
             }
         }
         crate::simulation::SimulationMode::Gpu => {
-            // GPU mode not yet implemented
+            // GPU mode dragging is handled by GPU-specific systems in gpu_renderer.rs
+            // This is because GPU scene doesn't use ECS entities for cells
         }
     }
 }

@@ -14,11 +14,28 @@ struct VertexInput {
     @location(1) normal: vec3<f32>,
 };
 
-// Per-instance data from storage buffer
+// Per-instance data from ComputeCell buffer (272 bytes)
+// Must match the layout in gpu_compute.rs
 struct InstanceInput {
-    @location(2) position_and_radius: vec4<f32>,  // xyz = position, w = radius
-    @location(3) color: vec4<f32>,                 // rgba
-    @location(4) orientation: vec4<f32>,           // quaternion (w, x, y, z)
+    // Offset 0: position_and_mass
+    @location(2) position_and_mass: vec4<f32>,     // xyz = position, w = mass
+    // Offset 16: velocity (skip)
+    @location(3) velocity: vec4<f32>,
+    // Offset 32: acceleration (skip)
+    @location(4) acceleration: vec4<f32>,
+    // Offset 48: prev_acceleration (skip)
+    @location(5) prev_acceleration: vec4<f32>,
+    // Offset 64: orientation
+    @location(6) orientation: vec4<f32>,           // quaternion (w, x, y, z)
+    // Offset 80: genome_orientation (skip for rendering)
+    @location(7) genome_orientation: vec4<f32>,
+    // Offset 96: angular_velocity (skip)
+    @location(8) angular_velocity: vec4<f32>,
+    // Offset 112: angular_acceleration (skip)
+    @location(9) angular_acceleration: vec4<f32>,
+    // Offset 128: prev_angular_acceleration (skip)
+    @location(10) prev_angular_acceleration: vec4<f32>,
+    // For now, remaining fields don't need to be declared as we only need position, mass, and orientation
 };
 
 // Output from vertex shader to fragment shader
@@ -45,19 +62,24 @@ fn quat_rotate(q: vec4<f32>, v: vec3<f32>) -> vec3<f32> {
 @vertex
 fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
-    
+
+    // Calculate radius from mass: radius = mass^(1/3)
+    let mass = instance.position_and_mass.w;
+    let radius = pow(mass, 1.0 / 3.0);
+
     // Rotate vertex position and normal by instance orientation
     let rotated_pos = quat_rotate(instance.orientation, vertex.position);
     let rotated_normal = quat_rotate(instance.orientation, vertex.normal);
-    
+
     // Scale by radius and translate to instance position
-    let world_pos = instance.position_and_radius.xyz + rotated_pos * instance.position_and_radius.w;
-    
+    let world_pos = instance.position_and_mass.xyz + rotated_pos * radius;
+
     out.world_position = world_pos;
     out.world_normal = rotated_normal;
-    out.color = instance.color.rgb;
+    // Use default color for now (will be replaced with mode color lookup later)
+    out.color = vec3<f32>(0.8, 0.3, 0.5);
     out.clip_position = camera.projection * camera.view * vec4<f32>(world_pos, 1.0);
-    
+
     return out;
 }
 

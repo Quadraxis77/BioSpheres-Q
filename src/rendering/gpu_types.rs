@@ -3,7 +3,104 @@
 //! This module contains data structures and error types used across
 //! the GPU rendering system.
 
+use bevy::prelude::*;
 use bytemuck::{Pod, Zeroable};
+
+/// Complete physics state for a single cell in the GPU simulation.
+///
+/// This structure stores all data needed for physics simulation and cell division,
+/// matching the C++ CPUCellPhysics_SoA structure but in AoS (Array of Structs) format.
+#[derive(Clone, Debug)]
+pub struct CellPhysicsData {
+    /// Cell position in world space
+    pub position: Vec3,
+    /// Cell velocity
+    pub velocity: Vec3,
+    /// Cell acceleration (reset each frame)
+    pub acceleration: Vec3,
+    /// Previous acceleration (for Verlet integration)
+    pub previous_acceleration: Vec3,
+    /// Cell orientation (physical rotation)
+    pub orientation: Quat,
+    /// Angular velocity
+    pub angular_velocity: Vec3,
+    /// Angular acceleration (reset each frame)
+    pub angular_acceleration: Vec3,
+    /// Genome orientation (used for division and adhesion anchors)
+    pub genome_orientation: Quat,
+    /// Cell mass
+    pub mass: f32,
+    /// Cell radius (calculated from mass: radius = mass^(1/3))
+    pub radius: f32,
+    /// Cell age (increments with time, used for division)
+    pub age: f32,
+    /// Cell energy
+    pub energy: f32,
+    /// Cell type identifier
+    pub cell_type: u32,
+    /// Genome ID
+    pub genome_id: u32,
+    /// Current mode index within the genome
+    pub mode_index: usize,
+    /// Cell flags
+    pub flags: u32,
+    /// Cell color (RGB)
+    pub color: Vec3,
+}
+
+impl CellPhysicsData {
+    /// Create a new cell with default values
+    pub fn new() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            velocity: Vec3::ZERO,
+            acceleration: Vec3::ZERO,
+            previous_acceleration: Vec3::ZERO,
+            orientation: Quat::IDENTITY,
+            angular_velocity: Vec3::ZERO,
+            angular_acceleration: Vec3::ZERO,
+            genome_orientation: Quat::IDENTITY,
+            mass: 1.0,
+            radius: 1.0,
+            age: 0.0,
+            energy: 1.0,
+            cell_type: 0,
+            genome_id: 0,
+            mode_index: 0,
+            flags: 0,
+            color: Vec3::ONE,
+        }
+    }
+
+    /// Convert this physics data to instance data for rendering
+    pub fn to_instance_data(&self) -> CellInstanceData {
+        CellInstanceData::from_components(
+            [self.position.x, self.position.y, self.position.z],
+            self.radius,
+            [self.color.x, self.color.y, self.color.z, 1.0],
+            [self.orientation.w, self.orientation.x, self.orientation.y, self.orientation.z],
+        )
+    }
+
+    /// Convert this physics data to ComputeCell format for GPU simulation
+    pub fn to_compute_cell(&self) -> crate::rendering::gpu_compute::ComputeCell {
+        crate::rendering::gpu_compute::ComputeCell::from_physics_data(
+            self.position,
+            self.velocity,
+            self.mass,
+            self.orientation,
+            self.genome_orientation,
+            self.mode_index,
+            self.age,
+        )
+    }
+}
+
+impl Default for CellPhysicsData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Instance data for a single cell, matching the Biospheres.cpp CPUInstanceData format.
 ///

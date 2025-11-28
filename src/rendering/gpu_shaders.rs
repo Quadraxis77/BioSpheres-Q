@@ -216,29 +216,68 @@ impl ShaderSystem {
             ],
         };
 
-        // Instance buffer layout for cell instance data
+        // Instance buffer layout for ComputeCell data
+        // Must match gpu_compute.rs::ComputeCell structure
         let instance_buffer_layout = wgpu::VertexBufferLayout {
-            array_stride: 48, // CellInstanceData size
+            array_stride: std::mem::size_of::<crate::rendering::gpu_compute::ComputeCell>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
-                // position_and_radius
+                // position_and_mass (location 2)
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x4,
                 },
-                // color
+                // velocity (location 3)
                 wgpu::VertexAttribute {
                     offset: 16,
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x4,
                 },
-                // orientation
+                // acceleration (location 4)
                 wgpu::VertexAttribute {
                     offset: 32,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                // prev_acceleration (location 5)
+                wgpu::VertexAttribute {
+                    offset: 48,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // orientation (location 6)
+                wgpu::VertexAttribute {
+                    offset: 64,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // genome_orientation (location 7)
+                wgpu::VertexAttribute {
+                    offset: 80,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // angular_velocity (location 8)
+                wgpu::VertexAttribute {
+                    offset: 96,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // angular_acceleration (location 9)
+                wgpu::VertexAttribute {
+                    offset: 112,
+                    shader_location: 9,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // prev_angular_acceleration (location 10)
+                wgpu::VertexAttribute {
+                    offset: 128,
+                    shader_location: 10,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // Note: Remaining fields (signalling_substances, mode_index, age, etc.)
+                // are not needed for rendering so we don't declare them
             ],
         };
 

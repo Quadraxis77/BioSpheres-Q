@@ -12,6 +12,9 @@ pub mod gpu_icosphere;
 pub mod gpu_camera;
 pub mod gpu_triple_buffer;
 pub mod gpu_shaders;
+pub mod gpu_compute;
+pub mod gpu_compute_pipeline;
+pub mod gpu_compute_dispatcher;
 
 pub use cells::CellRenderingPlugin;
 pub use debug::DebugRenderingPlugin;
