@@ -1266,7 +1266,8 @@ pub fn division_step(
     let mut divisions_to_process = Vec::new();
     for i in 0..state.cell_count {
         let cell_age = current_time - state.birth_times[i];
-        if cell_age >= state.split_intervals[i] {
+        // Skip division if split_interval > 25 (never-split condition)
+        if state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
             divisions_to_process.push(i);
         }
     }
@@ -1294,7 +1295,8 @@ pub fn division_step(
             };
             
             let other_age = current_time - state.birth_times[other_idx];
-            if other_age >= state.split_intervals[other_idx] {
+            // Check if other cell is ready to divide (respecting never-split condition)
+            if state.split_intervals[other_idx] <= 25.0 && other_age >= state.split_intervals[other_idx] {
                 if other_idx < cell_idx {
                     should_defer = true;
                     break;

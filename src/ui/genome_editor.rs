@@ -493,6 +493,53 @@ fn slider_with_input_f32(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f
     changed
 }
 
+/// Special slider for split interval that shows "Never" for values > 25 seconds
+fn split_interval_slider(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f32, width: f32) -> bool {
+    let mut changed = false;
+
+    // Draw slider with custom format that shows "Never" for values > 25
+    ui.set_next_item_width(width - 80.0);
+    let format = if *value > 25.0 {
+        "Never"
+    } else {
+        "%.1f"
+    };
+    if ui.slider_config(label, min, max)
+        .display_format(format)
+        .build(value)
+    {
+        changed = true;
+    }
+
+    // Draw text input on same line
+    ui.same_line();
+    ui.set_next_item_width(70.0);
+    let input_label = format!("##input{}", label);
+
+    // Show "Never" if > 25 seconds, otherwise show the numeric value
+    let mut text_buffer = if *value > 25.0 {
+        "Never".to_string()
+    } else {
+        format!("{:.2}", value)
+    };
+    
+    if ui.input_text(&input_label, &mut text_buffer)
+        .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
+        .build()
+    {
+        // Allow user to type "Never" or "never" to set to max value
+        if text_buffer.to_lowercase() == "never" {
+            *value = 30.0; // Set to max value (which is > 25, so it will display as "Never")
+            changed = true;
+        } else if let Ok(new_value) = text_buffer.parse::<f32>() {
+            *value = new_value.clamp(min, max);
+            changed = true;
+        }
+    }
+
+    changed
+}
+
 /// Helper function to draw a slider with a text input for precise value entry (i32 version)
 fn slider_with_input_i32(ui: &Ui, label: &str, value: &mut i32, min: i32, max: i32, width: f32) -> bool {
     let mut changed = false;
@@ -642,7 +689,7 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
 
     // Split interval
     ui.text("Split Interval:");
-    slider_with_input_f32(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
+    split_interval_slider(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
 
     ui.spacing();
     ui.separator();
@@ -1260,7 +1307,11 @@ fn draw_genome_node(
             // Node body - show key settings
             ui.spacing();
             ui.text(&format!("Type: {}", get_cell_type_name(mode.cell_type)));
-            ui.text(&format!("Split: {:.1}s", mode.split_interval));
+            if mode.split_interval > 25.0 {
+                ui.text("Split: Never");
+            } else {
+                ui.text(&format!("Split: {:.1}s", mode.split_interval));
+            }
             if mode.parent_make_adhesion {
                 ui.text("Adhesion: Yes");
             }

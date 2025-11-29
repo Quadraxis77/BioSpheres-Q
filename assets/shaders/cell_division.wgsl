@@ -92,8 +92,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let mode = modes[mode_index];
     let division_threshold = mode.split_interval;
 
-    // Check if cell should divide
-    if (cell.age >= division_threshold && total_cell_count < uniforms.max_cells) {
+    // Check if cell should divide (skip if split_interval > 25, which means never-split)
+    if (division_threshold <= 25.0 && cell.age >= division_threshold && total_cell_count < uniforms.max_cells) {
         division_requests[index].should_divide = 1u;
     }
 }
