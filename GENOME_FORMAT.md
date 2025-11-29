@@ -49,7 +49,10 @@ Genomes are stored as JSON files with the following structure:
         "y": 0.0
       },
       "max_adhesions": 20,
+      "min_adhesions": 0,
       "enable_parent_angle_snapping": true,
+      "max_splits": -1,
+      "mode_after_splits": -1,
       "child_a": {
         "mode_number": 0,
         "orientation": {
@@ -107,8 +110,11 @@ Genomes are stored as JSON files with the following structure:
 - `split_mass`: Mass allocated to each child cell during division
 - `split_interval`: Time (in seconds) between divisions
 - `parent_split_direction`: Split direction as pitch (x) and yaw (y) in degrees
-- `max_adhesions`: Maximum number of adhesion connections allowed
+- `max_adhesions`: Maximum number of adhesion connections allowed. Cells with this many or more connections cannot split
+- `min_adhesions`: Minimum number of adhesion connections required before cell can split (0-20, default 0)
 - `enable_parent_angle_snapping`: Whether to snap angles to 11.25° grid
+- `max_splits`: Maximum number of times a cell can split (1-20, or -1 for infinite). Child A inherits the parent's split count + 1, Child B starts fresh with 0
+- `mode_after_splits`: Mode that Child A transitions to when max_splits is reached (-1 = stay in current mode, otherwise mode index)
 
 ### Child Settings (child_a and child_b)
 - `mode_number`: Index of the mode that this child cell will adopt

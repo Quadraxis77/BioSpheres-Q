@@ -48,6 +48,15 @@ impl Plugin for GenomeEditorPlugin {
     }
 }
 
+/// Helper function to draw a tooltip with a hoverable "?" mark
+fn help_marker(ui: &Ui, desc: &str) {
+    ui.same_line();
+    ui.text_disabled("(?)");
+    if ui.is_item_hovered() {
+        ui.tooltip_text(desc);
+    }
+}
+
 /// Resource to track previous genome state for change detection
 #[derive(Resource, Default)]
 struct PreviousGenomeState {
@@ -569,12 +578,59 @@ fn slider_with_input_i32(ui: &Ui, label: &str, value: &mut i32, min: i32, max: i
     changed
 }
 
+/// Special slider for max splits that shows "Infinite" for -1
+fn max_splits_slider(ui: &Ui, label: &str, value: &mut i32, min: i32, max: i32, width: f32) -> bool {
+    let mut changed = false;
+
+    // Draw slider with custom format that shows "Infinite" for -1
+    ui.set_next_item_width(width - 80.0);
+    let format = if *value < 0 {
+        "Infinite"
+    } else {
+        "%d"
+    };
+    if ui.slider_config(label, min, max)
+        .display_format(format)
+        .build(value)
+    {
+        changed = true;
+    }
+
+    // Draw text input on same line
+    ui.same_line();
+    ui.set_next_item_width(70.0);
+    let input_label = format!("##input{}", label);
+
+    // Show "Infinite" if < 0, otherwise show the numeric value
+    let mut text_buffer = if *value < 0 {
+        "Infinite".to_string()
+    } else {
+        format!("{}", value)
+    };
+    
+    if ui.input_text(&input_label, &mut text_buffer)
+        .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
+        .build()
+    {
+        // Allow user to type "Infinite" or "infinite" to set to -1
+        if text_buffer.to_lowercase() == "infinite" {
+            *value = -1;
+            changed = true;
+        } else if let Ok(new_value) = text_buffer.parse::<i32>() {
+            *value = new_value.clamp(min, max);
+            changed = true;
+        }
+    }
+
+    changed
+}
+
 /// Draw mode settings (tabbed interface)
 fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSettings], mode_index: usize) {
     if let Some(_tab_bar) = ui.tab_bar("ModeSettingsTabs") {
         // Parent Settings Tab
         if let Some(_tab) = ui.tab_item("Parent Settings") {
-            draw_parent_settings(ui, mode, mode_index);
+            draw_parent_settings(ui, mode, all_modes, mode_index);
         }
 
         // Child A Settings Tab
@@ -582,9 +638,11 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
             let _mode_changed = draw_child_settings(ui, "Child A", &mut mode.child_a, all_modes);
 
             ui.text("Child A Orientation:");
+            help_marker(ui, "The rotational orientation of Child A relative to the parent. Use the ball to adjust rotation.");
             ui.spacing();
 
             ui.checkbox("Enable Angle Snapping##ChildA", &mut mode.child_a.enable_angle_snapping);
+            help_marker(ui, "When enabled, orientation snaps to 11.25° increments for precise alignment.");
             ui.spacing();
 
             if imgui_widgets::quaternion_ball(ui, "##ChildAOrientation", &mut mode.child_a.orientation, 80.0, mode.child_a.enable_angle_snapping) {
@@ -604,9 +662,11 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
             let _mode_changed = draw_child_settings(ui, "Child B", &mut mode.child_b, all_modes);
 
             ui.text("Child B Orientation:");
+            help_marker(ui, "The rotational orientation of Child B relative to the parent. Use the ball to adjust rotation.");
             ui.spacing();
 
             ui.checkbox("Enable Angle Snapping##ChildB", &mut mode.child_b.enable_angle_snapping);
+            help_marker(ui, "When enabled, orientation snaps to 11.25° increments for precise alignment.");
             ui.spacing();
 
             if imgui_widgets::quaternion_ball(ui, "##ChildBOrientation", &mut mode.child_b.orientation, 80.0, mode.child_b.enable_angle_snapping) {
@@ -638,9 +698,10 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
 }
 
 /// Draw parent settings
-fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
+fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSettings], _mode_index: usize) {
     // Mode name
     ui.text("Mode Name:");
+    help_marker(ui, "The display name for this mode. Leave empty to use the default name.");
     let mut mode_name = mode.name.clone();
     if ui.input_text("##ModeName", &mut mode_name).build() {
         let trimmed = mode_name.trim();
@@ -662,6 +723,7 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
 
     // Cell type dropdown
     ui.text("Cell Type:");
+    help_marker(ui, "The type of cell. Currently only 'Test' type is available.");
     ui.same_line();
     let cell_types = vec!["Test"];
     let current_cell_type = cell_types.get(mode.cell_type as usize).unwrap_or(&"Unknown");
@@ -680,15 +742,18 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
 
     // Parent make adhesion
     ui.checkbox("Parent Make Adhesion", &mut mode.parent_make_adhesion);
+    help_marker(ui, "When enabled, the parent cell creates an adhesion connection between the two child cells after division.");
 
     // Split mass (only for non-Test cell types)
     if mode.cell_type != 0 {
         ui.text("Split Mass:");
+        help_marker(ui, "The mass allocated to each child cell during division.");
         slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.1, 10.0, ui.content_region_avail()[0]);
     }
 
     // Split interval
     ui.text("Split Interval:");
+    help_marker(ui, "Time in seconds between cell divisions. Set to 'Never' (>25s) to prevent splitting.");
     split_interval_slider(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
 
     ui.spacing();
@@ -697,7 +762,9 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
 
     // Parent split angle
     ui.text("Parent Split Angle:");
+    help_marker(ui, "The direction the parent cell splits, defined by pitch (up/down) and yaw (left/right) angles in degrees.");
     ui.checkbox("Enable Angle Snapping##Parent", &mut mode.enable_parent_angle_snapping);
+    help_marker(ui, "When enabled, angles snap to 11.25° increments for precise alignment.");
     ui.spacing();
 
     // Use columns for layout
@@ -732,9 +799,66 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
     );
     ui.columns(1, "", false);
 
-    // Max adhesions
-    ui.text("Max Adhesions:");
+    // Max connections (renamed from max_adhesions)
+    ui.text("Max Connections:");
+    help_marker(ui, "Maximum number of adhesion connections allowed. Cells with this many or more connections cannot split.");
     slider_with_input_i32(ui, "##MaxAdhesions", &mut mode.max_adhesions, 0, 20, ui.content_region_avail()[0]);
+
+    // Min connections
+    ui.text("Min Connections:");
+    help_marker(ui, "Minimum number of adhesion connections required before the cell can split. Useful for coordinated growth.");
+    slider_with_input_i32(ui, "##MinAdhesions", &mut mode.min_adhesions, 0, 20, ui.content_region_avail()[0]);
+    
+    // Clamp min_adhesions to not exceed max_adhesions
+    if mode.min_adhesions > mode.max_adhesions {
+        mode.min_adhesions = mode.max_adhesions;
+    }
+
+    // Max splits
+    ui.text("Max Splits:");
+    help_marker(ui, "Maximum number of times a cell can split. Child A inherits the count, Child B starts fresh. Set to 'Infinite' for unlimited divisions.");
+    max_splits_slider(ui, "##MaxSplits", &mut mode.max_splits, -1, 20, ui.content_region_avail()[0]);
+
+    // Mode after splits (only show if max_splits is not infinite)
+    if mode.max_splits >= 0 {
+        ui.text("Mode After Splits:");
+        help_marker(ui, "When Child A reaches max splits, it transitions to this mode instead of the normal child mode.");
+        
+        // Build display strings for mode dropdown
+        let mode_display_names: Vec<String> = all_modes.iter()
+            .enumerate()
+            .map(|(idx, m)| format!("[{}] {}", idx, m.name))
+            .collect();
+        
+        // Add "Stay in Current Mode" option
+        let mut all_options = vec!["Stay in Current Mode".to_string()];
+        all_options.extend(mode_display_names);
+        
+        // Current selection: -1 = "Stay in Current Mode", otherwise the mode index
+        let current_selection = if mode.mode_after_splits < 0 {
+            0
+        } else {
+            (mode.mode_after_splits + 1) as usize
+        };
+        
+        let current_display = all_options.get(current_selection)
+            .map(|s| s.as_str())
+            .unwrap_or("Stay in Current Mode");
+        
+        if let Some(_token) = ui.begin_combo("##ModeAfterSplits", current_display) {
+            for (i, display_name) in all_options.iter().enumerate() {
+                let is_selected = i == current_selection;
+                if ui.selectable_config(display_name).selected(is_selected).build() {
+                    // Convert back: 0 = -1 (stay), otherwise index - 1
+                    mode.mode_after_splits = if i == 0 {
+                        -1
+                    } else {
+                        (i - 1) as i32
+                    };
+                }
+            }
+        }
+    }
 
     ui.spacing();
     ui.separator();
@@ -742,6 +866,7 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, _mode_index: usize) {
 
     // Color picker
     ui.text("Mode Color:");
+    help_marker(ui, "The visual color of cells in this mode.");
     let mut color = [mode.color.x, mode.color.y, mode.color.z];
     if ui.color_picker3("##ModeColor", &mut color) {
         mode.color = Vec3::new(color[0], color[1], color[2]);
@@ -753,6 +878,7 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
     let mut mode_changed = false;
     
     ui.text("Mode:");
+    help_marker(ui, "The mode this child cell will adopt after division.");
     // Build display strings that show both index and name for clarity
     let mode_display_names: Vec<String> = all_modes.iter()
         .enumerate()
@@ -782,6 +908,7 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
     ui.spacing();
 
     ui.checkbox("Keep Adhesion", &mut child.keep_adhesion);
+    help_marker(ui, "When enabled, this child inherits the parent's adhesion connections based on zone classification.");
     
     mode_changed
 }
@@ -789,26 +916,34 @@ fn draw_child_settings(ui: &Ui, _label: &str, child: &mut ChildSettings, all_mod
 /// Draw adhesion settings
 fn draw_adhesion_settings(ui: &Ui, adhesion: &mut AdhesionSettings) {
     ui.checkbox("Adhesion Can Break", &mut adhesion.can_break);
+    help_marker(ui, "When enabled, adhesion connections can break if the force exceeds the break force threshold.");
 
     ui.text("Adhesion Break Force:");
+    help_marker(ui, "The force threshold at which adhesion connections break. Higher values create stronger bonds.");
     slider_with_input_f32(ui, "##AdhesionBreakForce", &mut adhesion.break_force, 0.1, 100.0, ui.content_region_avail()[0]);
 
     ui.text("Adhesion Rest Length:");
+    help_marker(ui, "The equilibrium distance for the adhesion spring. Cells try to maintain this distance.");
     slider_with_input_f32(ui, "##AdhesionRestLength", &mut adhesion.rest_length, 0.5, 5.0, ui.content_region_avail()[0]);
 
     ui.text("Linear Spring Stiffness:");
+    help_marker(ui, "Stiffness of the linear spring connecting cells. Higher values create stiffer connections.");
     slider_with_input_f32(ui, "##LinearSpringStiffness", &mut adhesion.linear_spring_stiffness, 0.1, 500.0, ui.content_region_avail()[0]);
 
     ui.text("Linear Spring Damping:");
+    help_marker(ui, "Damping of linear oscillations. Higher values reduce bouncing and stabilize connections faster.");
     slider_with_input_f32(ui, "##LinearSpringDamping", &mut adhesion.linear_spring_damping, 0.0, 10.0, ui.content_region_avail()[0]);
 
     ui.text("Angular Spring Stiffness:");
+    help_marker(ui, "Stiffness of rotational alignment between connected cells. Higher values enforce stronger orientation alignment.");
     slider_with_input_f32(ui, "##AngularSpringStiffness", &mut adhesion.orientation_spring_stiffness, 0.1, 100.0, ui.content_region_avail()[0]);
 
     ui.text("Angular Spring Damping:");
+    help_marker(ui, "Damping of rotational oscillations. Higher values reduce spinning and stabilize orientation faster.");
     slider_with_input_f32(ui, "##AngularSpringDamping", &mut adhesion.orientation_spring_damping, 0.0, 10.0, ui.content_region_avail()[0]);
 
     ui.text("Max Angular Deviation:");
+    help_marker(ui, "Maximum allowed angular deviation in degrees. Set to 0 for no limit. Higher values allow more rotational freedom.");
     slider_with_input_f32(ui, "##MaxAngularDeviation", &mut adhesion.max_angular_deviation, 0.0, 180.0, ui.content_region_avail()[0]);
 
     ui.spacing();
@@ -816,11 +951,14 @@ fn draw_adhesion_settings(ui: &Ui, adhesion: &mut AdhesionSettings) {
     ui.spacing();
 
     ui.checkbox("Enable Twist Constraint", &mut adhesion.enable_twist_constraint);
+    help_marker(ui, "When enabled, prevents twisting motion around the connection axis. Can cause visual artifacts in some cases.");
 
     ui.text("Twist Constraint Stiffness:");
+    help_marker(ui, "Resistance to twisting motion around the connection axis. Higher values prevent more twisting.");
     slider_with_input_f32(ui, "##TwistConstraintStiffness", &mut adhesion.twist_constraint_stiffness, 0.0, 2.0, ui.content_region_avail()[0]);
 
     ui.text("Twist Constraint Damping:");
+    help_marker(ui, "Damping of twist oscillations. Higher values stabilize twist motion faster.");
     slider_with_input_f32(ui, "##TwistConstraintDamping", &mut adhesion.twist_constraint_damping, 0.0, 10.0, ui.content_region_avail()[0]);
 }
 

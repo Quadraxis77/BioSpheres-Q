@@ -107,7 +107,10 @@ pub struct ModeSettings {
     pub split_interval: f32,
     pub parent_split_direction: Vec2, // pitch, yaw in degrees
     pub max_adhesions: i32,
+    pub min_adhesions: i32, // Minimum number of connections required before cell can split
     pub enable_parent_angle_snapping: bool,
+    pub max_splits: i32, // Maximum number of times a cell can split (1-20, or -1 for infinite)
+    pub mode_after_splits: i32, // Mode that Child A transitions to when max_splits is reached (-1 = stay in current mode)
 
     // Child settings
     pub child_a: ChildSettings,
@@ -130,7 +133,10 @@ impl ModeSettings {
             split_interval: 5.0,
             parent_split_direction: Vec2::ZERO,
             max_adhesions: 20,
+            min_adhesions: 0, // No minimum by default
             enable_parent_angle_snapping: true,
+            max_splits: -1, // Infinite by default
+            mode_after_splits: -1, // Stay in current mode by default
             child_a: ChildSettings {
                 mode_number: mode_index,
                 ..Default::default()
@@ -156,7 +162,10 @@ impl Default for ModeSettings {
             split_interval: 5.0,
             parent_split_direction: Vec2::ZERO,
             max_adhesions: 20,
+            min_adhesions: 0, // No minimum by default
             enable_parent_angle_snapping: true,
+            max_splits: -1, // Infinite by default
+            mode_after_splits: -1, // Stay in current mode by default
             child_a: ChildSettings::default(),
             child_b: ChildSettings::default(),
             adhesion_settings: AdhesionSettings::default(),

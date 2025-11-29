@@ -61,6 +61,7 @@ pub struct CanonicalState {
     // === Division Timers (SoA) ===
     pub birth_times: Vec<f32>,
     pub split_intervals: Vec<f32>,
+    pub split_counts: Vec<i32>, // Number of times this cell has split
     
     // === Adhesion System ===
     /// Adhesion connections between cells
@@ -102,6 +103,7 @@ impl CanonicalState {
             stiffnesses: vec![10.0; capacity],
             birth_times: vec![0.0; capacity],
             split_intervals: vec![10.0; capacity],
+            split_counts: vec![0; capacity],
             adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
             adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
             spatial_grid: DeterministicSpatialGrid::new(16, 100.0, 50.0), // Reduced from 64 to 16
@@ -125,6 +127,7 @@ impl CanonicalState {
         split_interval: f32,
         stiffness: f32,
         genome_orientation: Quat,
+        split_count: i32,
     ) -> Option<usize> {
         if self.cell_count >= self.capacity {
             return None;
@@ -149,6 +152,7 @@ impl CanonicalState {
         self.stiffnesses[idx] = stiffness;
         self.birth_times[idx] = birth_time;
         self.split_intervals[idx] = split_interval;
+        self.split_counts[idx] = split_count;
         
         // Initialize adhesion indices for new cell
         self.adhesion_manager.init_cell_adhesion_indices(idx);
@@ -1266,8 +1270,26 @@ pub fn division_step(
     let mut divisions_to_process = Vec::new();
     for i in 0..state.cell_count {
         let cell_age = current_time - state.birth_times[i];
-        // Skip division if split_interval > 25 (never-split condition)
-        if state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
+        let mode_index = state.mode_indices[i];
+        let mode = genome.modes.get(mode_index);
+        
+        // Check max_splits limit (-1 means infinite)
+        let can_split_by_count = if let Some(m) = mode {
+            m.max_splits < 0 || state.split_counts[i] < m.max_splits
+        } else {
+            true
+        };
+        
+        // Check adhesion limits - prevent splitting if at/above max or below min connections
+        let adhesion_count = state.adhesion_manager.count_active_adhesions(i);
+        let can_split_by_adhesions = if let Some(m) = mode {
+            adhesion_count >= m.min_adhesions as usize && adhesion_count < m.max_adhesions as usize
+        } else {
+            true
+        };
+        
+        // Skip division if split_interval > 25 (never-split condition), max_splits reached, or max_adhesions reached
+        if can_split_by_count && can_split_by_adhesions && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
             divisions_to_process.push(i);
         }
     }
@@ -1333,6 +1355,7 @@ pub fn division_step(
         parent_radius: f32,
         parent_genome_id: usize,
         parent_stiffness: f32,
+        parent_split_count: i32,
         parent_genome_orientation: bevy::prelude::Quat,  // CRITICAL: Save parent's genome orientation before overwriting
         child_a_pos: bevy::prelude::Vec3,
         child_b_pos: bevy::prelude::Vec3,
@@ -1379,6 +1402,7 @@ pub fn division_step(
             let parent_radius = state.radii[parent_idx];
             let parent_genome_id = state.genome_ids[parent_idx];
             let parent_stiffness = state.stiffnesses[parent_idx];
+            let parent_split_count = state.split_counts[parent_idx];
             
             // Calculate split direction using physics rotation (for positioning)
             let pitch = mode.parent_split_direction.x.to_radians();
@@ -1394,7 +1418,15 @@ pub fn division_step(
             let child_b_pos = parent_position - split_direction * offset_distance;
             
             // Get child mode indices
-            let child_a_mode_idx = mode.child_a.mode_number.max(0) as usize;
+            // Check if Child A will reach max_splits after this division
+            let will_reach_max_splits = mode.max_splits >= 0 && (parent_split_count + 1) >= mode.max_splits;
+            
+            // If max_splits is reached and mode_after_splits is set, use that mode for Child A
+            let child_a_mode_idx = if will_reach_max_splits && mode.mode_after_splits >= 0 {
+                mode.mode_after_splits.max(0) as usize
+            } else {
+                mode.child_a.mode_number.max(0) as usize
+            };
             let child_b_mode_idx = mode.child_b.mode_number.max(0) as usize;
             
             // Get child properties
@@ -1432,6 +1464,7 @@ pub fn division_step(
                 parent_radius,
                 parent_genome_id,
                 parent_stiffness,
+                parent_split_count,
                 parent_genome_orientation,  // CRITICAL: Save parent's genome orientation before overwriting
                 child_a_pos,
                 child_b_pos,
@@ -1477,6 +1510,8 @@ pub fn division_step(
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
             state.birth_times[data.child_a_slot] = current_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
+            // Child A inherits parent's split count + 1
+            state.split_counts[data.child_a_slot] = data.parent_split_count + 1;
 
             // Adhesion indices will be initialized in inheritance function (matches C++)
         }
@@ -1507,6 +1542,8 @@ pub fn division_step(
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
             state.birth_times[data.child_b_slot] = current_time;
             state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
+            // Child B starts with fresh split count of 0
+            state.split_counts[data.child_b_slot] = 0;
 
             // Initialize adhesion indices for child B
             state.adhesion_manager.init_cell_adhesion_indices(data.child_b_slot);

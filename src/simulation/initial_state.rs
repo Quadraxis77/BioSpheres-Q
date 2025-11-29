@@ -124,6 +124,7 @@ impl InitialState {
                 cell.split_interval,
                 cell.stiffness,
                 cell.rotation, // genome_orientation = rotation initially
+                0, // Initial cells start with split_count = 0
             );
         }
         
