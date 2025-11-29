@@ -290,10 +290,54 @@ fn render_genome_editor(
                 
                 // Don't allow removing the initial mode
                 if selected < current_genome.genome.modes.len() && selected != initial_mode {
+                    // Fix all modes that reference the removed mode
+                    for (idx, mode) in current_genome.genome.modes.iter_mut().enumerate() {
+                        // Skip the mode being removed (no need to update it)
+                        if idx == selected {
+                            continue;
+                        }
+                        
+                        // Fix child_a references
+                        if mode.child_a.mode_number == selected as i32 {
+                            // Set to self-referential
+                            mode.child_a.mode_number = idx as i32;
+                        } else if mode.child_a.mode_number > selected as i32 {
+                            // Decrement indices for modes after the removed one
+                            mode.child_a.mode_number -= 1;
+                        }
+                        
+                        // Fix child_b references
+                        if mode.child_b.mode_number == selected as i32 {
+                            // Set to self-referential
+                            mode.child_b.mode_number = idx as i32;
+                        } else if mode.child_b.mode_number > selected as i32 {
+                            // Decrement indices for modes after the removed one
+                            mode.child_b.mode_number -= 1;
+                        }
+                        
+                        // Fix mode_after_splits references
+                        if mode.mode_after_splits == selected as i32 {
+                            // Set to self-referential
+                            mode.mode_after_splits = idx as i32;
+                        } else if mode.mode_after_splits > selected as i32 {
+                            // Decrement indices for modes after the removed one
+                            mode.mode_after_splits -= 1;
+                        }
+                    }
+                    
+                    // Fix initial_mode if it points to a mode after the removed one
+                    if current_genome.genome.initial_mode > selected as i32 {
+                        current_genome.genome.initial_mode -= 1;
+                    }
+                    
+                    // Remove the mode
                     current_genome.genome.modes.remove(selected);
+                    
+                    // Adjust selected index
                     if current_genome.selected_mode_index >= current_genome.genome.modes.len() as i32 {
                         current_genome.selected_mode_index = (current_genome.genome.modes.len() as i32) - 1;
                     }
+                    
                     // Mark node graph for rebuild
                     node_graph.mark_for_rebuild();
                 }
@@ -304,7 +348,7 @@ fn render_genome_editor(
                 let selected = current_genome.selected_mode_index as usize;
                 let initial_mode = current_genome.genome.initial_mode as usize;
                 if selected == initial_mode {
-                    ui.tooltip_text("Cannot remove the initial mode");
+                    ui.tooltip_text("Cannot remove Mode 0 (initial mode)");
                 }
             }
 
@@ -1588,41 +1632,52 @@ fn handle_link_make_self_referential(
 }
 
 /// Generate the next available mode name based on a base name
-/// If base name is "Mode 5", tries "Mode 6", then "Mode 5.1", "Mode 5.2", etc.
+/// Uses hierarchical dot notation for modes inserted between existing modes
+/// Examples:
+/// - "Mode 1" between "Mode 1" and "Mode 2" -> "Mode 1.1"
+/// - "Mode 1.1" between "Mode 1.1" and "Mode 1.2" -> "Mode 1.1.1"
+/// - "Mode 1.1.1" between "Mode 1.1.1" and "Mode 1.1.2" -> "Mode 1.1.1.1"
 fn generate_next_mode_name(base_name: &str, existing_modes: &[ModeSettings]) -> String {
-    // Extract the base number from the name (e.g., "Mode 5" -> 5)
-    let base_number = if let Some(num_str) = base_name.split_whitespace().last() {
-        // Try to parse as integer first
-        if let Ok(num) = num_str.parse::<i32>() {
-            num
-        } else {
-            // Try to parse as float (e.g., "5.1")
-            if let Ok(num) = num_str.parse::<f32>() {
-                num.floor() as i32
-            } else {
-                0
-            }
-        }
-    } else {
-        0
-    };
-    
     // Helper to check if a name is already used (checks both name and default_name)
     let is_name_taken = |candidate: &str| {
         existing_modes.iter().any(|m| m.name == candidate || m.default_name == candidate)
     };
     
-    // Try the next integer first (e.g., "Mode 5" -> "Mode 6")
-    let next_int_name = format!("Mode {}", base_number + 1);
-    if !is_name_taken(&next_int_name) {
-        return next_int_name;
-    }
+    // Extract the number part from the name (everything after "Mode ")
+    let number_part = if let Some(num_str) = base_name.strip_prefix("Mode ") {
+        num_str
+    } else {
+        // Fallback if name doesn't start with "Mode "
+        return format!("Mode {}", existing_modes.len());
+    };
     
-    // If that's taken, try decimal suffixes (e.g., "Mode 5.1", "Mode 5.2", etc.)
-    for i in 1..100 {
-        let candidate_name = format!("Mode {}.{}", base_number, i);
-        if !is_name_taken(&candidate_name) {
-            return candidate_name;
+    // Check if the base name has dots (hierarchical notation)
+    if number_part.contains('.') {
+        // Hierarchical mode (e.g., "Mode 1.1" or "Mode 1.1.1")
+        // Add another level: "Mode 1.1" -> "Mode 1.1.1"
+        for i in 1..100 {
+            let candidate_name = format!("Mode {}.{}", number_part, i);
+            if !is_name_taken(&candidate_name) {
+                return candidate_name;
+            }
+        }
+    } else {
+        // Simple mode (e.g., "Mode 1")
+        // Try to parse as integer
+        if let Ok(base_number) = number_part.parse::<i32>() {
+            // Try the next integer first (e.g., "Mode 1" -> "Mode 2")
+            let next_int_name = format!("Mode {}", base_number + 1);
+            if !is_name_taken(&next_int_name) {
+                return next_int_name;
+            }
+            
+            // If that's taken, add hierarchical level (e.g., "Mode 1.1", "Mode 1.2", etc.)
+            for i in 1..100 {
+                let candidate_name = format!("Mode {}.{}", base_number, i);
+                if !is_name_taken(&candidate_name) {
+                    return candidate_name;
+                }
+            }
         }
     }
     

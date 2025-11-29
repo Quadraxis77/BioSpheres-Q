@@ -204,7 +204,7 @@ impl Default for GenomeData {
         // Initialize with one default mode that splits back to itself
         genome.modes.push(ModeSettings::new_self_splitting(
             0,
-            "Default Mode".to_string(),
+            "Mode 0".to_string(),
         ));
         genome
     }
