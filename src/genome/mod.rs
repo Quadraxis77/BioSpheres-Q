@@ -105,6 +105,11 @@ pub struct ModeSettings {
     pub parent_make_adhesion: bool,
     pub split_mass: f32,
     pub split_interval: f32,
+    pub nutrient_gain_rate: f32, // Mass gained per second (for Test cells)
+    pub max_cell_size: f32, // Maximum visual size (0.5 to 2.5 units)
+    pub split_ratio: f32, // Ratio of parent mass going to Child A (0.0 to 1.0, default 0.5 for 50/50 split)
+    pub nutrient_priority: f32, // Priority for nutrient transport (0.1 to 10.0, default 1.0)
+    pub prioritize_when_low: bool, // When enabled, priority increases when nutrients are low to prevent death
     pub parent_split_direction: Vec2, // pitch, yaw in degrees
     pub max_adhesions: i32,
     pub min_adhesions: i32, // Minimum number of connections required before cell can split
@@ -131,6 +136,11 @@ impl ModeSettings {
             parent_make_adhesion: false,
             split_mass: 1.0,
             split_interval: 5.0,
+            nutrient_gain_rate: 0.2, // Default: gain 0.2 mass per second
+            max_cell_size: 2.0, // Default: max size of 2.0 units
+            split_ratio: 0.5, // Default: 50/50 split
+            nutrient_priority: 1.0, // Default: neutral priority
+            prioritize_when_low: true, // Default: protect cells from death
             parent_split_direction: Vec2::ZERO,
             max_adhesions: 20,
             min_adhesions: 0, // No minimum by default
@@ -160,6 +170,11 @@ impl Default for ModeSettings {
             parent_make_adhesion: false,
             split_mass: 1.0,
             split_interval: 5.0,
+            nutrient_gain_rate: 0.2, // Default: gain 0.2 mass per second
+            max_cell_size: 2.0, // Default: max size of 2.0 units
+            split_ratio: 0.5, // Default: 50/50 split
+            nutrient_priority: 1.0, // Default: neutral priority
+            prioritize_when_low: true, // Default: protect cells from death
             parent_split_direction: Vec2::ZERO,
             max_adhesions: 20,
             min_adhesions: 0, // No minimum by default

@@ -338,13 +338,15 @@ fn spawn_cpu_scene_without_camera(
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
     
-    let (color, split_mass, split_interval) = if let Some(mode) = mode {
-        (mode.color, mode.split_mass, mode.split_interval)
+    let (color, split_mass, split_interval, is_test_cell, max_cell_size) = if let Some(mode) = mode {
+        (mode.color, mode.split_mass, mode.split_interval, mode.cell_type == 0, mode.max_cell_size)
     } else {
-        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0)
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0, true, 2.0)
     };
     
-    let cell_radius = 1.0;
+    // For Test cells, start with half the split mass so they need to grow before splitting
+    let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
+    let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.5) } else { 1.0 };
     
     // Create initial state (4096 cells to match CPU simulation limit)
     let mut initial_state = InitialState::new((**config).clone(), 4_096, 0);
@@ -354,7 +356,7 @@ fn spawn_cpu_scene_without_camera(
         velocity: Vec3::ZERO,
         rotation: genome.genome.initial_orientation,
         angular_velocity: Vec3::ZERO,
-        mass: split_mass,
+        mass: initial_mass,
         radius: cell_radius,
         genome_id: 0,
         mode_index: initial_mode_index,
@@ -372,7 +374,7 @@ fn spawn_cpu_scene_without_camera(
     // Spawn initial cell
     let entity = commands.spawn((
         Cell {
-            mass: split_mass,
+            mass: initial_mass,
             radius: cell_radius,
             genome_id: 0,
             mode_index: initial_mode_index,
@@ -455,13 +457,15 @@ fn spawn_preview_scene(
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
     
-    let (color, split_mass, split_interval) = if let Some(mode) = mode {
-        (mode.color, mode.split_mass, mode.split_interval)
+    let (color, split_mass, split_interval, is_test_cell, max_cell_size) = if let Some(mode) = mode {
+        (mode.color, mode.split_mass, mode.split_interval, mode.cell_type == 0, mode.max_cell_size)
     } else {
-        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0)
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0, true, 2.0)
     };
     
-    let cell_radius = 1.0;
+    // For Test cells, start with half the split mass so they need to grow before splitting
+    let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
+    let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.5) } else { 1.0 };
     let stiffness = 10.0;
     
     // Create initial state
@@ -472,7 +476,7 @@ fn spawn_preview_scene(
         velocity: Vec3::ZERO,
         rotation: genome.genome.initial_orientation,
         angular_velocity: Vec3::ZERO,
-        mass: split_mass,
+        mass: initial_mass,
         radius: cell_radius,
         genome_id: 0,
         mode_index: initial_mode_index,
@@ -495,7 +499,7 @@ fn spawn_preview_scene(
     // Spawn initial cell
     let entity = commands.spawn((
         Cell {
-            mass: split_mass,
+            mass: initial_mass,
             radius: cell_radius,
             genome_id: 0,
             mode_index: initial_mode_index,

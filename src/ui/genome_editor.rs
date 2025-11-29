@@ -677,53 +677,63 @@ fn draw_mode_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetting
             draw_parent_settings(ui, mode, all_modes, mode_index);
         }
 
-        // Child A Settings Tab
-        if let Some(_tab) = ui.tab_item("Child A Settings") {
-            let _mode_changed = draw_child_settings(ui, "Child A", &mut mode.child_a, all_modes);
+        // Child A Settings Tab (Blue)
+        {
+            let _child_a_color = ui.push_style_color(StyleColor::Tab, [0.2, 0.4, 0.8, 1.0]);
+            let _child_a_color_active = ui.push_style_color(StyleColor::TabActive, [0.3, 0.5, 0.9, 1.0]);
+            let _child_a_color_hovered = ui.push_style_color(StyleColor::TabHovered, [0.4, 0.6, 1.0, 1.0]);
+            if let Some(_tab) = ui.tab_item("Child A Settings") {
+                let _mode_changed = draw_child_settings(ui, "Child A", &mut mode.child_a, all_modes);
 
-            ui.text("Child A Orientation:");
-            help_marker(ui, "The rotational orientation of Child A relative to the parent. Use the ball to adjust rotation.");
-            ui.spacing();
+                ui.text("Child A Orientation:");
+                help_marker(ui, "The rotational orientation of Child A relative to the parent. Use the ball to adjust rotation.");
+                ui.spacing();
 
-            ui.checkbox("Enable Angle Snapping##ChildA", &mut mode.child_a.enable_angle_snapping);
-            help_marker(ui, "When enabled, orientation snaps to 11.25° increments for precise alignment.");
-            ui.spacing();
+                ui.checkbox("Enable Angle Snapping##ChildA", &mut mode.child_a.enable_angle_snapping);
+                help_marker(ui, "When enabled, orientation snaps to 11.25° increments for precise alignment.");
+                ui.spacing();
 
-            if imgui_widgets::quaternion_ball(ui, "##ChildAOrientation", &mut mode.child_a.orientation, 80.0, mode.child_a.enable_angle_snapping) {
-                // Orientation changed
+                if imgui_widgets::quaternion_ball(ui, "##ChildAOrientation", &mut mode.child_a.orientation, 80.0, mode.child_a.enable_angle_snapping) {
+                    // Orientation changed
+                }
+
+                ui.spacing();
+                if ui.button("Reset Orientation (Child A)") {
+                    mode.child_a.orientation = Quat::IDENTITY;
+                }
+
+                ui.separator();
             }
+        } // Drop Child A color styles here
 
-            ui.spacing();
-            if ui.button("Reset Orientation (Child A)") {
-                mode.child_a.orientation = Quat::IDENTITY;
+        // Child B Settings Tab (Green)
+        {
+            let _child_b_color = ui.push_style_color(StyleColor::Tab, [0.2, 0.7, 0.3, 1.0]);
+            let _child_b_color_active = ui.push_style_color(StyleColor::TabActive, [0.3, 0.8, 0.4, 1.0]);
+            let _child_b_color_hovered = ui.push_style_color(StyleColor::TabHovered, [0.4, 0.9, 0.5, 1.0]);
+            if let Some(_tab) = ui.tab_item("Child B Settings") {
+                let _mode_changed = draw_child_settings(ui, "Child B", &mut mode.child_b, all_modes);
+
+                ui.text("Child B Orientation:");
+                help_marker(ui, "The rotational orientation of Child B relative to the parent. Use the ball to adjust rotation.");
+                ui.spacing();
+
+                ui.checkbox("Enable Angle Snapping##ChildB", &mut mode.child_b.enable_angle_snapping);
+                help_marker(ui, "When enabled, orientation snaps to 11.25° increments for precise alignment.");
+                ui.spacing();
+
+                if imgui_widgets::quaternion_ball(ui, "##ChildBOrientation", &mut mode.child_b.orientation, 80.0, mode.child_b.enable_angle_snapping) {
+                    // Orientation changed
+                }
+
+                ui.spacing();
+                if ui.button("Reset Orientation (Child B)") {
+                    mode.child_b.orientation = Quat::IDENTITY;
+                }
+
+                ui.separator();
             }
-
-            ui.separator();
-        }
-
-        // Child B Settings Tab
-        if let Some(_tab) = ui.tab_item("Child B Settings") {
-            let _mode_changed = draw_child_settings(ui, "Child B", &mut mode.child_b, all_modes);
-
-            ui.text("Child B Orientation:");
-            help_marker(ui, "The rotational orientation of Child B relative to the parent. Use the ball to adjust rotation.");
-            ui.spacing();
-
-            ui.checkbox("Enable Angle Snapping##ChildB", &mut mode.child_b.enable_angle_snapping);
-            help_marker(ui, "When enabled, orientation snaps to 11.25° increments for precise alignment.");
-            ui.spacing();
-
-            if imgui_widgets::quaternion_ball(ui, "##ChildBOrientation", &mut mode.child_b.orientation, 80.0, mode.child_b.enable_angle_snapping) {
-                // Orientation changed
-            }
-
-            ui.spacing();
-            if ui.button("Reset Orientation (Child B)") {
-                mode.child_b.orientation = Quat::IDENTITY;
-            }
-
-            ui.separator();
-        }
+        } // Drop Child B color styles here
 
         // Adhesion Settings Tab
         let adhesion_tab_enabled = mode.parent_make_adhesion;
@@ -784,12 +794,20 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     ui.separator();
     ui.spacing();
 
+    // === SPLIT CONTROLS (TOP SECTION) ===
+    
     // Parent make adhesion
     ui.checkbox("Parent Make Adhesion", &mut mode.parent_make_adhesion);
     help_marker(ui, "When enabled, the parent cell creates an adhesion connection between the two child cells after division.");
 
-    // Split mass (only for non-Test cell types)
-    if mode.cell_type != 0 {
+    ui.spacing();
+    
+    // Split mass threshold
+    if mode.cell_type == 0 {
+        ui.text("Split Mass:");
+        help_marker(ui, "Minimum mass required for cell division. Both this AND the split interval must be satisfied for a split to occur.");
+        slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.5, 5.0, ui.content_region_avail()[0]);
+    } else {
         ui.text("Split Mass:");
         help_marker(ui, "The mass allocated to each child cell during division.");
         slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.1, 10.0, ui.content_region_avail()[0]);
@@ -797,13 +815,86 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
 
     // Split interval
     ui.text("Split Interval:");
-    help_marker(ui, "Time in seconds between cell divisions. Set to 'Never' (>25s) to prevent splitting.");
+    help_marker(ui, if mode.cell_type == 0 {
+        "Time in seconds between cell divisions. Both this AND the split mass must be satisfied for a split to occur. Set to 'Never' (>25s) to prevent splitting."
+    } else {
+        "Time in seconds between cell divisions. Set to 'Never' (>25s) to prevent splitting."
+    });
     split_interval_slider(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
+
+    // Split ratio (only for Test cells)
+    if mode.cell_type == 0 {
+        ui.text("Split Ratio:");
+        help_marker(ui, "How parent mass is divided between children. 50% means equal split, lower values give more mass to Child B.");
+        
+        // Clamp split_ratio to valid range
+        mode.split_ratio = mode.split_ratio.clamp(0.0, 1.0);
+        
+        // Convert to percentage (0-100) for integer slider with 1% increments
+        let mut percent_value = (mode.split_ratio * 100.0).round() as i32;
+        
+        // Draw slider
+        ui.set_next_item_width(ui.content_region_avail()[0] - 80.0);
+        if ui.slider("##SplitRatio", 0, 100, &mut percent_value) {
+            mode.split_ratio = (percent_value as f32) / 100.0;
+        }
+        
+        // Draw text input on same line
+        ui.same_line();
+        ui.set_next_item_width(70.0);
+        let mut text_buffer = format!("{:.2}", mode.split_ratio);
+        if ui.input_text("##inputSplitRatio", &mut text_buffer)
+            .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
+            .build()
+        {
+            if let Ok(new_value) = text_buffer.parse::<f32>() {
+                mode.split_ratio = new_value.clamp(0.0, 1.0);
+            }
+        }
+        
+        // Show visual indicator of the split
+        let child_a_percent = mode.split_ratio * 100.0;
+        let child_b_percent = (1.0 - mode.split_ratio) * 100.0;
+        ui.text(format!("  Child A (Blue): {:.0}%", child_a_percent));
+        ui.text(format!("  Child B (Green): {:.0}%", child_b_percent));
+    }
 
     ui.spacing();
     ui.separator();
     ui.spacing();
 
+    // === GROWTH SETTINGS (TEST CELLS) ===
+    
+    if mode.cell_type == 0 {
+        ui.text("Test Cell Growth Settings:");
+        ui.separator();
+        
+        // Nutrient gain rate
+        ui.text("Nutrient Gain Rate:");
+        help_marker(ui, "Mass gained per second. Test cells automatically gain nutrients over time, increasing their mass and size.");
+        slider_with_input_f32(ui, "##NutrientGainRate", &mut mode.nutrient_gain_rate, 0.0, 1.0, ui.content_region_avail()[0]);
+        
+        // Max cell size
+        ui.text("Max Cell Size:");
+        help_marker(ui, "Maximum visual size the cell can grow to (0.5 to 2.5 units). Cells stop growing when they reach this size.");
+        slider_with_input_f32(ui, "##MaxCellSize", &mut mode.max_cell_size, 0.5, 2.5, ui.content_region_avail()[0]);
+        
+        // Nutrient priority
+        ui.text("Nutrient Priority:");
+        help_marker(ui, "Priority for nutrient transport between adhesion-connected cells. Higher priority cells receive more nutrients. Nutrients flow from low-priority to high-priority cells and from high-mass to low-mass cells. Range: 0.1 (low) to 10.0 (high).");
+        slider_with_input_f32(ui, "##NutrientPriority", &mut mode.nutrient_priority, 0.1, 10.0, ui.content_region_avail()[0]);
+        
+        // Prioritize when low checkbox
+        ui.checkbox("Prioritize When Low", &mut mode.prioritize_when_low);
+        help_marker(ui, "When enabled, cells automatically increase their nutrient priority when dangerously low on nutrients to prevent death. Cells without this enabled can be completely depleted and die.");
+        
+        ui.spacing();
+        ui.separator();
+        ui.spacing();
+    }
+
+    // === OTHER SETTINGS ===
+    
     // Parent split angle
     ui.text("Parent Split Angle:");
     help_marker(ui, "The direction the parent cell splits, defined by pitch (up/down) and yaw (left/right) angles in degrees.");
@@ -1654,7 +1745,27 @@ fn generate_next_mode_name(base_name: &str, existing_modes: &[ModeSettings]) -> 
     // Check if the base name has dots (hierarchical notation)
     if number_part.contains('.') {
         // Hierarchical mode (e.g., "Mode 1.1" or "Mode 1.1.1")
-        // Add another level: "Mode 1.1" -> "Mode 1.1.1"
+        // First, try incrementing at the same level
+        // Split the number part to get prefix and last number
+        let parts: Vec<&str> = number_part.split('.').collect();
+        if let Some(last_num_str) = parts.last() {
+            if let Ok(last_num) = last_num_str.parse::<i32>() {
+                // Try incrementing the last number (e.g., "Mode 1.1" -> "Mode 1.2")
+                let prefix = &parts[..parts.len() - 1].join(".");
+                let next_sibling_name = if prefix.is_empty() {
+                    format!("Mode {}", last_num + 1)
+                } else {
+                    format!("Mode {}.{}", prefix, last_num + 1)
+                };
+                
+                if !is_name_taken(&next_sibling_name) {
+                    return next_sibling_name;
+                }
+            }
+        }
+        
+        // If incrementing at the same level is taken, add a sub-level
+        // "Mode 1.1" -> "Mode 1.1.1"
         for i in 1..100 {
             let candidate_name = format!("Mode {}.{}", number_part, i);
             if !is_name_taken(&candidate_name) {
