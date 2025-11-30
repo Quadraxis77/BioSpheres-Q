@@ -876,8 +876,8 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
         
         // Max cell size
         ui.text("Max Cell Size:");
-        help_marker(ui, "Maximum visual size the cell can grow to (0.5 to 2.5 units). Cells stop growing when they reach this size.");
-        slider_with_input_f32(ui, "##MaxCellSize", &mut mode.max_cell_size, 0.5, 2.5, ui.content_region_avail()[0]);
+        help_marker(ui, "Maximum visual size the cell can grow to (1.0 to 2.0 units). Cells stop growing when they reach this size.");
+        slider_with_input_f32(ui, "##MaxCellSize", &mut mode.max_cell_size, 1.0, 2.0, ui.content_region_avail()[0]);
         
         // Nutrient priority
         ui.text("Nutrient Priority:");

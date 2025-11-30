@@ -374,7 +374,7 @@ impl Node for GpuSceneDirectNode {
             return Ok(());
         }
         
-        let Some(device) = world.get_resource::<RenderDevice>() else {
+        let Some(_device) = world.get_resource::<RenderDevice>() else {
             return Ok(());
         };
         let Some(queue) = world.get_resource::<RenderQueue>() else {
@@ -406,7 +406,7 @@ impl Node for GpuSceneDirectNode {
             return Ok(());
         }
 
-        let Some(pipelines) = world.get_resource::<GpuComputePipelines>() else {
+        let Some(_pipelines) = world.get_resource::<GpuComputePipelines>() else {
             return Ok(());
         };
         
@@ -416,7 +416,7 @@ impl Node for GpuSceneDirectNode {
         // SAFETY: Get mutable access to buffers
         unsafe {
             let world_mut = world as *const World as *mut World;
-            if let Some(mut buffers) = (*world_mut).get_resource_mut::<GpuComputeBuffers>() {
+            if let Some(buffers) = (*world_mut).get_resource_mut::<GpuComputeBuffers>() {
                 // Upload extracted cell data to ALL three buffers to ensure consistency
                 let compute_cells: Vec<ComputeCell> = physics.cells
                     .iter()
@@ -431,17 +431,15 @@ impl Node for GpuSceneDirectNode {
                 
                 // Debug: Log cell positions when count changes
                 static mut LAST_UPLOAD_COUNT: u32 = 0;
-                unsafe {
-                    if cell_count != LAST_UPLOAD_COUNT {
-                        info!("[UPLOAD] {} cells uploaded to GPU buffers", cell_count);
-                        info!("  ComputeCell size: {} bytes, buffer size: {} bytes", 
-                            std::mem::size_of::<ComputeCell>(), data.len());
-                        for (i, cell) in physics.cells.iter().enumerate().take(5) {
-                            info!("  Cell {}: pos=({:.2}, {:.2}, {:.2}), radius={:.2}", 
-                                i, cell.position.x, cell.position.y, cell.position.z, cell.radius);
-                        }
-                        LAST_UPLOAD_COUNT = cell_count;
+                if cell_count != LAST_UPLOAD_COUNT {
+                    info!("[UPLOAD] {} cells uploaded to GPU buffers", cell_count);
+                    info!("  ComputeCell size: {} bytes, buffer size: {} bytes", 
+                        std::mem::size_of::<ComputeCell>(), data.len());
+                    for (i, cell) in physics.cells.iter().enumerate().take(5) {
+                        info!("  Cell {}: pos=({:.2}, {:.2}, {:.2}), radius={:.2}", 
+                            i, cell.position.x, cell.position.y, cell.position.z, cell.radius);
                     }
+                    LAST_UPLOAD_COUNT = cell_count;
                 }
                 
                 // Update uniforms
@@ -493,11 +491,9 @@ impl Node for GpuSceneDirectNode {
                     let instance_count = cell_count;
                     if instance_count > 0 {
                         static mut LAST_RENDER_COUNT: u32 = 0;
-                        unsafe {
-                            if instance_count != LAST_RENDER_COUNT {
-                                info!("[RENDER] Drawing {} instances (was {})", instance_count, LAST_RENDER_COUNT);
-                                LAST_RENDER_COUNT = instance_count;
-                            }
+                        if instance_count != unsafe { LAST_RENDER_COUNT } {
+                            info!("[RENDER] Drawing {} instances (was {})", instance_count, unsafe { LAST_RENDER_COUNT });
+                            unsafe { LAST_RENDER_COUNT = instance_count; }
                         }
                         
                         render_pass.set_pipeline(&resources.shader_system.render_pipeline);
@@ -931,17 +927,15 @@ fn prepare_compute_resources(
             render_queue.write_buffer(bufs.read_buffer(), 0, data);
             
             static mut LAST_UPLOAD_COUNT: usize = 0;
-            unsafe {
-                if physics.cells.len() != LAST_UPLOAD_COUNT {
-                    info!("[PREPARE] Uploaded {} cells to read_buffer", physics.cells.len());
-                    info!("  ComputeCell size: {} bytes, buffer size: {} bytes", 
-                        std::mem::size_of::<ComputeCell>(), data.len());
-                    for (i, cell) in physics.cells.iter().enumerate().take(5) {
-                        info!("  Cell {}: pos=({:.2}, {:.2}, {:.2}), radius={:.2}", 
-                            i, cell.position.x, cell.position.y, cell.position.z, cell.radius);
-                    }
-                    LAST_UPLOAD_COUNT = physics.cells.len();
+            if physics.cells.len() != unsafe { LAST_UPLOAD_COUNT } {
+                info!("[PREPARE] Uploaded {} cells to read_buffer", physics.cells.len());
+                info!("  ComputeCell size: {} bytes, buffer size: {} bytes", 
+                    std::mem::size_of::<ComputeCell>(), data.len());
+                for (i, cell) in physics.cells.iter().enumerate().take(5) {
+                    info!("  Cell {}: pos=({:.2}, {:.2}, {:.2}), radius={:.2}", 
+                        i, cell.position.x, cell.position.y, cell.position.z, cell.radius);
                 }
+                unsafe { LAST_UPLOAD_COUNT = physics.cells.len(); }
             }
         }
     }
@@ -1030,10 +1024,10 @@ fn check_cell_division(scene_data: &mut GpuSceneData, genome: &crate::genome::Ge
         let yaw = mode.parent_split_direction.y.to_radians();
         let split_direction = parent.orientation * Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
 
-        // 75% overlap means centers are 25% of combined diameter apart
-        // Combined diameter = 2 * radius, so offset = 0.25 * 2 * radius = 0.5 * radius
+        // Reduced offset for better adhesion overlap
+        // Combined diameter = 2 * radius, so offset = 0.1 * 2 * radius = 0.2 * radius
         // Match C++ convention and CPU implementation (C++: lines 1362-1374)
-        let offset_distance = radius * 0.25;
+        let offset_distance = radius * 0.1;
         let offset = split_direction * offset_distance;
 
         // Child A gets +offset (C++: lines 1368-1370)
@@ -1106,12 +1100,10 @@ fn check_cell_division_system(
 
     // Debug: Log cell count every frame when it changes
     static mut LAST_CELL_COUNT: usize = 0;
-    unsafe {
-        let current_count = scene_data.cells.len();
-        if current_count != LAST_CELL_COUNT {
-            info!("[MAIN WORLD - Last schedule] Cell count changed: {} -> {}", LAST_CELL_COUNT, current_count);
-            LAST_CELL_COUNT = current_count;
-        }
+    let current_count = scene_data.cells.len();
+    if current_count != unsafe { LAST_CELL_COUNT } {
+        info!("[MAIN WORLD - Last schedule] Cell count changed: {} -> {}", unsafe { LAST_CELL_COUNT }, current_count);
+        unsafe { LAST_CELL_COUNT = current_count; }
     }
 
     // Check for division
@@ -1137,6 +1129,7 @@ fn sync_physics_to_rendering(scene_data: &mut GpuSceneData) {
 /// TEMPORARY: Simple CPU physics update for MVP
 /// This runs in the main world and updates GpuSceneData.cells
 /// Eventually this will be replaced by full GPU compute pipeline with proper feedback
+#[allow(dead_code)]
 fn simple_cpu_physics_update(
     mut scene_data: ResMut<GpuSceneData>,
     time: Res<Time>,
@@ -1174,6 +1167,7 @@ fn simple_cpu_physics_update(
 }
 
 /// Sync rendering data from physics after update
+#[allow(dead_code)]
 fn sync_rendering_data(mut scene_data: ResMut<GpuSceneData>) {
     sync_physics_to_rendering(&mut scene_data);
 }

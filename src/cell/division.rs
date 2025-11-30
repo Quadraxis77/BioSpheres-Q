@@ -79,7 +79,7 @@ fn check_and_divide_cells(
     for (entity, cell, position, orientation, timer) in cells_query.iter() {
         let cell_age = current_time - timer.birth_time;
         if cell_age >= timer.split_interval {
-            divisions.push((entity, cell.clone(), *position, *orientation));
+            divisions.push((entity, cell.clone(), *position, *orientation, *timer));
         }
     }
 
@@ -97,7 +97,7 @@ fn check_and_divide_cells(
     // }
 
     // Process divisions
-    for (parent_entity, cell, position, orientation) in divisions {
+    for (parent_entity, cell, position, orientation, parent_timer) in divisions {
         let mode = genome.genome.modes.get(cell.mode_index);
         if mode.is_none() {
             continue;
@@ -109,9 +109,9 @@ fn check_and_divide_cells(
         let yaw = mode.parent_split_direction.y.to_radians();
         let split_direction = orientation.rotation * Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
         
-        // 75% overlap means centers are 25% of combined diameter apart
-        // Combined diameter = 2 * radius, so offset = 0.25 * 2 * radius = 0.5 * radius
-        let offset_distance = cell.radius * 0.25;
+        // Reduced offset for better adhesion overlap
+        // Combined diameter = 2 * radius, so offset = 0.1 * 2 * radius = 0.2 * radius
+        let offset_distance = cell.radius * 0.1;
         let child_a_pos = position.position - split_direction * offset_distance;
         let child_b_pos = position.position + split_direction * offset_distance;
         
@@ -139,6 +139,10 @@ fn check_and_divide_cells(
         let child_a_orientation = orientation.rotation * mode.child_a.orientation;
         let child_b_orientation = orientation.rotation * mode.child_b.orientation;
         
+        // Calculate excess age to inherit (prevents simultaneous splitting)
+        let parent_age = current_time - parent_timer.birth_time;
+        let excess_age = (parent_age - parent_timer.split_interval).max(0.0);
+        
         // Spawn child A (inherits parent velocity)
         commands.spawn((
             Cell {
@@ -157,7 +161,7 @@ fn check_and_divide_cells(
             },
             CellSignaling::default(),
             DivisionTimer {
-                birth_time: current_time,
+                birth_time: current_time - excess_age,
                 split_interval: child_a_split_interval,
             },
             crate::cell::physics::CellForces::default(),
@@ -190,7 +194,7 @@ fn check_and_divide_cells(
             },
             CellSignaling::default(),
             DivisionTimer {
-                birth_time: current_time,
+                birth_time: current_time - excess_age - 0.001, // Slight offset to desync from child A
                 split_interval: child_b_split_interval,
             },
             crate::cell::physics::CellForces::default(),

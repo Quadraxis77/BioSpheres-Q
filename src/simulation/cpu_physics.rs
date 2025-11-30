@@ -1274,6 +1274,7 @@ fn pseudo_random_rotation(cell_id: u32, rng_seed: u64) -> Quat {
 /// * `current_time` - Current simulation time
 /// * `max_cells` - Maximum cell capacity
 /// * `_rng_seed` - Random seed (used for pseudo-random rotation perturbations)
+/// * `dt` - Delta time for deferring splits when adhesions are inherited
 ///
 /// # Returns
 /// Vector of DivisionEvent describing which divisions occurred
@@ -1283,6 +1284,7 @@ pub fn division_step(
     current_time: f32,
     max_cells: usize,
     _rng_seed: u64,
+    dt: f32,
 ) -> Vec<DivisionEvent> {
     
     // Early exit if at capacity
@@ -1331,8 +1333,9 @@ pub fn division_step(
         }
     }
     
-    // CRITICAL: Prevent simultaneous splits of adhered cells (matches C++ GPU implementation)
-    // Use priority-based system where lower cell index has higher priority
+    // CRITICAL: Prevent simultaneous splits of adhered cells when only one is ready
+    // Allow simultaneous splits when both cells are ready by all criteria
+    // Use priority-based system where lower cell index has higher priority for staggered splits
     let mut filtered_divisions = Vec::new();
     for &cell_idx in &divisions_to_process {
         let mut should_defer = false;
@@ -1353,9 +1356,31 @@ pub fn division_step(
                 state.adhesion_connections.cell_a_index[adhesion_idx]
             };
             
+            // Check if other cell is also in the divisions_to_process list
+            // If so, both cells are ready and should split simultaneously
+            if divisions_to_process.contains(&other_idx) {
+                // Both ready - allow simultaneous split
+                continue;
+            }
+            
             let other_age = current_time - state.birth_times[other_idx];
+            
             // Check if other cell is ready to divide (respecting never-split condition)
-            if state.split_intervals[other_idx] <= 25.0 && other_age >= state.split_intervals[other_idx] {
+            // Must check BOTH time AND mass conditions for Test cells
+            let other_mode = genome.modes.get(state.mode_indices[other_idx]);
+            let other_can_split_by_mass = if let Some(m) = other_mode {
+                if m.cell_type == 0 {
+                    state.masses[other_idx] >= m.split_mass
+                } else {
+                    true
+                }
+            } else {
+                true
+            };
+            
+            if state.split_intervals[other_idx] <= 25.0 
+                && other_age >= state.split_intervals[other_idx] 
+                && other_can_split_by_mass {
                 if other_idx < cell_idx {
                     should_defer = true;
                     break;
@@ -1448,9 +1473,9 @@ pub fn division_step(
                 * bevy::prelude::Quat::from_euler(bevy::prelude::EulerRot::YXZ, yaw, pitch, 0.0)
                 * bevy::prelude::Vec3::Z;
             
-            // 75% overlap means centers are 25% of combined diameter apart
+            // Reduced offset for better adhesion overlap
             // Match C++ convention: Child A at +offset, Child B at -offset
-            let offset_distance = parent_radius * 0.25;
+            let offset_distance = parent_radius * 0.1;
             let child_a_pos = parent_position + split_direction * offset_distance;
             let child_b_pos = parent_position - split_direction * offset_distance;
             
@@ -1553,7 +1578,7 @@ pub fn division_step(
             let child_a_radius = if is_test_cell {
                 let child_a_mode = genome.modes.get(data.child_a_mode_idx);
                 let max_size = child_a_mode.map(|m| m.max_cell_size).unwrap_or(2.0);
-                data.child_a_split_mass.min(max_size).clamp(0.5, 2.5)
+                data.child_a_split_mass.min(max_size).clamp(1.0, 2.0)
             } else {
                 data.parent_radius
             };
@@ -1572,7 +1597,11 @@ pub fn division_step(
             state.accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
-            state.birth_times[data.child_a_slot] = current_time;
+            // Inherit excess age beyond split interval to prevent simultaneous splitting
+            let parent_age = current_time - state.birth_times[data.parent_idx];
+            let parent_split_interval = state.split_intervals[data.parent_idx];
+            let excess_age = (parent_age - parent_split_interval).max(0.0);
+            state.birth_times[data.child_a_slot] = current_time - excess_age;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
             // Child A inherits parent's split count + 1
             state.split_counts[data.child_a_slot] = data.parent_split_count + 1;
@@ -1596,7 +1625,7 @@ pub fn division_step(
             let child_b_radius = if is_test_cell {
                 let child_b_mode = genome.modes.get(data.child_b_mode_idx);
                 let max_size = child_b_mode.map(|m| m.max_cell_size).unwrap_or(2.0);
-                data.child_b_split_mass.min(max_size).clamp(0.5, 2.5)
+                data.child_b_split_mass.min(max_size).clamp(1.0, 2.0)
             } else {
                 data.parent_radius
             };
@@ -1615,7 +1644,11 @@ pub fn division_step(
             state.accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
-            state.birth_times[data.child_b_slot] = current_time;
+            // Inherit excess age beyond split interval to prevent simultaneous splitting (with slight offset)
+            let parent_age = current_time - state.birth_times[data.parent_idx];
+            let parent_split_interval = state.split_intervals[data.parent_idx];
+            let excess_age = (parent_age - parent_split_interval).max(0.0);
+            state.birth_times[data.child_b_slot] = current_time - excess_age - 0.001; // Slight offset to desync from child A
             state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
             // Child B starts with fresh split count of 0
             state.split_counts[data.child_b_slot] = 0;
@@ -1641,13 +1674,15 @@ pub fn division_step(
 
         // Inherit adhesions from parent to children based on zone classification
         // CRITICAL: Pass parent's saved genome orientation, not from state (child A has overwritten it)
-        crate::simulation::inherit_adhesions_on_division(
+        // Returns (child_a_inherited, child_b_inherited) to track which cells got adhesions
+        let (_child_a_inherited, _child_b_inherited) = crate::simulation::inherit_adhesions_on_division(
             state,
             genome,
             data.parent_mode_idx,
             data.child_a_slot,
             data.child_b_slot,
             data.parent_genome_orientation,
+            dt,
         );
 
 
@@ -2069,7 +2104,7 @@ pub fn update_nutrient_growth_st(
                 // Calculate target radius based on mass (linear relationship)
                 // Clamp to max_cell_size
                 let target_radius = masses[i].min(mode.max_cell_size);
-                radii[i] = target_radius.clamp(0.5, 2.5);
+                radii[i] = target_radius.clamp(1.0, 2.0);
             }
         }
     }
@@ -2100,7 +2135,7 @@ pub fn update_nutrient_growth(
                     // Calculate target radius based on mass (linear relationship)
                     // Clamp to max_cell_size
                     let target_radius = (*mass).min(mode.max_cell_size);
-                    *radius = target_radius.clamp(0.5, 2.5);
+                    *radius = target_radius.clamp(1.0, 2.0);
                 }
             }
         });
@@ -2194,16 +2229,21 @@ pub fn transport_nutrients_st(
         // Calculate mass transfer (positive = A loses, B gains)
         let mass_transfer = weighted_diff * transport_rate * dt;
         
-        // Apply transfer with different minimum thresholds based on prioritize_when_low
+        // Apply transfer with symmetric minimum thresholds
+        // Both cells respect their minimum mass limits symmetrically
         let min_mass_a = if prioritize_a { 0.1 } else { 0.0 };
         let min_mass_b = if prioritize_b { 0.1 } else { 0.0 };
         
+        // Clamp transfer to respect both cells' minimum mass constraints
+        let max_a_can_give = (mass_a - min_mass_a).max(0.0);
+        let max_b_can_give = (mass_b - min_mass_b).max(0.0);
+        
         let actual_transfer = if mass_transfer > 0.0 {
-            // A -> B: limit by A's mass (respect minimum threshold)
-            mass_transfer.min(mass_a - min_mass_a)
+            // A -> B: limit by how much A can give
+            mass_transfer.min(max_a_can_give)
         } else {
-            // B -> A: limit by B's mass (respect minimum threshold)
-            mass_transfer.max(-(mass_b - min_mass_b))
+            // B -> A: limit by how much B can give
+            mass_transfer.max(-max_b_can_give)
         };
         
         // Accumulate deltas
@@ -2229,7 +2269,7 @@ pub fn transport_nutrients_st(
             if let Some(mode) = genome.modes.get(state.mode_indices[i]) {
                 if mode.cell_type == 0 {
                     let target_radius = state.masses[i].min(mode.max_cell_size);
-                    state.radii[i] = target_radius.clamp(0.5, 2.5);
+                    state.radii[i] = target_radius.clamp(1.0, 2.0);
                 }
             }
         }

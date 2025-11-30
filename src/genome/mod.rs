@@ -106,7 +106,7 @@ pub struct ModeSettings {
     pub split_mass: f32,
     pub split_interval: f32,
     pub nutrient_gain_rate: f32, // Mass gained per second (for Test cells)
-    pub max_cell_size: f32, // Maximum visual size (0.5 to 2.5 units)
+    pub max_cell_size: f32, // Maximum visual size (1.0 to 2.0 units)
     pub split_ratio: f32, // Ratio of parent mass going to Child A (0.0 to 1.0, default 0.5 for 50/50 split)
     pub nutrient_priority: f32, // Priority for nutrient transport (0.1 to 10.0, default 1.0)
     pub prioritize_when_low: bool, // When enabled, priority increases when nutrients are low to prevent death

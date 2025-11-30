@@ -245,12 +245,14 @@ fn handle_divisions(
     // Run canonical division step with cell limit
     // This will return events for cells that actually divided
     let rng_seed = main_state.initial_state.rng_seed;
+    let dt = 1.0 / 64.0; // Base timestep
     let division_events = crate::simulation::cpu_physics::division_step(
         &mut main_state.canonical_state,
         &genome.genome,
         current_time,
         max_cells,
         rng_seed,
+        dt,
     );
 
     // Collect parent cell IDs that ACTUALLY divided (from division events)
@@ -314,7 +316,7 @@ fn handle_divisions(
         
         // Batch read child A properties
         let (child_a_pos, child_a_vel, child_a_rotation, child_a_mass, child_a_radius, 
-             child_a_mode_idx, child_a_split_interval, cell_id_a) = (
+             child_a_mode_idx, child_a_split_interval, child_a_birth_time, cell_id_a) = (
             main_state.canonical_state.positions[child_a_idx],
             main_state.canonical_state.velocities[child_a_idx],
             main_state.canonical_state.rotations[child_a_idx],
@@ -322,12 +324,13 @@ fn handle_divisions(
             main_state.canonical_state.radii[child_a_idx],
             main_state.canonical_state.mode_indices[child_a_idx],
             main_state.canonical_state.split_intervals[child_a_idx],
+            main_state.canonical_state.birth_times[child_a_idx],
             main_state.canonical_state.cell_ids[child_a_idx],
         );
         
         // Batch read child B properties
         let (child_b_pos, child_b_vel, child_b_rotation, child_b_mass, child_b_radius,
-             child_b_mode_idx, child_b_split_interval, cell_id_b) = (
+             child_b_mode_idx, child_b_split_interval, child_b_birth_time, cell_id_b) = (
             main_state.canonical_state.positions[child_b_idx],
             main_state.canonical_state.velocities[child_b_idx],
             main_state.canonical_state.rotations[child_b_idx],
@@ -335,6 +338,7 @@ fn handle_divisions(
             main_state.canonical_state.radii[child_b_idx],
             main_state.canonical_state.mode_indices[child_b_idx],
             main_state.canonical_state.split_intervals[child_b_idx],
+            main_state.canonical_state.birth_times[child_b_idx],
             main_state.canonical_state.cell_ids[child_b_idx],
         );
         
@@ -352,7 +356,7 @@ fn handle_divisions(
             CellPosition { position: child_a_pos, velocity: child_a_vel },
             CellOrientation { rotation: child_a_rotation, angular_velocity: Vec3::ZERO },
             CellSignaling::default(),
-            crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_a_split_interval },
+            crate::cell::division::DivisionTimer { birth_time: child_a_birth_time, split_interval: child_a_split_interval },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
             Mesh3d(sphere_mesh.clone()),
@@ -368,7 +372,7 @@ fn handle_divisions(
                 CellPosition { position: child_a_pos, velocity: child_a_vel },
                 CellOrientation { rotation: child_a_rotation, angular_velocity: Vec3::ZERO },
                 CellSignaling::default(),
-                crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_a_split_interval },
+                crate::cell::division::DivisionTimer { birth_time: child_a_birth_time, split_interval: child_a_split_interval },
                 crate::cell::physics::CellForces::default(),
                 crate::cell::physics::Cytoskeleton::default(),
                 Mesh3d(sphere_mesh.clone()),
@@ -391,7 +395,7 @@ fn handle_divisions(
             CellPosition { position: child_b_pos, velocity: child_b_vel },
             CellOrientation { rotation: child_b_rotation, angular_velocity: Vec3::ZERO },
             CellSignaling::default(),
-            crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_b_split_interval },
+            crate::cell::division::DivisionTimer { birth_time: child_b_birth_time, split_interval: child_b_split_interval },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
             Mesh3d(sphere_mesh.clone()),
@@ -407,7 +411,7 @@ fn handle_divisions(
                 CellPosition { position: child_b_pos, velocity: child_b_vel },
                 CellOrientation { rotation: child_b_rotation, angular_velocity: Vec3::ZERO },
                 CellSignaling::default(),
-                crate::cell::division::DivisionTimer { birth_time: current_time, split_interval: child_b_split_interval },
+                crate::cell::division::DivisionTimer { birth_time: child_b_birth_time, split_interval: child_b_split_interval },
                 crate::cell::physics::CellForces::default(),
                 crate::cell::physics::Cytoskeleton::default(),
                 Mesh3d(sphere_mesh.clone()),

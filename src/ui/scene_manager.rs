@@ -346,7 +346,7 @@ fn spawn_cpu_scene_without_camera(
     
     // For Test cells, start with half the split mass so they need to grow before splitting
     let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
-    let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.5) } else { 1.0 };
+    let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(1.0, 2.0) } else { 1.0 };
     
     // Create initial state (4096 cells to match CPU simulation limit)
     let mut initial_state = InitialState::new((**config).clone(), 4_096, 0);
@@ -465,7 +465,7 @@ fn spawn_preview_scene(
     
     // For Test cells, start with half the split mass so they need to grow before splitting
     let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
-    let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.5) } else { 1.0 };
+    let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(1.0, 2.0) } else { 1.0 };
     let stiffness = 10.0;
     
     // Create initial state

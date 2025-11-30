@@ -22,14 +22,15 @@ pub fn inherit_adhesions_on_division(
     child_a_idx: usize,
     child_b_idx: usize,
     parent_genome_orientation: Quat,
-) {
+    dt: f32,
+) -> (bool, bool) {
 
     
     // Get parent mode settings
     //let parent_mode_idx = state.mode_indices[parent_idx];
     let parent_mode = match genome.modes.get(parent_mode_idx) {
         Some(mode) => mode,
-        None => return, // Invalid mode
+        None => return (false, false), // Invalid mode
     };
     
     // Check if children keep adhesions
@@ -37,8 +38,12 @@ pub fn inherit_adhesions_on_division(
     let child_b_keep = parent_mode.child_b.keep_adhesion;
     
     if !child_a_keep && !child_b_keep {
-        return; // No inheritance needed
+        return (false, false); // No inheritance needed
     }
+    
+    // Track whether each child inherited any adhesions
+    let mut child_a_inherited = false;
+    let mut child_b_inherited = false;
     
     // Get parent properties
     let parent_radius = state.radii[child_a_idx];
@@ -137,7 +142,9 @@ pub fn inherit_adhesions_on_division(
                     split_offset_magnitude,
                     split_dir_parent,
                     false,
+                    zone,
                 );
+                child_b_inherited = true;
             }
             AdhesionZone::ZoneB if child_a_keep => {
                 create_inherited_adhesion(
@@ -158,7 +165,9 @@ pub fn inherit_adhesions_on_division(
                     split_offset_magnitude,
                     split_dir_parent,
                     true,
+                    zone,
                 );
+                child_a_inherited = true;
             }
             AdhesionZone::ZoneC => {
                 if child_b_keep {
@@ -180,7 +189,9 @@ pub fn inherit_adhesions_on_division(
                         split_offset_magnitude,
                         split_dir_parent,
                         false,
+                        zone,
                     );
+                    child_b_inherited = true;
                 }
                 if child_a_keep {
                     create_inherited_adhesion(
@@ -201,7 +212,9 @@ pub fn inherit_adhesions_on_division(
                         split_offset_magnitude,
                         split_dir_parent,
                         true,
+                        zone,
                     );
+                    child_a_inherited = true;
                 }
             }
             _ => {}
@@ -209,6 +222,16 @@ pub fn inherit_adhesions_on_division(
         
         state.adhesion_connections.is_active[connection_idx] = 0;
     }
+    
+    // Defer split by one frame for cells that inherited adhesions
+    if child_a_inherited {
+        state.birth_times[child_a_idx] += dt;
+    }
+    if child_b_inherited {
+        state.birth_times[child_b_idx] += dt;
+    }
+    
+    (child_a_inherited, child_b_inherited)
 }
 
 /// Create an inherited adhesion connection from parent to child
@@ -237,6 +260,7 @@ fn create_inherited_adhesion(
     split_offset_magnitude: f32,
     split_dir_parent: Vec3,
     is_child_a: bool,
+    zone: AdhesionZone,
 ) {
     // CRITICAL: Match C++ implementation for Zone C cases
     // In Zone C, the neighbor needs TWO separate anchors (one to each child)
@@ -256,10 +280,22 @@ fn create_inherited_adhesion(
     let center_to_center_dist = rest_length + parent_radius + neighbor_radius;
     
     // Calculate positions in parent frame for geometric anchor placement (MATCHES C++)
+    // For Zone C (equatorial), artificially spread the anchor points by moving them along split direction
+    let zone_c_spread_factor = 0.3; // Spread anchors by 30% of split offset
     let child_pos_parent_frame = if is_child_a {
-        split_dir_parent * split_offset_magnitude  // Child A at +offset
+        let base_offset = split_dir_parent * split_offset_magnitude;
+        if zone == AdhesionZone::ZoneC {
+            base_offset + split_dir_parent * (split_offset_magnitude * zone_c_spread_factor)
+        } else {
+            base_offset
+        }
     } else {
-        -split_dir_parent * split_offset_magnitude  // Child B at -offset
+        let base_offset = -split_dir_parent * split_offset_magnitude;
+        if zone == AdhesionZone::ZoneC {
+            base_offset - split_dir_parent * (split_offset_magnitude * zone_c_spread_factor)
+        } else {
+            base_offset
+        }
     };
     let neighbor_pos_parent_frame = parent_anchor_direction * center_to_center_dist;
     

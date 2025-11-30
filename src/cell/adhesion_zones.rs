@@ -14,8 +14,8 @@ pub enum AdhesionZone {
     ZoneC = 2,  // Red in visualization (equatorial)
 }
 
-/// Equatorial threshold in degrees (±2° from 90°)
-pub const EQUATORIAL_THRESHOLD_DEGREES: f32 = 2.0;
+/// Equatorial threshold in degrees (±4° from 90°)
+pub const EQUATORIAL_THRESHOLD_DEGREES: f32 = 4.0;
 
 /// Classify adhesion bond direction relative to split direction
 /// 
@@ -36,7 +36,7 @@ pub fn classify_bond_direction(bond_direction: Vec3, split_direction: Vec3) -> A
     let half_width = EQUATORIAL_THRESHOLD_DEGREES;
     let equatorial_angle = 90.0;
     
-    // Check if within equatorial threshold (90° ± 2°)
+    // Check if within equatorial threshold (90° ± 4°)
     if (angle - equatorial_angle).abs() <= half_width {
         AdhesionZone::ZoneC // Equatorial band
     }
@@ -82,7 +82,7 @@ mod tests {
         assert_eq!(classify_bond_direction(bond_c2, split_dir), AdhesionZone::ZoneC);
         
         // Test near-equatorial (should be Zone C)
-        let bond_near_eq = Vec3::new(1.0, 0.035, 0.0).normalize(); // ~88° from Y
+        let bond_near_eq = Vec3::new(1.0, 0.07, 0.0).normalize(); // ~86° from Y (within 4° threshold)
         assert_eq!(classify_bond_direction(bond_near_eq, split_dir), AdhesionZone::ZoneC);
     }
     
