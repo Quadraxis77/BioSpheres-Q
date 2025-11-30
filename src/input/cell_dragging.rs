@@ -27,7 +27,8 @@ pub struct DragState {
     pub dragged_entity: Option<Entity>,
     pub drag_offset: Vec3,
     pub drag_plane_normal: Vec3,
-    pub drag_plane_distance: f32,
+    /// Fixed distance from camera to drag plane (not the cell center)
+    pub camera_to_plane_distance: f32,
 }
 
 /// System to handle starting a drag operation
@@ -37,7 +38,13 @@ fn handle_drag_start(
     window_query: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     cell_query: Query<(Entity, &CellPosition, &Cell)>,
+    imgui_capture: Res<crate::ui::camera::ImGuiWantCapture>,
 ) {
+    // Don't process mouse input if ImGui wants to capture it
+    if imgui_capture.want_capture_mouse {
+        return;
+    }
+    
     // Only start drag on left mouse button press
     if !mouse_button.just_pressed(MouseButton::Left) {
         return;
@@ -86,16 +93,23 @@ fn handle_drag_start(
     }
 
     // If we hit a cell, start dragging it
-    if let Some((entity, _, _)) = closest_hit {
-        let cell_pos = cell_query.get(entity).unwrap().1;
+    if let Some((entity, hit_distance, _hit_point)) = closest_hit {
+        let (_, cell_pos, _cell) = cell_query.get(entity).unwrap();
         
         // Calculate drag plane perpendicular to camera forward
         let camera_forward = camera_transform.forward();
         let drag_plane_normal = Vec3::from(*camera_forward);
-        let drag_plane_distance = cell_pos.position.dot(drag_plane_normal);
         
-        // Project the cell center onto the drag plane to find where we should track from
-        // This ensures the cell center stays under the cursor, not the surface hit point
+        // Calculate distance from camera to the hit point on the cell surface
+        // This accounts for the cell's radius so the surface stays under cursor
+        let camera_to_plane_distance = hit_distance;
+        
+        // Calculate the plane distance in world space
+        // The plane is at a fixed distance from camera along camera forward
+        let plane_point_on_axis = ray.origin + *ray.direction * camera_to_plane_distance;
+        let drag_plane_distance = plane_point_on_axis.dot(drag_plane_normal);
+        
+        // Calculate offset from plane intersection to cell center
         let ray_to_plane = ray_plane_intersection(
             ray.origin,
             *ray.direction,
@@ -112,7 +126,7 @@ fn handle_drag_start(
         drag_state.dragged_entity = Some(entity);
         drag_state.drag_offset = drag_offset;
         drag_state.drag_plane_normal = drag_plane_normal;
-        drag_state.drag_plane_distance = drag_plane_distance;
+        drag_state.camera_to_plane_distance = camera_to_plane_distance;
     }
 }
 
@@ -149,12 +163,19 @@ fn handle_drag_update(
         return;
     };
 
+    // Recalculate drag plane distance based on current camera position
+    // The plane stays at a fixed distance from the camera along the ray direction
+    let camera_forward = camera_transform.forward();
+    let drag_plane_normal = Vec3::from(*camera_forward);
+    let plane_point_on_axis = ray.origin + *ray.direction * drag_state.camera_to_plane_distance;
+    let drag_plane_distance = plane_point_on_axis.dot(drag_plane_normal);
+
     // Intersect ray with drag plane
     let Some(plane_hit) = ray_plane_intersection(
         ray.origin,
         *ray.direction,
-        drag_state.drag_plane_normal,
-        drag_state.drag_plane_distance,
+        drag_plane_normal,
+        drag_plane_distance,
     ) else {
         return;
     };

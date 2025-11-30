@@ -352,6 +352,30 @@ fn render_genome_editor(
                 }
             }
 
+            ui.same_line();
+            if ui.button("Reset Mode") {
+                let selected = current_genome.selected_mode_index as usize;
+                if selected < current_genome.genome.modes.len() {
+                    let mode = &mut current_genome.genome.modes[selected];
+                    
+                    // Save the current name and references before resetting
+                    let saved_name = mode.name.clone();
+                    let saved_default_name = mode.default_name.clone();
+                    let saved_child_a_mode = mode.child_a.mode_number;
+                    let saved_child_b_mode = mode.child_b.mode_number;
+                    let saved_mode_after_splits = mode.mode_after_splits;
+                    
+                    // Reset to default settings
+                    *mode = ModeSettings::new_self_splitting(selected as i32, saved_default_name.clone());
+                    
+                    // Restore the saved name and references
+                    mode.name = saved_name;
+                    mode.child_a.mode_number = saved_child_a_mode;
+                    mode.child_b.mode_number = saved_child_b_mode;
+                    mode.mode_after_splits = saved_mode_after_splits;
+                }
+            }
+
             // Mode list (left panel) - extract data first to avoid borrow issues
             let modes_data: Vec<(String, Vec3)> = current_genome.genome.modes.iter()
                 .map(|m| (m.name.clone(), m.color))
@@ -1104,7 +1128,6 @@ fn render_genome_graph(
     simulation_state: Res<SimulationState>,
     mut current_genome: ResMut<CurrentGenome>,
     mut node_graph: ResMut<GenomeNodeGraph>,
-    global_ui_state: Res<super::GlobalUiState>,
 ) {
     // Only show in Preview mode and if window is open
     if simulation_state.mode != SimulationMode::Preview || !graph_state.show_window {
@@ -1126,13 +1149,9 @@ fn render_genome_graph(
 
     let mut show_window = graph_state.show_window;
     
-    // Build flags based on lock state
+    // Genome graph window is never locked - always allow move and resize
     use imgui::WindowFlags;
-    let flags = if global_ui_state.windows_locked {
-        WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE | WindowFlags::NO_NAV
-    } else {
-        WindowFlags::NO_NAV
-    };
+    let flags = WindowFlags::NO_NAV;
     
     ui.window("Genome Graph")
         .opened(&mut show_window)
@@ -1142,7 +1161,7 @@ fn render_genome_graph(
         .flags(flags)
         .build(|| {
             // Show help text
-            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Shift+Click: Add mode | Shift+Right-click node: Remove | Right-click link: Self-ref | Middle drag: Pan");
+            ui.text_colored([0.7, 0.7, 0.7, 1.0], "Shift+Click: Add mode | Shift+Right-click node: Remove | Right-click link: Self-ref | Middle drag: Pan | Scroll: Zoom");
             ui.separator();
             
 
@@ -1201,6 +1220,37 @@ fn render_genome_graph(
                 }
             });
 
+            // Scroll wheel zoom implementation
+            let mouse_wheel = ui.io().mouse_wheel;
+            
+            if mouse_wheel.abs() > 0.01 && ui.is_window_hovered() {
+                // Zoom factor: 10% per scroll notch
+                let zoom_factor = if mouse_wheel > 0.0 { 1.1 } else { 0.9 };
+                
+                // Get mouse position relative to window for zoom center
+                let window_pos = ui.window_pos();
+                let mouse_pos = ui.io().mouse_pos;
+                let relative_mouse_x = mouse_pos[0] - window_pos[0];
+                let relative_mouse_y = mouse_pos[1] - window_pos[1];
+                
+                // Zoom all nodes around the mouse cursor
+                for mode_idx in 0..current_genome.genome.modes.len() {
+                    if let Some(node_id) = node_graph.get_node_for_mode(mode_idx) {
+                        if let Some((x, y)) = node_graph.get_node_position(node_id) {
+                            // Calculate position relative to mouse
+                            let dx = x - relative_mouse_x;
+                            let dy = y - relative_mouse_y;
+                            
+                            // Scale the distance from mouse
+                            let new_x = relative_mouse_x + dx * zoom_factor;
+                            let new_y = relative_mouse_y + dy * zoom_factor;
+                            
+                            node_graph.set_node_position(node_id, new_x, new_y);
+                        }
+                    }
+                }
+            }
+            
             // Manual panning implementation with right mouse button as alternative
             // This provides an additional way to pan besides middle mouse button
             let is_right_mouse_down = ui.is_mouse_down(imgui::MouseButton::Right);

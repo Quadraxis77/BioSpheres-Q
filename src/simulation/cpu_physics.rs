@@ -1312,8 +1312,20 @@ pub fn division_step(
             true
         };
         
-        // Skip division if split_interval > 25 (never-split condition), max_splits reached, or max_adhesions reached
-        if can_split_by_count && can_split_by_adhesions && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
+        // Check mass threshold for Test cells (cell_type == 0)
+        // For Test cells, split_mass is the minimum mass required to divide
+        let can_split_by_mass = if let Some(m) = mode {
+            if m.cell_type == 0 {
+                state.masses[i] >= m.split_mass
+            } else {
+                true // Non-test cells don't have mass requirement
+            }
+        } else {
+            true
+        };
+        
+        // Skip division if split_interval > 25 (never-split condition), max_splits reached, max_adhesions reached, or insufficient mass
+        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
             divisions_to_process.push(i);
         }
     }
@@ -1460,7 +1472,7 @@ pub fn division_step(
             let child_a_mode = genome.modes.get(child_a_mode_idx);
             let child_b_mode = genome.modes.get(child_b_mode_idx);
             
-            // Split parent's mass according to split_ratio
+            // Split parent's mass according to split_ratio (same for all cell types)
             // split_ratio determines what fraction goes to Child A (0.0 to 1.0)
             let split_ratio = mode.split_ratio.clamp(0.0, 1.0);
             let child_a_split_mass = parent_mass * split_ratio;

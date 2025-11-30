@@ -603,7 +603,8 @@ pub struct GpuDragState {
     pub dragged_cell_index: Option<usize>,
     pub drag_offset: Vec3,
     pub drag_plane_normal: Vec3,
-    pub drag_plane_distance: f32,
+    /// Fixed distance from camera to drag plane (not the cell center)
+    pub camera_to_plane_distance: f32,
 }
 
 
@@ -1185,7 +1186,13 @@ fn handle_gpu_drag_start(
     window_query: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     scene_data: Res<GpuSceneData>,
+    imgui_capture: Res<crate::ui::camera::ImGuiWantCapture>,
 ) {
+    // Don't process mouse input if ImGui wants to capture it
+    if imgui_capture.want_capture_mouse {
+        return;
+    }
+    
     // Only start drag on left mouse button press
     if !mouse_button.just_pressed(MouseButton::Left) {
         return;
@@ -1233,15 +1240,23 @@ fn handle_gpu_drag_start(
     }
 
     // If we hit a cell, start dragging it
-    if let Some((cell_index, _)) = closest_hit {
+    if let Some((cell_index, hit_distance)) = closest_hit {
         let cell = &scene_data.cells[cell_index];
         
         // Calculate drag plane perpendicular to camera forward
         let camera_forward = camera_transform.forward();
         let drag_plane_normal = Vec3::from(*camera_forward);
-        let drag_plane_distance = cell.position.dot(drag_plane_normal);
         
-        // Project the cell center onto the drag plane
+        // Calculate distance from camera to the hit point on the cell surface
+        // This accounts for the cell's radius so the surface stays under cursor
+        let camera_to_plane_distance = hit_distance;
+        
+        // Calculate the plane distance in world space
+        // The plane is at a fixed distance from camera along camera forward
+        let plane_point_on_axis = ray.origin + *ray.direction * camera_to_plane_distance;
+        let drag_plane_distance = plane_point_on_axis.dot(drag_plane_normal);
+        
+        // Calculate offset from plane intersection to cell center
         let ray_to_plane = ray_plane_intersection(
             ray.origin,
             *ray.direction,
@@ -1258,7 +1273,7 @@ fn handle_gpu_drag_start(
         drag_state.dragged_cell_index = Some(cell_index);
         drag_state.drag_offset = drag_offset;
         drag_state.drag_plane_normal = drag_plane_normal;
-        drag_state.drag_plane_distance = drag_plane_distance;
+        drag_state.camera_to_plane_distance = camera_to_plane_distance;
         
         info!("Started dragging GPU cell {}", cell_index);
     }
@@ -1299,12 +1314,19 @@ fn handle_gpu_drag_update(
         return;
     };
 
+    // Recalculate drag plane distance based on current camera position
+    // The plane stays at a fixed distance from the camera along the ray direction
+    let camera_forward = camera_transform.forward();
+    let drag_plane_normal = Vec3::from(*camera_forward);
+    let plane_point_on_axis = ray.origin + *ray.direction * drag_state.camera_to_plane_distance;
+    let drag_plane_distance = plane_point_on_axis.dot(drag_plane_normal);
+
     // Intersect ray with drag plane
     let Some(plane_hit) = ray_plane_intersection(
         ray.origin,
         *ray.direction,
-        drag_state.drag_plane_normal,
-        drag_state.drag_plane_distance,
+        drag_plane_normal,
+        drag_plane_distance,
     ) else {
         return;
     };
