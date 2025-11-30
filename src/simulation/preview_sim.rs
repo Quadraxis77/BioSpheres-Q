@@ -331,14 +331,12 @@ fn run_preview_resimulation(
 
         // Run division step using CPU physics
         let division_start = std::time::Instant::now();
-        let dt = 1.0 / 64.0; // Base timestep
         crate::simulation::cpu_physics::division_step(
             &mut preview_state.canonical_state,
             &genome.genome,
             current_time,
             max_cells,
             rng_seed,
-            dt,
         );
         total_division_time += division_start.elapsed();
     }

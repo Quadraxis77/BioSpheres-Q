@@ -245,14 +245,12 @@ fn handle_divisions(
     // Run canonical division step with cell limit
     // This will return events for cells that actually divided
     let rng_seed = main_state.initial_state.rng_seed;
-    let dt = 1.0 / 64.0; // Base timestep
     let division_events = crate::simulation::cpu_physics::division_step(
         &mut main_state.canonical_state,
         &genome.genome,
         current_time,
         max_cells,
         rng_seed,
-        dt,
     );
 
     // Collect parent cell IDs that ACTUALLY divided (from division events)

@@ -1014,18 +1014,6 @@ pub fn physics_step_st_with_genome(
         config.fixed_timestep,
         config.angular_damping,
     );
-    
-    // 9. Update nutrient growth for Test cells
-    update_nutrient_growth_st(
-        &mut state.masses[..state.cell_count],
-        &mut state.radii[..state.cell_count],
-        &state.mode_indices[..state.cell_count],
-        genome,
-        config.fixed_timestep,
-    );
-    
-    // 10. Transport nutrients between adhesion-connected cells
-    transport_nutrients_st(state, genome, config.fixed_timestep);
 }
 
 /// Deterministic physics step function - Multithreaded version
@@ -1199,18 +1187,6 @@ pub fn physics_step_with_genome(
         config.fixed_timestep,
         config.angular_damping,
     );
-    
-    // 9. Update nutrient growth for Test cells
-    update_nutrient_growth(
-        &mut state.masses[..state.cell_count],
-        &mut state.radii[..state.cell_count],
-        &state.mode_indices[..state.cell_count],
-        genome,
-        config.fixed_timestep,
-    );
-    
-    // 10. Transport nutrients between adhesion-connected cells
-    transport_nutrients(state, genome, config.fixed_timestep);
 }
 
 // ============================================================================
@@ -1274,7 +1250,6 @@ fn pseudo_random_rotation(cell_id: u32, rng_seed: u64) -> Quat {
 /// * `current_time` - Current simulation time
 /// * `max_cells` - Maximum cell capacity
 /// * `_rng_seed` - Random seed (used for pseudo-random rotation perturbations)
-/// * `dt` - Delta time for deferring splits when adhesions are inherited
 ///
 /// # Returns
 /// Vector of DivisionEvent describing which divisions occurred
@@ -1284,7 +1259,6 @@ pub fn division_step(
     current_time: f32,
     max_cells: usize,
     _rng_seed: u64,
-    dt: f32,
 ) -> Vec<DivisionEvent> {
     
     // Early exit if at capacity
@@ -1314,28 +1288,14 @@ pub fn division_step(
             true
         };
         
-        // Check mass threshold - for Test cells (cell_type == 0), must have enough mass to split
-        let can_split_by_mass = if let Some(m) = mode {
-            if m.cell_type == 0 {
-                // Test cells must reach split_mass threshold
-                state.masses[i] >= m.split_mass
-            } else {
-                // Non-test cells always pass mass check
-                true
-            }
-        } else {
-            true
-        };
-        
-        // Skip division if split_interval > 25 (never-split condition), max_splits reached, max_adhesions reached, or insufficient mass
-        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
+        // Skip division if split_interval > 25 (never-split condition), max_splits reached, or max_adhesions reached
+        if can_split_by_count && can_split_by_adhesions && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
             divisions_to_process.push(i);
         }
     }
     
-    // CRITICAL: Prevent simultaneous splits of adhered cells when only one is ready
-    // Allow simultaneous splits when both cells are ready by all criteria
-    // Use priority-based system where lower cell index has higher priority for staggered splits
+    // CRITICAL: Prevent simultaneous splits of adhered cells (matches C++ GPU implementation)
+    // Use priority-based system where lower cell index has higher priority
     let mut filtered_divisions = Vec::new();
     for &cell_idx in &divisions_to_process {
         let mut should_defer = false;
@@ -1356,31 +1316,9 @@ pub fn division_step(
                 state.adhesion_connections.cell_a_index[adhesion_idx]
             };
             
-            // Check if other cell is also in the divisions_to_process list
-            // If so, both cells are ready and should split simultaneously
-            if divisions_to_process.contains(&other_idx) {
-                // Both ready - allow simultaneous split
-                continue;
-            }
-            
             let other_age = current_time - state.birth_times[other_idx];
-            
             // Check if other cell is ready to divide (respecting never-split condition)
-            // Must check BOTH time AND mass conditions for Test cells
-            let other_mode = genome.modes.get(state.mode_indices[other_idx]);
-            let other_can_split_by_mass = if let Some(m) = other_mode {
-                if m.cell_type == 0 {
-                    state.masses[other_idx] >= m.split_mass
-                } else {
-                    true
-                }
-            } else {
-                true
-            };
-            
-            if state.split_intervals[other_idx] <= 25.0 
-                && other_age >= state.split_intervals[other_idx] 
-                && other_can_split_by_mass {
+            if state.split_intervals[other_idx] <= 25.0 && other_age >= state.split_intervals[other_idx] {
                 if other_idx < cell_idx {
                     should_defer = true;
                     break;
@@ -1473,9 +1411,9 @@ pub fn division_step(
                 * bevy::prelude::Quat::from_euler(bevy::prelude::EulerRot::YXZ, yaw, pitch, 0.0)
                 * bevy::prelude::Vec3::Z;
             
-            // Reduced offset for better adhesion overlap
+            // 75% overlap means centers are 25% of combined diameter apart
             // Match C++ convention: Child A at +offset, Child B at -offset
-            let offset_distance = parent_radius * 0.1;
+            let offset_distance = parent_radius * 0.25;
             let child_a_pos = parent_position + split_direction * offset_distance;
             let child_b_pos = parent_position - split_direction * offset_distance;
             
@@ -1495,32 +1433,16 @@ pub fn division_step(
             let child_a_mode = genome.modes.get(child_a_mode_idx);
             let child_b_mode = genome.modes.get(child_b_mode_idx);
             
-            // For Test cells (cell_type == 0), split the parent's mass according to split_ratio
-            // For other cell types, use the mode's split_mass value
-            let parent_mass = state.masses[parent_idx];
-            let is_test_cell = mode.cell_type == 0;
-            let split_ratio = mode.split_ratio.clamp(0.0, 1.0); // Ensure valid range
-            
             let (child_a_split_interval, child_a_split_mass) = if let Some(m) = child_a_mode {
-                let mass = if is_test_cell {
-                    parent_mass * split_ratio // Child A gets split_ratio portion
-                } else {
-                    m.split_mass
-                };
-                (m.split_interval, mass)
+                (m.split_interval, m.split_mass)
             } else {
-                (5.0, if is_test_cell { parent_mass * split_ratio } else { 1.0 })
+                (5.0, 1.0)
             };
             
             let (child_b_split_interval, child_b_split_mass) = if let Some(m) = child_b_mode {
-                let mass = if is_test_cell {
-                    parent_mass * (1.0 - split_ratio) // Child B gets remaining portion
-                } else {
-                    m.split_mass
-                };
-                (m.split_interval, mass)
+                (m.split_interval, m.split_mass)
             } else {
-                (5.0, if is_test_cell { parent_mass * (1.0 - split_ratio) } else { 1.0 })
+                (5.0, 1.0)
             };
             
             // CRITICAL: Use parent's GENOME orientation for child genome orientations
@@ -1571,18 +1493,7 @@ pub fn division_step(
             state.prev_positions[data.child_a_slot] = data.child_a_pos;
             state.velocities[data.child_a_slot] = data.parent_velocity;
             state.masses[data.child_a_slot] = data.child_a_split_mass;
-            
-            // For Test cells, calculate radius based on mass; otherwise use parent radius
-            let parent_mode = genome.modes.get(data.parent_mode_idx);
-            let is_test_cell = parent_mode.map(|m| m.cell_type == 0).unwrap_or(false);
-            let child_a_radius = if is_test_cell {
-                let child_a_mode = genome.modes.get(data.child_a_mode_idx);
-                let max_size = child_a_mode.map(|m| m.max_cell_size).unwrap_or(2.0);
-                data.child_a_split_mass.min(max_size).clamp(1.0, 2.0)
-            } else {
-                data.parent_radius
-            };
-            state.radii[data.child_a_slot] = child_a_radius;
+            state.radii[data.child_a_slot] = data.parent_radius;
             state.genome_ids[data.child_a_slot] = data.parent_genome_id;
             state.mode_indices[data.child_a_slot] = data.child_a_mode_idx;
 
@@ -1597,11 +1508,7 @@ pub fn division_step(
             state.accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
-            // Inherit excess age beyond split interval to prevent simultaneous splitting
-            let parent_age = current_time - state.birth_times[data.parent_idx];
-            let parent_split_interval = state.split_intervals[data.parent_idx];
-            let excess_age = (parent_age - parent_split_interval).max(0.0);
-            state.birth_times[data.child_a_slot] = current_time - excess_age;
+            state.birth_times[data.child_a_slot] = current_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
             // Child A inherits parent's split count + 1
             state.split_counts[data.child_a_slot] = data.parent_split_count + 1;
@@ -1618,18 +1525,7 @@ pub fn division_step(
             state.prev_positions[data.child_b_slot] = data.child_b_pos;
             state.velocities[data.child_b_slot] = data.parent_velocity;
             state.masses[data.child_b_slot] = data.child_b_split_mass;
-            
-            // For Test cells, calculate radius based on mass; otherwise use parent radius
-            let parent_mode = genome.modes.get(data.parent_mode_idx);
-            let is_test_cell = parent_mode.map(|m| m.cell_type == 0).unwrap_or(false);
-            let child_b_radius = if is_test_cell {
-                let child_b_mode = genome.modes.get(data.child_b_mode_idx);
-                let max_size = child_b_mode.map(|m| m.max_cell_size).unwrap_or(2.0);
-                data.child_b_split_mass.min(max_size).clamp(1.0, 2.0)
-            } else {
-                data.parent_radius
-            };
-            state.radii[data.child_b_slot] = child_b_radius;
+            state.radii[data.child_b_slot] = data.parent_radius;
             state.genome_ids[data.child_b_slot] = data.parent_genome_id;
             state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
 
@@ -1644,11 +1540,7 @@ pub fn division_step(
             state.accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
-            // Inherit excess age beyond split interval to prevent simultaneous splitting (with slight offset)
-            let parent_age = current_time - state.birth_times[data.parent_idx];
-            let parent_split_interval = state.split_intervals[data.parent_idx];
-            let excess_age = (parent_age - parent_split_interval).max(0.0);
-            state.birth_times[data.child_b_slot] = current_time - excess_age - 0.001; // Slight offset to desync from child A
+            state.birth_times[data.child_b_slot] = current_time;
             state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
             // Child B starts with fresh split count of 0
             state.split_counts[data.child_b_slot] = 0;
@@ -1674,15 +1566,13 @@ pub fn division_step(
 
         // Inherit adhesions from parent to children based on zone classification
         // CRITICAL: Pass parent's saved genome orientation, not from state (child A has overwritten it)
-        // Returns (child_a_inherited, child_b_inherited) to track which cells got adhesions
-        let (_child_a_inherited, _child_b_inherited) = crate::simulation::inherit_adhesions_on_division(
+        crate::simulation::inherit_adhesions_on_division(
             state,
             genome,
             data.parent_mode_idx,
             data.child_a_slot,
             data.child_b_slot,
             data.parent_genome_orientation,
-            dt,
         );
 
 
@@ -2083,277 +1973,3 @@ pub fn integrate_rotations_soa(
         });
 }
 
-/// Update cell mass and radius based on nutrient gain (for Test cells) - Single-threaded
-/// Test cells (cell_type == 0) automatically gain mass over time and grow in size
-pub fn update_nutrient_growth_st(
-    masses: &mut [f32],
-    radii: &mut [f32],
-    mode_indices: &[usize],
-    genome: &crate::genome::GenomeData,
-    dt: f32,
-) {
-    for i in 0..masses.len() {
-        let mode_index = mode_indices[i];
-        if let Some(mode) = genome.modes.get(mode_index) {
-            // Only apply nutrient growth to Test cells (cell_type == 0)
-            if mode.cell_type == 0 {
-                // Gain mass based on nutrient gain rate
-                let mass_gain = mode.nutrient_gain_rate * dt;
-                masses[i] += mass_gain;
-                
-                // Calculate target radius based on mass (linear relationship)
-                // Clamp to max_cell_size
-                let target_radius = masses[i].min(mode.max_cell_size);
-                radii[i] = target_radius.clamp(1.0, 2.0);
-            }
-        }
-    }
-}
-
-/// Update cell mass and radius based on nutrient gain (for Test cells) - Multithreaded
-/// Test cells (cell_type == 0) automatically gain mass over time and grow in size
-pub fn update_nutrient_growth(
-    masses: &mut [f32],
-    radii: &mut [f32],
-    mode_indices: &[usize],
-    genome: &crate::genome::GenomeData,
-    dt: f32,
-) {
-    use rayon::prelude::*;
-    
-    masses.par_iter_mut()
-        .zip(radii.par_iter_mut())
-        .zip(mode_indices.par_iter())
-        .for_each(|((mass, radius), mode_index)| {
-            if let Some(mode) = genome.modes.get(*mode_index) {
-                // Only apply nutrient growth to Test cells (cell_type == 0)
-                if mode.cell_type == 0 {
-                    // Gain mass based on nutrient gain rate
-                    let mass_gain = mode.nutrient_gain_rate * dt;
-                    *mass += mass_gain;
-                    
-                    // Calculate target radius based on mass (linear relationship)
-                    // Clamp to max_cell_size
-                    let target_radius = (*mass).min(mode.max_cell_size);
-                    *radius = target_radius.clamp(1.0, 2.0);
-                }
-            }
-        });
-}
-
-
-/// Transport nutrients between adhesion-connected cells - Single-threaded
-/// Nutrients flow based on weighted mass difference: from high-mass to low-mass cells,
-/// and from low-priority to high-priority cells. The flow rate is proportional to
-/// the weighted difference using opposite cell's priority as the weight.
-pub fn transport_nutrients_st(
-    state: &mut CanonicalState,
-    genome: &crate::genome::GenomeData,
-    dt: f32,
-) {
-    // Only process Test cells
-    // Calculate mass changes for each cell (accumulate transfers)
-    let mut mass_deltas = vec![0.0f32; state.cell_count];
-    
-    // Process each active adhesion connection
-    let adhesion_capacity = state.adhesion_connections.is_active.len();
-    for adhesion_idx in 0..adhesion_capacity {
-        if state.adhesion_connections.is_active[adhesion_idx] == 0 {
-            continue;
-        }
-        
-        let cell_a_idx = state.adhesion_connections.cell_a_index[adhesion_idx];
-        let cell_b_idx = state.adhesion_connections.cell_b_index[adhesion_idx];
-        
-        // Skip if either cell is out of range
-        if cell_a_idx >= state.cell_count || cell_b_idx >= state.cell_count {
-            continue;
-        }
-        
-        // Get mode settings for both cells
-        let mode_a = genome.modes.get(state.mode_indices[cell_a_idx]);
-        let mode_b = genome.modes.get(state.mode_indices[cell_b_idx]);
-        
-        // Only transport between Test cells
-        let is_test_a = mode_a.map(|m| m.cell_type == 0).unwrap_or(false);
-        let is_test_b = mode_b.map(|m| m.cell_type == 0).unwrap_or(false);
-        
-        if !is_test_a || !is_test_b {
-            continue;
-        }
-        
-        // Get base priorities (default to 1.0 if mode not found)
-        let base_priority_a = mode_a.map(|m| m.nutrient_priority).unwrap_or(1.0);
-        let base_priority_b = mode_b.map(|m| m.nutrient_priority).unwrap_or(1.0);
-        
-        // Get prioritize_when_low flags
-        let prioritize_a = mode_a.map(|m| m.prioritize_when_low).unwrap_or(true);
-        let prioritize_b = mode_b.map(|m| m.prioritize_when_low).unwrap_or(true);
-        
-        // Get masses
-        let mass_a = state.masses[cell_a_idx];
-        let mass_b = state.masses[cell_b_idx];
-        
-        // Apply dynamic priority boost when cells are dangerously low on nutrients
-        // Threshold: below 0.3 mass is considered "dangerously low"
-        // Boost: multiply priority by 10x when below threshold
-        let danger_threshold = 0.3;
-        let priority_boost = 10.0;
-        
-        let priority_a = if prioritize_a && mass_a < danger_threshold {
-            base_priority_a * priority_boost
-        } else {
-            base_priority_a
-        };
-        
-        let priority_b = if prioritize_b && mass_b < danger_threshold {
-            base_priority_b * priority_boost
-        } else {
-            base_priority_b
-        };
-        
-        // Calculate weighted mass difference
-        // Weight A's mass by B's priority, and B's mass by A's priority
-        // This creates flow from low-priority to high-priority cells
-        let weighted_mass_a = mass_a * priority_b;
-        let weighted_mass_b = mass_b * priority_a;
-        
-        // Flow is proportional to weighted difference
-        // Positive flow means A -> B, negative means B -> A
-        let weighted_diff = weighted_mass_a - weighted_mass_b;
-        
-        // Transport rate constant (tune this for desired equilibration speed)
-        // Higher values = faster equilibration
-        let transport_rate = 0.5;
-        
-        // Calculate mass transfer (positive = A loses, B gains)
-        let mass_transfer = weighted_diff * transport_rate * dt;
-        
-        // Apply transfer with symmetric minimum thresholds
-        // Both cells respect their minimum mass limits symmetrically
-        let min_mass_a = if prioritize_a { 0.1 } else { 0.0 };
-        let min_mass_b = if prioritize_b { 0.1 } else { 0.0 };
-        
-        // Clamp transfer to respect both cells' minimum mass constraints
-        let max_a_can_give = (mass_a - min_mass_a).max(0.0);
-        let max_b_can_give = (mass_b - min_mass_b).max(0.0);
-        
-        let actual_transfer = if mass_transfer > 0.0 {
-            // A -> B: limit by how much A can give
-            mass_transfer.min(max_a_can_give)
-        } else {
-            // B -> A: limit by how much B can give
-            mass_transfer.max(-max_b_can_give)
-        };
-        
-        // Accumulate deltas
-        mass_deltas[cell_a_idx] -= actual_transfer;
-        mass_deltas[cell_b_idx] += actual_transfer;
-    }
-    
-    // Apply mass changes and update radii
-    // Track cells that die (mass <= 0)
-    let mut cells_to_remove = Vec::new();
-    
-    for i in 0..state.cell_count {
-        if mass_deltas[i].abs() > 0.0001 {
-            state.masses[i] += mass_deltas[i];
-            
-            // Check if cell has died (mass <= 0)
-            if state.masses[i] <= 0.0 {
-                cells_to_remove.push(i);
-                continue;
-            }
-            
-            // Update radius based on new mass
-            if let Some(mode) = genome.modes.get(state.mode_indices[i]) {
-                if mode.cell_type == 0 {
-                    let target_radius = state.masses[i].min(mode.max_cell_size);
-                    state.radii[i] = target_radius.clamp(1.0, 2.0);
-                }
-            }
-        }
-    }
-    
-    // Remove dead cells (in reverse order to maintain indices)
-    for &cell_idx in cells_to_remove.iter().rev() {
-        remove_dead_cell(state, cell_idx);
-    }
-}
-
-/// Remove a dead cell from the canonical state
-/// Uses swap-and-pop strategy: swap with last cell, then decrement count
-fn remove_dead_cell(state: &mut CanonicalState, cell_idx: usize) {
-    if cell_idx >= state.cell_count {
-        return;
-    }
-    
-    // Remove all adhesion connections for this cell
-    state.adhesion_manager.remove_all_connections_for_cell(&mut state.adhesion_connections, cell_idx);
-    
-    let last_idx = state.cell_count - 1;
-    
-    if cell_idx != last_idx {
-        // Swap with last cell
-        state.cell_ids[cell_idx] = state.cell_ids[last_idx];
-        state.positions[cell_idx] = state.positions[last_idx];
-        state.prev_positions[cell_idx] = state.prev_positions[last_idx];
-        state.velocities[cell_idx] = state.velocities[last_idx];
-        state.masses[cell_idx] = state.masses[last_idx];
-        state.radii[cell_idx] = state.radii[last_idx];
-        state.genome_ids[cell_idx] = state.genome_ids[last_idx];
-        state.mode_indices[cell_idx] = state.mode_indices[last_idx];
-        state.rotations[cell_idx] = state.rotations[last_idx];
-        state.angular_velocities[cell_idx] = state.angular_velocities[last_idx];
-        state.genome_orientations[cell_idx] = state.genome_orientations[last_idx];
-        state.forces[cell_idx] = state.forces[last_idx];
-        state.torques[cell_idx] = state.torques[last_idx];
-        state.accelerations[cell_idx] = state.accelerations[last_idx];
-        state.prev_accelerations[cell_idx] = state.prev_accelerations[last_idx];
-        state.stiffnesses[cell_idx] = state.stiffnesses[last_idx];
-        state.birth_times[cell_idx] = state.birth_times[last_idx];
-        state.split_intervals[cell_idx] = state.split_intervals[last_idx];
-        state.split_counts[cell_idx] = state.split_counts[last_idx];
-        
-        // Update adhesion indices: all references to last_idx should now point to cell_idx
-        // We need to update the adhesion manager's cell_adhesion_indices
-        if last_idx < state.adhesion_manager.cell_adhesion_indices.len() {
-            state.adhesion_manager.cell_adhesion_indices[cell_idx] = 
-                state.adhesion_manager.cell_adhesion_indices[last_idx];
-            
-            // Update all adhesion connections that reference last_idx to now reference cell_idx
-            for adhesion_idx in 0..state.adhesion_connections.is_active.len() {
-                if state.adhesion_connections.is_active[adhesion_idx] == 0 {
-                    continue;
-                }
-                
-                if state.adhesion_connections.cell_a_index[adhesion_idx] == last_idx {
-                    state.adhesion_connections.cell_a_index[adhesion_idx] = cell_idx;
-                }
-                if state.adhesion_connections.cell_b_index[adhesion_idx] == last_idx {
-                    state.adhesion_connections.cell_b_index[adhesion_idx] = cell_idx;
-                }
-            }
-        }
-    }
-    
-    // Clear the adhesion indices for the removed cell slot
-    if cell_idx < state.adhesion_manager.cell_adhesion_indices.len() {
-        state.adhesion_manager.init_cell_adhesion_indices(last_idx);
-    }
-    
-    // Decrement cell count
-    state.cell_count -= 1;
-}
-
-/// Transport nutrients between adhesion-connected cells - Multithreaded
-/// This is a simplified parallel version that processes adhesions in parallel
-pub fn transport_nutrients(
-    state: &mut CanonicalState,
-    genome: &crate::genome::GenomeData,
-    dt: f32,
-) {
-    // For thread safety, we use the single-threaded version
-    // A fully parallel version would require atomic operations or more complex synchronization
-    transport_nutrients_st(state, genome, dt);
-}
