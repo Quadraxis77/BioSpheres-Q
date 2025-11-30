@@ -1014,6 +1014,18 @@ pub fn physics_step_st_with_genome(
         config.fixed_timestep,
         config.angular_damping,
     );
+    
+    // 9. Update nutrient growth for Test cells
+    crate::simulation::nutrient_system::update_nutrient_growth_st(
+        &mut state.masses[..state.cell_count],
+        &mut state.radii[..state.cell_count],
+        &state.mode_indices[..state.cell_count],
+        genome,
+        config.fixed_timestep,
+    );
+    
+    // 10. Transport nutrients between adhesion-connected cells
+    crate::simulation::nutrient_system::transport_nutrients_st(state, genome, config.fixed_timestep);
 }
 
 /// Deterministic physics step function - Multithreaded version
@@ -1187,6 +1199,18 @@ pub fn physics_step_with_genome(
         config.fixed_timestep,
         config.angular_damping,
     );
+    
+    // 9. Update nutrient growth for Test cells
+    crate::simulation::nutrient_system::update_nutrient_growth(
+        &mut state.masses[..state.cell_count],
+        &mut state.radii[..state.cell_count],
+        &state.mode_indices[..state.cell_count],
+        genome,
+        config.fixed_timestep,
+    );
+    
+    // 10. Transport nutrients between adhesion-connected cells
+    crate::simulation::nutrient_system::transport_nutrients(state, genome, config.fixed_timestep);
 }
 
 // ============================================================================
@@ -1367,6 +1391,8 @@ pub fn division_step(
         child_b_mode_idx: usize,
         child_a_split_mass: f32,
         child_b_split_mass: f32,
+        child_a_radius: f32,
+        child_b_radius: f32,
         child_a_split_interval: f32,
         child_b_split_interval: f32,
     }
@@ -1400,6 +1426,7 @@ pub fn division_step(
             let parent_rotation = state.rotations[parent_idx];
             let parent_genome_orientation = state.genome_orientations[parent_idx];
             let parent_radius = state.radii[parent_idx];
+            let parent_mass = state.masses[parent_idx];
             let parent_genome_id = state.genome_ids[parent_idx];
             let parent_stiffness = state.stiffnesses[parent_idx];
             let parent_split_count = state.split_counts[parent_idx];
@@ -1433,16 +1460,35 @@ pub fn division_step(
             let child_a_mode = genome.modes.get(child_a_mode_idx);
             let child_b_mode = genome.modes.get(child_b_mode_idx);
             
-            let (child_a_split_interval, child_a_split_mass) = if let Some(m) = child_a_mode {
-                (m.split_interval, m.split_mass)
+            // Split parent's mass according to split_ratio
+            // split_ratio determines what fraction goes to Child A (0.0 to 1.0)
+            let split_ratio = mode.split_ratio.clamp(0.0, 1.0);
+            let child_a_split_mass = parent_mass * split_ratio;
+            let child_b_split_mass = parent_mass * (1.0 - split_ratio);
+            
+            // Calculate child radii based on their masses
+            let child_a_radius = if let Some(m) = child_a_mode {
+                child_a_split_mass.min(m.max_cell_size).clamp(1.0, 2.0)
             } else {
-                (5.0, 1.0)
+                child_a_split_mass.clamp(1.0, 2.0)
             };
             
-            let (child_b_split_interval, child_b_split_mass) = if let Some(m) = child_b_mode {
-                (m.split_interval, m.split_mass)
+            let child_b_radius = if let Some(m) = child_b_mode {
+                child_b_split_mass.min(m.max_cell_size).clamp(1.0, 2.0)
             } else {
-                (5.0, 1.0)
+                child_b_split_mass.clamp(1.0, 2.0)
+            };
+            
+            let child_a_split_interval = if let Some(m) = child_a_mode {
+                m.split_interval
+            } else {
+                5.0
+            };
+            
+            let child_b_split_interval = if let Some(m) = child_b_mode {
+                m.split_interval
+            } else {
+                5.0
             };
             
             // CRITICAL: Use parent's GENOME orientation for child genome orientations
@@ -1476,6 +1522,8 @@ pub fn division_step(
                 child_b_mode_idx,
                 child_a_split_mass,
                 child_b_split_mass,
+                child_a_radius,
+                child_b_radius,
                 child_a_split_interval,
                 child_b_split_interval,
             });
@@ -1493,7 +1541,7 @@ pub fn division_step(
             state.prev_positions[data.child_a_slot] = data.child_a_pos;
             state.velocities[data.child_a_slot] = data.parent_velocity;
             state.masses[data.child_a_slot] = data.child_a_split_mass;
-            state.radii[data.child_a_slot] = data.parent_radius;
+            state.radii[data.child_a_slot] = data.child_a_radius;
             state.genome_ids[data.child_a_slot] = data.parent_genome_id;
             state.mode_indices[data.child_a_slot] = data.child_a_mode_idx;
 
@@ -1525,7 +1573,7 @@ pub fn division_step(
             state.prev_positions[data.child_b_slot] = data.child_b_pos;
             state.velocities[data.child_b_slot] = data.parent_velocity;
             state.masses[data.child_b_slot] = data.child_b_split_mass;
-            state.radii[data.child_b_slot] = data.parent_radius;
+            state.radii[data.child_b_slot] = data.child_b_radius;
             state.genome_ids[data.child_b_slot] = data.parent_genome_id;
             state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
 

@@ -252,8 +252,10 @@ fn create_inherited_adhesion(
     // Get rest length from child's mode (not parent's)
     let rest_length = child_mode.adhesion_settings.rest_length;
     
-    // Calculate center-to-center distance using parent's adhesion rest length
-    let center_to_center_dist = rest_length + parent_radius + neighbor_radius;
+    // HARDCODED RADIUS: Use fixed radius value (1.0) to ensure adhesion is completely independent of cell growth
+    // This prevents cell radius changes from affecting adhesion distance
+    const FIXED_RADIUS: f32 = 1.0;
+    let center_to_center_dist = rest_length + FIXED_RADIUS + FIXED_RADIUS;
     
     // Calculate positions in parent frame for geometric anchor placement (MATCHES C++)
     let child_pos_parent_frame = if is_child_a {
