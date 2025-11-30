@@ -340,11 +340,23 @@ fn handle_divisions(
             main_state.canonical_state.cell_ids[child_b_idx],
         );
         
-        let child_a_color = genome.genome.modes.get(child_a_mode_idx).map(|m| m.color).unwrap_or(Vec3::ONE);
-        let child_b_color = genome.genome.modes.get(child_b_mode_idx).map(|m| m.color).unwrap_or(Vec3::ONE);
+        let child_a_mode = genome.genome.modes.get(child_a_mode_idx);
+        let child_b_mode = genome.genome.modes.get(child_b_mode_idx);
+        
+        let child_a_color = child_a_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
+        let child_b_color = child_b_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         
         let material_a = materials_needed[&color_to_key(child_a_color)].clone();
         let material_b = materials_needed[&color_to_key(child_b_color)].clone();
+        
+        // Check if cells are flagellocytes and create appropriate meshes
+        let is_flagellocyte_a = child_a_mode.map(|m| m.cell_type == 1).unwrap_or(false);
+        let swim_force_a = child_a_mode.map(|m| m.swim_force).unwrap_or(0.0);
+        let mesh_a = if is_flagellocyte_a {
+            _meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(1.0, swim_force_a, 5))
+        } else {
+            sphere_mesh.clone()
+        };
         
         // Get or spawn child A entity (reuse from pool if available)
         let entity_a = if let Some(pooled_entity) = main_state.entity_pool.pop() {
@@ -357,7 +369,7 @@ fn handle_divisions(
             crate::cell::division::DivisionTimer { birth_time: child_a_birth_time, split_interval: child_a_split_interval },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
-            Mesh3d(sphere_mesh.clone()),
+            Mesh3d(mesh_a.clone()),
             MeshMaterial3d(material_a),
             Transform::from_translation(child_a_pos).with_rotation(child_a_rotation).with_scale(Vec3::splat(child_a_radius)),
             Visibility::Visible,
@@ -373,7 +385,7 @@ fn handle_divisions(
                 crate::cell::division::DivisionTimer { birth_time: child_a_birth_time, split_interval: child_a_split_interval },
                 crate::cell::physics::CellForces::default(),
                 crate::cell::physics::Cytoskeleton::default(),
-                Mesh3d(sphere_mesh.clone()),
+                Mesh3d(mesh_a.clone()),
                 MeshMaterial3d(material_a.clone()),
                 Transform::from_translation(child_a_pos).with_rotation(child_a_rotation).with_scale(Vec3::splat(child_a_radius)),
                 Visibility::Visible,
@@ -384,6 +396,15 @@ fn handle_divisions(
         main_state.id_to_entity.insert(cell_id_a, entity_a);
         main_state.entity_to_index.insert(entity_a, child_a_idx);
         main_state.index_to_entity[child_a_idx] = Some(entity_a);
+        
+        // Check if child B is flagellocyte
+        let is_flagellocyte_b = child_b_mode.map(|m| m.cell_type == 1).unwrap_or(false);
+        let swim_force_b = child_b_mode.map(|m| m.swim_force).unwrap_or(0.0);
+        let mesh_b = if is_flagellocyte_b {
+            _meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(1.0, swim_force_b, 5))
+        } else {
+            sphere_mesh.clone()
+        };
         
         // Get or spawn child B entity (reuse from pool if available)
         let entity_b = if let Some(pooled_entity) = main_state.entity_pool.pop() {
@@ -396,7 +417,7 @@ fn handle_divisions(
             crate::cell::division::DivisionTimer { birth_time: child_b_birth_time, split_interval: child_b_split_interval },
             crate::cell::physics::CellForces::default(),
             crate::cell::physics::Cytoskeleton::default(),
-            Mesh3d(sphere_mesh.clone()),
+            Mesh3d(mesh_b.clone()),
             MeshMaterial3d(material_b),
             Transform::from_translation(child_b_pos).with_rotation(child_b_rotation).with_scale(Vec3::splat(child_b_radius)),
             Visibility::Visible,
@@ -412,7 +433,7 @@ fn handle_divisions(
                 crate::cell::division::DivisionTimer { birth_time: child_b_birth_time, split_interval: child_b_split_interval },
                 crate::cell::physics::CellForces::default(),
                 crate::cell::physics::Cytoskeleton::default(),
-                Mesh3d(sphere_mesh.clone()),
+                Mesh3d(mesh_b.clone()),
                 MeshMaterial3d(material_b.clone()),
                 Transform::from_translation(child_b_pos).with_rotation(child_b_rotation).with_scale(Vec3::splat(child_b_radius)),
                 Visibility::Visible,
@@ -561,6 +582,16 @@ fn setup_cpu_scene(
     // Get or create cached material for initial cell
     let initial_material = get_or_create_material(color, &mut main_state.material_cache, &mut materials);
     
+    // Check if initial cell is flagellocyte
+    let initial_mode = genome.genome.modes.get(initial_mode_index);
+    let is_flagellocyte = initial_mode.map(|m| m.cell_type == 1).unwrap_or(false);
+    let swim_force = initial_mode.map(|m| m.swim_force).unwrap_or(0.0);
+    let initial_mesh = if is_flagellocyte {
+        meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(cell_radius, swim_force, 5))
+    } else {
+        sphere_mesh.clone()
+    };
+    
     // Spawn ECS entity for the initial cell
     let entity = commands.spawn((
         // Cell data components
@@ -586,7 +617,7 @@ fn setup_cpu_scene(
         crate::cell::physics::CellForces::default(),
         crate::cell::physics::Cytoskeleton::default(),
         // Visual representation
-        Mesh3d(sphere_mesh.clone()),
+        Mesh3d(initial_mesh),
         MeshMaterial3d(initial_material),
         Transform::from_translation(Vec3::ZERO)
             .with_rotation(genome.genome.initial_orientation)

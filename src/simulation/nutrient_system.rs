@@ -59,6 +59,92 @@ pub fn update_nutrient_growth(
         });
 }
 
+/// Consume nutrients for Flagellocyte cells based on swim force - Single-threaded
+/// Flagellocytes (cell_type == 1) consume mass proportional to their swim force
+/// Returns a list of cell indices that died (mass <= 0)
+pub fn consume_swim_nutrients_st(
+    masses: &mut [f32],
+    radii: &mut [f32],
+    mode_indices: &[usize],
+    genome: &crate::genome::GenomeData,
+    dt: f32,
+) -> Vec<usize> {
+    let mut cells_to_remove = Vec::new();
+    
+    for i in 0..masses.len() {
+        let mode_index = mode_indices[i];
+        if let Some(mode) = genome.modes.get(mode_index) {
+            // Only apply nutrient consumption to Flagellocyte cells (cell_type == 1)
+            if mode.cell_type == 1 && mode.swim_force > 0.0 {
+                // Consume mass proportional to swim force
+                // Consumption rate: 0.2 mass per second at full swim force (1.0)
+                let consumption_rate = 0.2;
+                let mass_loss = mode.swim_force * consumption_rate * dt;
+                masses[i] -= mass_loss;
+                
+                // Check if cell has died
+                if masses[i] <= 0.0 {
+                    cells_to_remove.push(i);
+                    continue;
+                }
+                
+                // Update radius based on new mass
+                // Flagellocytes have a minimum visual size of 0.5 regardless of mass
+                let target_radius = masses[i].min(mode.max_cell_size);
+                radii[i] = target_radius.clamp(0.5, 2.0);
+            }
+        }
+    }
+    
+    cells_to_remove
+}
+
+/// Consume nutrients for Flagellocyte cells based on swim force - Multithreaded
+/// Flagellocytes (cell_type == 1) consume mass proportional to their swim force
+/// Returns a list of cell indices that died (mass <= 0)
+pub fn consume_swim_nutrients(
+    masses: &mut [f32],
+    radii: &mut [f32],
+    mode_indices: &[usize],
+    genome: &crate::genome::GenomeData,
+    dt: f32,
+) -> Vec<usize> {
+    use rayon::prelude::*;
+    use std::sync::Mutex;
+    
+    let cells_to_remove = Mutex::new(Vec::new());
+    
+    masses.par_iter_mut()
+        .zip(radii.par_iter_mut())
+        .zip(mode_indices.par_iter())
+        .enumerate()
+        .for_each(|(i, ((mass, radius), mode_index))| {
+            if let Some(mode) = genome.modes.get(*mode_index) {
+                // Only apply nutrient consumption to Flagellocyte cells (cell_type == 1)
+                if mode.cell_type == 1 && mode.swim_force > 0.0 {
+                    // Consume mass proportional to swim force
+                    // Consumption rate: 0.2 mass per second at full swim force (1.0)
+                    let consumption_rate = 0.2;
+                    let mass_loss = mode.swim_force * consumption_rate * dt;
+                    *mass -= mass_loss;
+                    
+                    // Check if cell has died
+                    if *mass <= 0.0 {
+                        cells_to_remove.lock().unwrap().push(i);
+                        return;
+                    }
+                    
+                    // Update radius based on new mass
+                    // Flagellocytes have a minimum visual size of 0.5 regardless of mass
+                    let target_radius = (*mass).min(mode.max_cell_size);
+                    *radius = target_radius.clamp(0.5, 2.0);
+                }
+            }
+        });
+    
+    cells_to_remove.into_inner().unwrap()
+}
+
 /// Transport nutrients between adhesion-connected cells - Single-threaded
 /// Nutrients flow based on weighted mass difference: from high-mass to low-mass cells,
 /// and from low-priority to high-priority cells. The flow rate is proportional to
@@ -194,7 +280,7 @@ pub fn transport_nutrients_st(
 
 /// Remove a dead cell from the canonical state
 /// Uses swap-and-pop strategy: swap with last cell, then decrement count
-fn remove_dead_cell(state: &mut CanonicalState, cell_idx: usize) {
+pub fn remove_dead_cell(state: &mut CanonicalState, cell_idx: usize) {
     if cell_idx >= state.cell_count {
         return;
     }

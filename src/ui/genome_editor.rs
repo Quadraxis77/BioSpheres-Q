@@ -801,9 +801,9 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
 
     // Cell type dropdown
     ui.text("Cell Type:");
-    help_marker(ui, "The type of cell. Currently only 'Test' type is available.");
+    help_marker(ui, "The type of cell. Test cells gain nutrients automatically. Flagellocyte cells can swim and consume nutrients for propulsion.");
     ui.same_line();
-    let cell_types = vec!["Test"];
+    let cell_types = vec!["Test", "Flagellocyte"];
     let current_cell_type = cell_types.get(mode.cell_type as usize).unwrap_or(&"Unknown");
     if let Some(_token) = ui.begin_combo("##CellType", current_cell_type) {
         for (i, cell_type_name) in cell_types.iter().enumerate() {
@@ -911,6 +911,27 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
         // Prioritize when low checkbox
         ui.checkbox("Prioritize When Low", &mut mode.prioritize_when_low);
         help_marker(ui, "When enabled, cells automatically increase their nutrient priority when dangerously low on nutrients to prevent death. Cells without this enabled can be completely depleted and die.");
+        
+        ui.spacing();
+        ui.separator();
+        ui.spacing();
+    }
+    
+    // === FLAGELLOCYTE SETTINGS ===
+    
+    if mode.cell_type == 1 {
+        ui.text("Flagellocyte Settings:");
+        ui.separator();
+        
+        // Swim force
+        ui.text("Swim Force:");
+        help_marker(ui, "Forward thrust force applied to propel the cell. Higher values provide more thrust but consume more nutrients. Nutrients are consumed proportional to the force applied.");
+        slider_with_input_f32(ui, "##SwimForce", &mut mode.swim_force, 0.0, 1.0, ui.content_region_avail()[0]);
+        
+        // Max cell size
+        ui.text("Max Cell Size:");
+        help_marker(ui, "Maximum visual size the cell can grow to (1.0 to 2.0 units).");
+        slider_with_input_f32(ui, "##MaxCellSize", &mut mode.max_cell_size, 1.0, 2.0, ui.content_region_avail()[0]);
         
         ui.spacing();
         ui.separator();

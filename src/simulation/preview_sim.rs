@@ -209,6 +209,17 @@ fn setup_preview_scene(
         Vec3::ONE
     };
     
+    // Check if this is a flagellocyte
+    let is_flagellocyte = mode.map(|m| m.cell_type == 1).unwrap_or(false);
+    let swim_force = mode.map(|m| m.swim_force).unwrap_or(0.0);
+    
+    // Choose mesh based on cell type
+    let cell_mesh = if is_flagellocyte {
+        meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(cell_radius, swim_force, 5))
+    } else {
+        meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())
+    };
+    
     let entity = commands.spawn((
         Cell {
             mass: split_mass,
@@ -233,12 +244,7 @@ fn setup_preview_scene(
         crate::cell::physics::Cytoskeleton {
             stiffness,
         },
-        Mesh3d(meshes.add(
-            Sphere::new(cell_radius)
-                .mesh()
-                .ico(5)
-                .unwrap()
-        )),
+        Mesh3d(cell_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(color.x, color.y, color.z),
             ..default()
@@ -407,12 +413,16 @@ fn respawn_preview_cells_after_resimulation(
             let split_interval = preview_state.canonical_state.split_intervals[i];
             let stiffness = preview_state.canonical_state.stiffnesses[i];
             
+            // Get mode to check cell type and swim force
+            let mode = genome.genome.modes.get(mode_index);
+            let is_flagellocyte = mode.map(|m| m.cell_type == 1).unwrap_or(false);
+            let swim_force = mode.map(|m| m.swim_force).unwrap_or(0.0);
+            
             // Get or create material for this mode
             let material = if mode_index < material_cache.len() {
                 if let Some(mat) = &material_cache[mode_index] {
                     mat.clone()
                 } else {
-                    let mode = genome.genome.modes.get(mode_index);
                     let color = if let Some(mode) = mode {
                         mode.color
                     } else {
@@ -431,6 +441,13 @@ fn respawn_preview_cells_after_resimulation(
                     base_color: Color::srgb(1.0, 1.0, 1.0),
                     ..default()
                 })
+            };
+            
+            // Choose mesh based on cell type
+            let cell_mesh = if is_flagellocyte {
+                meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(1.0, swim_force, 5))
+            } else {
+                sphere_mesh.clone()
             };
             
             let entity = commands.spawn((
@@ -457,7 +474,7 @@ fn respawn_preview_cells_after_resimulation(
                 crate::cell::physics::Cytoskeleton {
                     stiffness,
                 },
-                Mesh3d(sphere_mesh.clone()),
+                Mesh3d(cell_mesh),
                 MeshMaterial3d(material),
                 Transform::from_translation(position)
                     .with_rotation(rotation)

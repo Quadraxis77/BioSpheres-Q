@@ -987,6 +987,15 @@ pub fn physics_step_st_with_genome(
         );
     }
     
+    // 5.6. Apply swim forces for Flagellocyte cells (disabled in preview mode)
+    apply_swim_forces_st(
+        &mut state.forces[..state.cell_count],
+        &state.rotations[..state.cell_count],
+        &state.mode_indices[..state.cell_count],
+        genome,
+        false, // Disable swim in preview mode so cells don't swim away
+    );
+    
     // 6. Apply boundary conditions
     apply_boundary_forces_soa_st(
         &state.positions[..state.cell_count],
@@ -1023,6 +1032,20 @@ pub fn physics_step_st_with_genome(
         genome,
         config.fixed_timestep,
     );
+    
+    // 9.5. Consume nutrients for Flagellocyte cells and remove dead cells
+    let dead_cells = crate::simulation::nutrient_system::consume_swim_nutrients_st(
+        &mut state.masses[..state.cell_count],
+        &mut state.radii[..state.cell_count],
+        &state.mode_indices[..state.cell_count],
+        genome,
+        config.fixed_timestep,
+    );
+    
+    // Remove dead flagellocytes (in reverse order to maintain indices)
+    for &cell_idx in dead_cells.iter().rev() {
+        crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
+    }
     
     // 10. Transport nutrients between adhesion-connected cells
     crate::simulation::nutrient_system::transport_nutrients_st(state, genome, config.fixed_timestep);
@@ -1172,6 +1195,15 @@ pub fn physics_step_with_genome(
         );
     }
     
+    // 5.6. Apply swim forces for Flagellocyte cells (enabled in main simulation)
+    apply_swim_forces(
+        &mut state.forces[..state.cell_count],
+        &state.rotations[..state.cell_count],
+        &state.mode_indices[..state.cell_count],
+        genome,
+        true, // Enable swim in main simulation mode
+    );
+    
     // 6. Apply boundary conditions
     apply_boundary_forces_soa(
         &state.positions[..state.cell_count],
@@ -1208,6 +1240,20 @@ pub fn physics_step_with_genome(
         genome,
         config.fixed_timestep,
     );
+    
+    // 9.5. Consume nutrients for Flagellocyte cells and remove dead cells
+    let dead_cells = crate::simulation::nutrient_system::consume_swim_nutrients(
+        &mut state.masses[..state.cell_count],
+        &mut state.radii[..state.cell_count],
+        &state.mode_indices[..state.cell_count],
+        genome,
+        config.fixed_timestep,
+    );
+    
+    // Remove dead flagellocytes (in reverse order to maintain indices)
+    for &cell_idx in dead_cells.iter().rev() {
+        crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
+    }
     
     // 10. Transport nutrients between adhesion-connected cells
     crate::simulation::nutrient_system::transport_nutrients(state, genome, config.fixed_timestep);
@@ -1871,6 +1917,72 @@ pub fn verlet_integrate_velocities_soa(
                 *vel = (*vel + velocity_change) * velocity_damping_factor;
                 *acc = new_acceleration;
                 *prev_acc = old_acceleration;
+            }
+        });
+}
+
+/// Apply swim forces for Flagellocyte cells (cell_type == 1) - Single-threaded
+/// Flagellocytes apply a forward thrust force in their orientation direction
+pub fn apply_swim_forces_st(
+    forces: &mut [Vec3],
+    rotations: &[Quat],
+    mode_indices: &[usize],
+    genome: &crate::genome::GenomeData,
+    enable_swim: bool,
+) {
+    // Skip if swim is disabled (e.g., in Preview mode)
+    if !enable_swim {
+        return;
+    }
+    
+    for i in 0..forces.len() {
+        let mode_index = mode_indices[i];
+        if let Some(mode) = genome.modes.get(mode_index) {
+            // Only apply swim force to Flagellocyte cells (cell_type == 1)
+            if mode.cell_type == 1 && mode.swim_force > 0.0 {
+                // Get forward direction from cell's rotation (local +Z axis)
+                let forward = rotations[i] * Vec3::Z;
+                
+                // Apply thrust force in forward direction
+                // Scale by 10.0 to make the force meaningful in the physics simulation
+                let thrust_force = forward * mode.swim_force * 10.0;
+                forces[i] += thrust_force;
+            }
+        }
+    }
+}
+
+/// Apply swim forces for Flagellocyte cells (cell_type == 1) - Multithreaded
+/// Flagellocytes apply a forward thrust force in their orientation direction
+pub fn apply_swim_forces(
+    forces: &mut [Vec3],
+    rotations: &[Quat],
+    mode_indices: &[usize],
+    genome: &crate::genome::GenomeData,
+    enable_swim: bool,
+) {
+    // Skip if swim is disabled (e.g., in Preview mode)
+    if !enable_swim {
+        return;
+    }
+    
+    use rayon::prelude::*;
+    
+    forces.par_iter_mut()
+        .zip(rotations.par_iter())
+        .zip(mode_indices.par_iter())
+        .for_each(|((force, rotation), mode_index)| {
+            if let Some(mode) = genome.modes.get(*mode_index) {
+                // Only apply swim force to Flagellocyte cells (cell_type == 1)
+                if mode.cell_type == 1 && mode.swim_force > 0.0 {
+                    // Get forward direction from cell's rotation (local +Z axis)
+                    let forward = *rotation * Vec3::Z;
+                    
+                    // Apply thrust force in forward direction
+                    // Scale by 10.0 to make the force meaningful in the physics simulation
+                    let thrust_force = forward * mode.swim_force * 10.0;
+                    *force += thrust_force;
+                }
             }
         });
 }

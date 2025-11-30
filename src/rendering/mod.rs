@@ -4,6 +4,7 @@ use bevy::pbr::wireframe::{Wireframe, WireframePlugin};
 pub mod cells;
 pub mod debug;
 pub mod adhesion_lines;
+pub mod flagellocyte_mesh;
 
 // GPU rendering modules
 pub mod gpu_types;
