@@ -212,7 +212,7 @@ fn theme_editor_ui(
             
             ui.checkbox("Genome Editor", &mut global_ui_state.show_genome_editor);
             if ui.is_item_hovered() {
-                ui.tooltip_text("Only available in Preview mode");
+                ui.tooltip_text("Only available in the Genome Editor scene");
             }
             
             ui.checkbox("Scene Manager", &mut global_ui_state.show_scene_manager);
@@ -221,7 +221,7 @@ fn theme_editor_ui(
             
             ui.checkbox("Time Scrubber", &mut global_ui_state.show_time_scrubber);
             if ui.is_item_hovered() {
-                ui.tooltip_text("Only available in Preview mode");
+                ui.tooltip_text("Only available in the Genome Editor scene");
             }
             
             ui.checkbox("Theme Editor", &mut global_ui_state.show_theme_editor);
