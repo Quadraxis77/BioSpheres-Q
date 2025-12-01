@@ -94,21 +94,6 @@ fn render_time_scrubber(
             
             ui.separator();
             
-            // Max time adjustment
-            ui.text("Max Time Range:");
-            ui.set_next_item_width(150.0);
-            if ui.slider_config("##max_time", 10.0, 120.0)
-                .display_format("%.0fs")
-                .build(&mut scrubber_state.max_time)
-            {
-                // Clamp current time if it exceeds new max
-                if current_time > scrubber_state.max_time {
-                    sim_state.target_time = Some(scrubber_state.max_time);
-                }
-            }
-            
-            ui.same_line();
-            
             // Info about simulation state
             if sim_state.is_resimulating {
                 let col_yellow = ui.style_color(StyleColor::PlotHistogram);

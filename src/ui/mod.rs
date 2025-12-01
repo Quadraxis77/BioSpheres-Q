@@ -15,7 +15,7 @@ pub mod time_scrubber;
 pub mod rendering_controls;
 pub mod settings;
 
-pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState};
+pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState, CameraMode};
 pub use cell_inspector::{CellInspectorPlugin, CellInspectorState};
 pub use debug_info::DebugInfoPlugin;
 pub use imgui_panel::{ImguiPanelPlugin, ImguiPanelState};

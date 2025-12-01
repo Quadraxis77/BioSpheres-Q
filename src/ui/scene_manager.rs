@@ -99,7 +99,7 @@ fn render_scene_manager_window(
             // Scene selection using selectable items (radio button behavior)
             let mut selected_mode = simulation_state.mode;
             
-            if ui.selectable_config("Preview Scene")
+            if ui.selectable_config("Genome Editor")
                 .selected(selected_mode == SimulationMode::Preview)
                 .build()
             {
@@ -118,6 +118,9 @@ fn render_scene_manager_window(
                 .build()
             {
                 selected_mode = SimulationMode::Gpu;
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Not yet implemented");
             }
             
             // Handle scene transition if mode changed
@@ -147,24 +150,15 @@ fn render_scene_manager_window(
             ui.text("Time Controls");
             ui.separator();
             
-            // Show pause/resume buttons for CPU and GPU modes
+            // Show pause/play toggle for CPU and GPU modes
             // Show message for Preview mode
             match simulation_state.mode {
                 SimulationMode::Cpu | SimulationMode::Gpu => {
-                    // Pause button
-                    if ui.button("Pause") {
-                        simulation_state.paused = true;
+                    // Toggle pause/play button
+                    let button_label = if simulation_state.paused { "Play" } else { "Pause" };
+                    if ui.button(button_label) {
+                        simulation_state.paused = !simulation_state.paused;
                     }
-                    ui.same_line();
-                    
-                    // Resume button
-                    if ui.button("Resume") {
-                        simulation_state.paused = false;
-                    }
-                    ui.same_line();
-                    
-                    // Display current pause state
-                    ui.text(format!("Paused: {}", if simulation_state.paused { "Yes" } else { "No" }));
                     
                     ui.spacing();
                     
@@ -176,8 +170,6 @@ fn render_scene_manager_window(
                         ("0.5x", 0.5),
                         ("1x", 1.0),
                         ("2x", 2.0),
-                        ("5x", 5.0),
-                        ("10x", 10.0),
                     ];
                     
                     for (i, (label, speed)) in speed_presets.iter().enumerate() {

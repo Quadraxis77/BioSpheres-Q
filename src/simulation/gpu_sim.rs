@@ -51,11 +51,13 @@ fn setup_gpu_scene(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut
         },
         Camera3d::default(),
         MainCamera {
-            center: Vec3::new(0.0, 0.0, 10.0), // Match other scenes: orbit center offset from origin
-            distance: 0.0, // No orbit offset (camera at orbit center)
-            rotation: Quat::IDENTITY,
+            center: Vec3::ZERO, // Orbit around world origin
+            distance: 50.0, // Start with some distance from origin
+            rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
+            mode: crate::ui::camera::CameraMode::Orbit,
+            followed_entity: None,
         },
-        Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
+        Transform::from_translation(Vec3::new(0.0, 0.0, 50.0)),
         GpuSceneEntity,
     ));
 

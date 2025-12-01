@@ -127,8 +127,8 @@ fn render_genome_editor(
 
     ui.window("Genome Editor")
         .position([5.0, 30.0], Condition::FirstUseEver)
-        .size([600.0, 680.0], Condition::FirstUseEver)
-        .size_constraints([550.0, 500.0], [f32::MAX, f32::MAX])
+        .size([700.0, 680.0], Condition::FirstUseEver)
+        .size_constraints([700.0, 500.0], [f32::MAX, f32::MAX])
         .flags(flags)
         .build(|| {
             // Genome name input

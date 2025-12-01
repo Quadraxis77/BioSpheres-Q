@@ -22,21 +22,39 @@ impl Plugin for CellDraggingPlugin {
 }
 
 /// State tracking for cell dragging
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct DragState {
     pub dragged_entity: Option<Entity>,
     pub drag_offset: Vec3,
     pub drag_plane_normal: Vec3,
     /// Fixed distance from camera to drag plane (not the cell center)
     pub camera_to_plane_distance: f32,
+    pub last_click_time: f32,
+    pub double_click_threshold: f32,
+    pub skip_next_drag: bool, // Flag to skip drag when camera snap handles double-click
+}
+
+impl Default for DragState {
+    fn default() -> Self {
+        Self {
+            dragged_entity: None,
+            drag_offset: Vec3::ZERO,
+            drag_plane_normal: Vec3::ZERO,
+            camera_to_plane_distance: 0.0,
+            last_click_time: -999.0,
+            double_click_threshold: 0.2, // 200ms for double-click (rapid)
+            skip_next_drag: false,
+        }
+    }
 }
 
 /// System to handle starting a drag operation
 fn handle_drag_start(
+    time: Res<Time>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     mut drag_state: ResMut<DragState>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    mut camera_query: Query<(&Camera, &GlobalTransform, &mut MainCamera)>,
     cell_query: Query<(Entity, &CellPosition, &Cell)>,
     imgui_capture: Res<crate::ui::camera::ImGuiWantCapture>,
 ) {
@@ -54,12 +72,23 @@ fn handle_drag_start(
     if drag_state.dragged_entity.is_some() {
         return;
     }
-
-    let Ok(window) = window_query.single() else {
+    
+    // Skip if camera snap system set the flag (double-click in orbit mode)
+    if drag_state.skip_next_drag {
+        drag_state.skip_next_drag = false;
+        return;
+    }
+    
+    let Ok((camera, camera_transform, mut main_camera)) = camera_query.single_mut() else {
         return;
     };
+    
+    // Don't allow dragging in orbit mode
+    if main_camera.mode == crate::ui::camera::CameraMode::Orbit {
+        return;
+    }
 
-    let Ok((camera, camera_transform)) = camera_query.single() else {
+    let Ok(window) = window_query.single() else {
         return;
     };
 
@@ -95,6 +124,12 @@ fn handle_drag_start(
     // If we hit a cell, start dragging it
     if let Some((entity, hit_distance, _hit_point)) = closest_hit {
         let (_, cell_pos, _cell) = cell_query.get(entity).unwrap();
+        
+        // Stop following any entity when starting to drag
+        if main_camera.followed_entity.is_some() {
+            main_camera.followed_entity = None;
+            main_camera.center = Vec3::ZERO;
+        }
         
         // Calculate drag plane perpendicular to camera forward
         let camera_forward = camera_transform.forward();
