@@ -10,13 +10,11 @@ impl Plugin for CameraPlugin {
         app.init_resource::<CameraConfig>()
             .init_resource::<CameraState>()
             .init_resource::<ImGuiWantCapture>()
-            .init_resource::<OrbitReferenceState>()
             .add_systems(Update, (
                 detect_double_click_and_snap,
                 camera_mouse_grab,
                 camera_update,
                 follow_entity_system,
-                update_orbit_reference_ball,
             ).chain());
     }
 }
@@ -40,32 +38,8 @@ pub struct MainCamera {
     pub followed_entity: Option<Entity>,
 }
 
-/// Component marking the orbit reference ball
-#[derive(Component)]
-pub struct OrbitReferenceBall;
-
-/// Resource to track orbit reference ball fade state
-#[derive(Resource)]
-pub struct OrbitReferenceState {
-    pub alpha: f32,
-    pub time_since_change: f32,
-    pub fade_delay: f32,
-    pub fade_duration: f32,
-}
-
-impl Default for OrbitReferenceState {
-    fn default() -> Self {
-        Self {
-            alpha: 0.0,
-            time_since_change: 999.0, // Start faded out
-            fade_delay: 1.0,           // Wait 1 second before fading
-            fade_duration: 1.0,        // Fade over 1 second
-        }
-    }
-}
-
 /// Spawn the orbit camera
-pub fn setup_camera(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+pub fn setup_camera(mut commands: Commands) {
     let initial_rotation = Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5);
     commands.spawn((
         Camera3d::default(),
@@ -79,19 +53,6 @@ pub fn setup_camera(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mu
             followed_entity: None, // Not following any entity initially
         },
         Transform::IDENTITY,
-    ));
-    
-    // Spawn orbit reference ball at origin
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(0.5))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(0.5, 0.8, 1.0, 0.3), // Start visible in orbit mode
-            alpha_mode: AlphaMode::Blend,
-            unlit: true,
-            ..default()
-        })),
-        Transform::from_translation(Vec3::ZERO),
-        OrbitReferenceBall,
     ));
 }
 
@@ -168,7 +129,6 @@ pub fn camera_update(
     keyboard: Res<ButtonInput<KeyCode>>,
     config: Res<CameraConfig>,
     imgui_capture: Res<ImGuiWantCapture>,
-    mut orbit_ref_state: ResMut<OrbitReferenceState>,
     mut query: Query<(&mut Transform, &mut MainCamera)>,
 ) {
     let dt = time.delta_secs();
@@ -192,7 +152,6 @@ pub fn camera_update(
                 cam.target_rotation = cam.rotation; // Sync target with current
                 cam.mode = CameraMode::FreeFly;
                 cam.followed_entity = None; // Stop following when switching to free fly
-                orbit_ref_state.alpha = 0.0; // Hide reference ball
             }
             CameraMode::FreeFly => {
                 // Switch to Orbit: set orbit center to world origin, calculate distance
@@ -203,8 +162,6 @@ pub fn camera_update(
                 cam.target_distance = new_distance;
                 cam.target_rotation = cam.rotation; // Sync target with current
                 cam.mode = CameraMode::Orbit;
-                orbit_ref_state.time_since_change = 0.0;
-                orbit_ref_state.alpha = 0.3; // Show reference ball
             }
         }
     }
@@ -216,10 +173,6 @@ pub fn camera_update(
         // Additive zoom - constant speed regardless of distance (doubled multiplier)
         cam.target_distance -= mouse_scroll.delta.y * config.zoom_speed * 30.0;
         cam.target_distance = cam.target_distance.max(0.1); // Don't allow too close to origin
-        
-        // Reset fade timer when orbit distance changes
-        orbit_ref_state.time_since_change = 0.0;
-        orbit_ref_state.alpha = 0.3; // Set to visible
     }
     
     // Apply spring interpolation to distance and rotation in orbit mode
@@ -259,10 +212,6 @@ pub fn camera_update(
             // Apply rotations to target
             cam.target_rotation = yaw * pitch * cam.target_rotation;
             cam.target_rotation = cam.target_rotation.normalize();
-            
-            // Show reference ball when orbiting
-            orbit_ref_state.time_since_change = 0.0;
-            orbit_ref_state.alpha = 0.3;
         } else {
             // FreeFly mode: free rotation
             let pitch = Quat::from_axis_angle(cam.rotation * Vec3::X, -delta.y);
@@ -336,48 +285,7 @@ pub fn camera_update(
     transform.rotation = cam.rotation;
 }
 
-/// System to update the orbit reference ball visibility and position
-fn update_orbit_reference_ball(
-    time: Res<Time>,
-    mut orbit_ref_state: ResMut<OrbitReferenceState>,
-    camera_query: Query<&MainCamera>,
-    mut ball_query: Query<(&mut Transform, &MeshMaterial3d<StandardMaterial>), With<OrbitReferenceBall>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let dt = time.delta_secs();
-    
-    // Update ball position and material
-    if let Ok(cam) = camera_query.single() {
-        if let Ok((mut ball_transform, material_handle)) = ball_query.single_mut() {
-            // Position ball at orbit center
-            ball_transform.translation = cam.center;
-            
-            // Only show in orbit mode
-            if cam.mode == CameraMode::Orbit {
-                // Update fade timer
-                orbit_ref_state.time_since_change += dt;
-                
-                // Calculate alpha based on fade state
-                if orbit_ref_state.time_since_change < orbit_ref_state.fade_delay {
-                    // Still visible, no fade yet
-                    orbit_ref_state.alpha = 0.3;
-                } else {
-                    // Start fading
-                    let fade_progress = (orbit_ref_state.time_since_change - orbit_ref_state.fade_delay) / orbit_ref_state.fade_duration;
-                    orbit_ref_state.alpha = (0.3 * (1.0 - fade_progress.min(1.0))).max(0.0);
-                }
-            } else {
-                // Hide in free fly mode
-                orbit_ref_state.alpha = 0.0;
-            }
-            
-            // Update material alpha
-            if let Some(material) = materials.get_mut(&material_handle.0) {
-                material.base_color = Color::srgba(0.5, 0.8, 1.0, orbit_ref_state.alpha);
-            }
-        }
-    }
-}
+
 
 /// System to detect double-click and snap to cell
 fn detect_double_click_and_snap(
@@ -388,7 +296,6 @@ fn detect_double_click_and_snap(
     window_query: Query<&Window, With<PrimaryWindow>>,
     cell_query: Query<(Entity, &crate::cell::CellPosition, &crate::cell::Cell)>,
     imgui_capture: Res<ImGuiWantCapture>,
-    mut orbit_ref_state: ResMut<OrbitReferenceState>,
 ) {
     // Don't process if ImGui wants to capture mouse
     if imgui_capture.want_capture_mouse {
@@ -473,10 +380,6 @@ fn detect_double_click_and_snap(
                 main_camera.center = cell_pos.position;
             }
         }
-        
-        // Show reference ball
-        orbit_ref_state.time_since_change = 0.0;
-        orbit_ref_state.alpha = 0.3;
     }
 }
 

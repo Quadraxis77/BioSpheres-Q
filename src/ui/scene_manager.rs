@@ -191,15 +191,6 @@ fn render_scene_manager_window(
                             simulation_state.speed_multiplier = *speed;
                         }
                     }
-                    
-                    // Fine-tune slider
-                    ui.set_next_item_width(-1.0);
-                    ui.slider_config("##speed", 0.1, 10.0)
-                        .display_format("%.1fx")
-                        .build(&mut simulation_state.speed_multiplier);
-                    
-                    // Display current speed
-                    ui.text(format!("Current: {:.1}x speed", simulation_state.speed_multiplier));
                 }
                 SimulationMode::Preview => {
                     // Display message for Preview mode

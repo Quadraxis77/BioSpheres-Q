@@ -122,20 +122,6 @@ fn setup_preview_scene(
         },
         PreviewSceneEntity,
     ));
-    
-    // Spawn orbit reference ball
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(0.5))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(0.5, 0.8, 1.0, 0.0), // Start invisible
-            alpha_mode: AlphaMode::Blend,
-            unlit: true,
-            ..default()
-        })),
-        Transform::from_translation(Vec3::ZERO),
-        crate::ui::camera::OrbitReferenceBall,
-        PreviewSceneEntity,
-    ));
 
     // Spawn lights
     commands.spawn((
