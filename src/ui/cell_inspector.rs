@@ -224,17 +224,23 @@ fn render_cell_inspector_window(
             
             // === Key Stats (always visible) ===
             // Mass with visual bar
-            let max_mass = mode.map(|m| m.split_mass).unwrap_or(2.0);
-            let mass_ratio = (data.mass / max_mass).clamp(0.0, 1.0);
+            // Range: 0.5 (depleted/minimum) to split_mass * 2.0 (upper range)
+            const MIN_CELL_MASS: f32 = 0.5;
+            let split_mass = mode.map(|m| m.split_mass).unwrap_or(2.0);
+            let max_display_mass = split_mass * 2.0;
+            let mass_ratio = ((data.mass - MIN_CELL_MASS) / (max_display_mass - MIN_CELL_MASS)).clamp(0.0, 1.0);
             let bar_width = 16;
             let filled = (mass_ratio * bar_width as f32) as usize;
             let bar_str = format!("[{}{}]", "#".repeat(filled), "-".repeat(bar_width - filled));
-            let bar_color = if mass_ratio >= 0.9 {
+            
+            // Color based on mass relative to split threshold
+            let split_ratio = (data.mass / split_mass).clamp(0.0, 2.0);
+            let bar_color = if split_ratio >= 1.0 {
                 [0.0, 1.0, 0.0, 1.0] // Green - ready to split
-            } else if mass_ratio >= 0.5 {
-                [1.0, 1.0, 0.0, 1.0] // Yellow
+            } else if split_ratio >= 0.5 {
+                [1.0, 1.0, 0.0, 1.0] // Yellow - growing
             } else {
-                [1.0, 0.5, 0.0, 1.0] // Orange - low
+                [1.0, 0.5, 0.0, 1.0] // Orange - low/depleted
             };
             
             ui.text("Mass:");
@@ -253,8 +259,8 @@ fn render_cell_inspector_window(
                 ui.indent();
                 
                 ui.text(format!("Current Mass: {:.3}", data.mass));
-                ui.text(format!("Split Mass: {:.2}", max_mass));
-                ui.text(format!("Mass %: {:.1}%", mass_ratio * 100.0));
+                ui.text(format!("Split Mass: {:.2}", split_mass));
+                ui.text(format!("Mass %: {:.1}%", (data.mass / split_mass * 100.0).min(200.0)));
                 ui.text(format!("Radius: {:.3}", data.radius));
                 
                 if let Some(mode) = mode {

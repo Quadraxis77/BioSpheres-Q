@@ -827,23 +827,13 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     ui.spacing();
     
     // Split mass threshold
-    if mode.cell_type == 0 {
-        ui.text("Split Mass:");
-        help_marker(ui, "Minimum mass required for cell division. Both this AND the split interval must be satisfied for a split to occur.");
-        slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.5, 5.0, ui.content_region_avail()[0]);
-    } else {
-        ui.text("Split Mass:");
-        help_marker(ui, "The mass allocated to each child cell during division.");
-        slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.1, 10.0, ui.content_region_avail()[0]);
-    }
+    ui.text("Split Mass:");
+    help_marker(ui, "Minimum mass required for cell division. Both this AND the split interval must be satisfied for a split to occur.");
+    slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 0.5, 5.0, ui.content_region_avail()[0]);
 
     // Split interval
     ui.text("Split Interval:");
-    help_marker(ui, if mode.cell_type == 0 {
-        "Time in seconds between cell divisions. Both this AND the split mass must be satisfied for a split to occur. Set to 'Never' (>25s) to prevent splitting."
-    } else {
-        "Time in seconds between cell divisions. Set to 'Never' (>25s) to prevent splitting."
-    });
+    help_marker(ui, "Time in seconds between cell divisions. Both this AND the split mass must be satisfied for a split to occur. Set to 'Never' (>25s) to prevent splitting.");
     split_interval_slider(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
 
     // Split ratio (only for Test cells)

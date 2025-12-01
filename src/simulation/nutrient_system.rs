@@ -61,7 +61,7 @@ pub fn update_nutrient_growth(
 
 /// Consume nutrients for Flagellocyte cells based on swim force - Single-threaded
 /// Flagellocytes (cell_type == 1) consume mass proportional to their swim force
-/// Returns a list of cell indices that died (mass <= 0)
+/// Returns a list of cell indices that died (mass < 0.5 minimum threshold)
 pub fn consume_swim_nutrients_st(
     masses: &mut [f32],
     radii: &mut [f32],
@@ -69,6 +69,7 @@ pub fn consume_swim_nutrients_st(
     genome: &crate::genome::GenomeData,
     dt: f32,
 ) -> Vec<usize> {
+    const MIN_CELL_MASS: f32 = 0.5;
     let mut cells_to_remove = Vec::new();
     
     for i in 0..masses.len() {
@@ -82,8 +83,8 @@ pub fn consume_swim_nutrients_st(
                 let mass_loss = mode.swim_force * consumption_rate * dt;
                 masses[i] -= mass_loss;
                 
-                // Check if cell has died
-                if masses[i] <= 0.0 {
+                // Check if cell has died (below minimum mass threshold)
+                if masses[i] < MIN_CELL_MASS {
                     cells_to_remove.push(i);
                     continue;
                 }
@@ -101,7 +102,7 @@ pub fn consume_swim_nutrients_st(
 
 /// Consume nutrients for Flagellocyte cells based on swim force - Multithreaded
 /// Flagellocytes (cell_type == 1) consume mass proportional to their swim force
-/// Returns a list of cell indices that died (mass <= 0)
+/// Returns a list of cell indices that died (mass < 0.5 minimum threshold)
 pub fn consume_swim_nutrients(
     masses: &mut [f32],
     radii: &mut [f32],
@@ -112,6 +113,7 @@ pub fn consume_swim_nutrients(
     use rayon::prelude::*;
     use std::sync::Mutex;
     
+    const MIN_CELL_MASS: f32 = 0.5;
     let cells_to_remove = Mutex::new(Vec::new());
     
     masses.par_iter_mut()
@@ -128,8 +130,8 @@ pub fn consume_swim_nutrients(
                     let mass_loss = mode.swim_force * consumption_rate * dt;
                     *mass -= mass_loss;
                     
-                    // Check if cell has died
-                    if *mass <= 0.0 {
+                    // Check if cell has died (below minimum mass threshold)
+                    if *mass < MIN_CELL_MASS {
                         cells_to_remove.lock().unwrap().push(i);
                         return;
                     }
@@ -249,15 +251,16 @@ pub fn transport_nutrients_st(
     }
     
     // Apply mass changes and update radii
-    // Track cells that die (mass <= 0)
+    // Track cells that die (mass < 0.5 minimum threshold)
+    const MIN_CELL_MASS: f32 = 0.5;
     let mut cells_to_remove = Vec::new();
     
     for i in 0..state.cell_count {
         if mass_deltas[i].abs() > 0.0001 {
             state.masses[i] += mass_deltas[i];
             
-            // Check if cell has died (mass <= 0)
-            if state.masses[i] <= 0.0 {
+            // Check if cell has died (below minimum mass threshold)
+            if state.masses[i] < MIN_CELL_MASS {
                 cells_to_remove.push(i);
                 continue;
             }

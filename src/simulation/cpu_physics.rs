@@ -1358,14 +1358,13 @@ pub fn division_step(
             true
         };
         
-        // Check mass threshold for Test cells (cell_type == 0)
-        // For Test cells, split_mass is the minimum mass required to divide
+        // Check mass threshold for all cell types
+        // split_mass is the minimum mass required to divide
         let can_split_by_mass = if let Some(m) = mode {
-            if m.cell_type == 0 {
-                state.masses[i] >= m.split_mass
-            } else {
-                true // Non-test cells don't have mass requirement
-            }
+            // For Test cells (cell_type == 0), split_mass is the minimum mass gate
+            // For other cell types, split_mass represents the mass allocated to children,
+            // but we still require the parent to have at least that much mass to divide
+            state.masses[i] >= m.split_mass
         } else {
             true
         };
