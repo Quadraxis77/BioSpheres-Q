@@ -404,6 +404,9 @@ impl Plugin for ImguiPlugin {
 
         // Enable docking support
         ctx.io_mut().config_flags |= imgui::ConfigFlags::DOCKING_ENABLE;
+        
+        // Enable window position clamping to keep windows within viewport bounds
+        ctx.io_mut().config_windows_resize_from_edges = true;
 
         for key_index in 0..imgui::Key::COUNT {
             ctx.io_mut()[imgui::Key::VARIANTS[key_index]] = key_index as _;
