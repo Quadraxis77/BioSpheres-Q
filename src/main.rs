@@ -20,7 +20,7 @@ fn main() {
         .add_plugins(SimulationPlugin)
         .add_plugins(CellPlugin)
         .add_plugins(GenomePlugin)
-        // Rendering and UI plugins
+         // Rendering and UI plugins
         .add_plugins(RenderingPlugin)
         .add_plugins(UiPlugin)
         .add_plugins(InputPlugin)

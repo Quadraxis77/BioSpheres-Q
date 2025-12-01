@@ -124,13 +124,15 @@ impl Default for RenderingConfig {
 
 
 
-/// System that synchronizes Transform components with CellPosition and Cell radius
-/// Copies CellPosition.position to Transform.translation and Cell.radius to Transform.scale
+/// System that synchronizes Transform components with CellPosition, CellOrientation, and Cell radius
+/// Copies CellPosition.position to Transform.translation, CellOrientation.rotation to Transform.rotation,
+/// and Cell.radius to Transform.scale
 pub fn sync_transforms(
-    mut cells_query: Query<(&crate::cell::CellPosition, &crate::cell::Cell, &mut Transform)>,
+    mut cells_query: Query<(&crate::cell::CellPosition, &crate::cell::CellOrientation, &crate::cell::Cell, &mut Transform)>,
 ) {
-    for (cell_position, cell, mut transform) in cells_query.iter_mut() {
+    for (cell_position, cell_orientation, cell, mut transform) in cells_query.iter_mut() {
         transform.translation = cell_position.position;
+        transform.rotation = cell_orientation.rotation;
         // OPTIMIZATION: All cells share the same unit sphere mesh, scaled by radius
         transform.scale = Vec3::splat(cell.radius);
     }
