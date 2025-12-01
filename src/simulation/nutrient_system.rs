@@ -15,14 +15,19 @@ pub fn update_nutrient_growth_st(
         if let Some(mode) = genome.modes.get(mode_index) {
             // Only apply nutrient growth to Test cells (cell_type == 0)
             if mode.cell_type == 0 {
-                // Gain mass based on nutrient gain rate
-                let mass_gain = mode.nutrient_gain_rate * dt;
-                masses[i] += mass_gain;
+                // Nutrient storage cap: 2x split_mass (allows storage for division plus buffer)
+                let storage_cap = mode.split_mass * 2.0;
+                
+                // Only gain mass if below storage cap
+                if masses[i] < storage_cap {
+                    let mass_gain = mode.nutrient_gain_rate * dt;
+                    masses[i] = (masses[i] + mass_gain).min(storage_cap);
+                }
                 
                 // Calculate target radius based on mass (linear relationship)
                 // Clamp to max_cell_size
                 let target_radius = masses[i].min(mode.max_cell_size);
-                radii[i] = target_radius.clamp(1.0, 2.0);
+                radii[i] = target_radius.clamp(0.5, 2.0);
             }
         }
     }
@@ -46,14 +51,19 @@ pub fn update_nutrient_growth(
             if let Some(mode) = genome.modes.get(*mode_index) {
                 // Only apply nutrient growth to Test cells (cell_type == 0)
                 if mode.cell_type == 0 {
-                    // Gain mass based on nutrient gain rate
-                    let mass_gain = mode.nutrient_gain_rate * dt;
-                    *mass += mass_gain;
+                    // Nutrient storage cap: 2x split_mass (allows storage for division plus buffer)
+                    let storage_cap = mode.split_mass * 2.0;
+                    
+                    // Only gain mass if below storage cap
+                    if *mass < storage_cap {
+                        let mass_gain = mode.nutrient_gain_rate * dt;
+                        *mass = (*mass + mass_gain).min(storage_cap);
+                    }
                     
                     // Calculate target radius based on mass (linear relationship)
                     // Clamp to max_cell_size
                     let target_radius = (*mass).min(mode.max_cell_size);
-                    *radius = target_radius.clamp(1.0, 2.0);
+                    *radius = target_radius.clamp(0.5, 2.0);
                 }
             }
         });
@@ -269,8 +279,8 @@ pub fn transport_nutrients_st(
             if let Some(mode) = genome.modes.get(state.mode_indices[i]) {
                 let target_radius = state.masses[i].min(mode.max_cell_size);
                 if mode.cell_type == 0 {
-                    // Test cells: radius 1.0 to 2.0
-                    state.radii[i] = target_radius.clamp(1.0, 2.0);
+                    // Test cells: radius 0.5 to 2.0
+                    state.radii[i] = target_radius.clamp(0.5, 2.0);
                 } else if mode.cell_type == 1 {
                     // Flagellocytes: radius 0.5 to 2.0
                     state.radii[i] = target_radius.clamp(0.5, 2.0);

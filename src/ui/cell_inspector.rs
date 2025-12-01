@@ -260,26 +260,29 @@ fn render_cell_inspector_window(
                 
                 // Nutrient Storage (Mass)
                 const MIN_CELL_MASS: f32 = 0.5;
-                let storage_capacity = split_mass;
+                let storage_cap = split_mass * 2.0; // Storage cap is 2x split_mass
                 let stored_nutrients = (data.mass - MIN_CELL_MASS).max(0.0);
-                let storage_percent = (stored_nutrients / storage_capacity * 100.0).min(200.0);
+                let storage_percent = (stored_nutrients / (storage_cap - MIN_CELL_MASS) * 100.0).min(100.0);
                 
                 ui.text("Nutrient Storage:");
                 ui.same_line();
-                let storage_color = if data.mass >= split_mass {
-                    [0.0, 1.0, 0.0, 1.0] // Green - full/ready
-                } else if data.mass >= MIN_CELL_MASS + storage_capacity * 0.5 {
+                let storage_color = if data.mass >= storage_cap {
+                    [0.0, 1.0, 0.0, 1.0] // Green - at cap
+                } else if data.mass >= split_mass {
+                    [0.5, 1.0, 0.0, 1.0] // Light green - ready to split
+                } else if data.mass >= MIN_CELL_MASS + (storage_cap - MIN_CELL_MASS) * 0.5 {
                     [1.0, 1.0, 0.0, 1.0] // Yellow - half full
                 } else if data.mass > MIN_CELL_MASS {
                     [1.0, 0.5, 0.0, 1.0] // Orange - low
                 } else {
                     [1.0, 0.0, 0.0, 1.0] // Red - depleted
                 };
-                ui.text_colored(storage_color, format!("{:.2}/{:.2} ({:.0}%)", stored_nutrients, storage_capacity, storage_percent));
+                ui.text_colored(storage_color, format!("{:.2}/{:.2} ({:.0}%)", stored_nutrients, storage_cap - MIN_CELL_MASS, storage_percent));
                 
                 ui.spacing();
                 ui.text(format!("Current Mass: {:.3}", data.mass));
                 ui.text(format!("Split Mass: {:.2}", split_mass));
+                ui.text(format!("Storage Cap: {:.2}", storage_cap));
                 ui.text(format!("Minimum Mass: {:.2}", MIN_CELL_MASS));
                 ui.text(format!("Radius: {:.3}", data.radius));
                 
