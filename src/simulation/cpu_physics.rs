@@ -1375,7 +1375,43 @@ pub fn division_step(
         }
     }
     
-    // No deferral - cells split immediately when ready, regardless of connected cells
+    // CRITICAL: Prevent simultaneous splits of adhered cells
+    // Use priority-based system where lower cell index has higher priority
+    // This ensures clean adhesion inheritance without race conditions
+    let mut filtered_divisions = Vec::new();
+    for &cell_idx in &divisions_to_process {
+        let mut should_defer = false;
+        
+        for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
+            if *adhesion_idx < 0 {
+                continue;
+            }
+            let adhesion_idx = *adhesion_idx as usize;
+            
+            if state.adhesion_connections.is_active[adhesion_idx] == 0 {
+                continue;
+            }
+            
+            let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
+                state.adhesion_connections.cell_b_index[adhesion_idx]
+            } else {
+                state.adhesion_connections.cell_a_index[adhesion_idx]
+            };
+            
+            // Check if other cell is ALSO in the divisions_to_process list
+            // (meaning it's fully ready to divide this frame)
+            if divisions_to_process.contains(&other_idx) && other_idx < cell_idx {
+                should_defer = true;
+                break;
+            }
+        }
+        
+        if !should_defer {
+            filtered_divisions.push(cell_idx);
+        }
+    }
+    
+    let divisions_to_process = filtered_divisions;
     
     // Early exit if no divisions - avoid expensive AllocationSim creation
     if divisions_to_process.is_empty() {

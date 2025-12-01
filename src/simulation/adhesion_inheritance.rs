@@ -337,3 +337,201 @@ fn create_inherited_adhesion(
     
     let _ = result; // Suppress unused warning
 }
+
+/// Handle adhesion inheritance with awareness of simultaneous divisions
+/// 
+/// This version takes a division_map that tracks which cells divided,
+/// allowing it to skip inheritance when both connected cells divide simultaneously.
+/// In that case, the child-to-child adhesions will be created separately.
+pub fn inherit_adhesions_on_division_with_map(
+    state: &mut CanonicalState,
+    genome: &GenomeData,
+    parent_mode_idx: usize,
+    child_a_idx: usize,
+    child_b_idx: usize,
+    parent_genome_orientation: Quat,
+    division_map: &std::collections::HashMap<usize, (usize, usize)>,
+) {
+    // Get parent mode settings
+    let parent_mode = match genome.modes.get(parent_mode_idx) {
+        Some(mode) => mode,
+        None => return,
+    };
+    
+    // Check if children keep adhesions
+    let child_a_keep = parent_mode.child_a.keep_adhesion;
+    let child_b_keep = parent_mode.child_b.keep_adhesion;
+    
+    if !child_a_keep && !child_b_keep {
+        return;
+    }
+    
+    // Get parent properties
+    let parent_radius = state.radii[child_a_idx];
+    
+    // Calculate split direction from parent mode (in local space)
+    let pitch = parent_mode.parent_split_direction.x.to_radians();
+    let yaw = parent_mode.parent_split_direction.y.to_radians();
+    let split_direction_local = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
+    
+    // Extract split direction and offset for geometric calculations
+    let split_magnitude = split_direction_local.length();
+    let split_dir_parent = if split_magnitude < 0.0001 {
+        Vec3::Z
+    } else {
+        split_direction_local / split_magnitude
+    };
+    let split_offset_magnitude = if split_magnitude < 0.0001 {
+        0.0
+    } else {
+        split_magnitude * 0.5
+    };
+    
+    // Collect parent's adhesion connections BEFORE initializing child indices
+    let mut parent_connections = Vec::new();
+    for slot_idx in 0..crate::cell::MAX_ADHESIONS_PER_CELL {
+        let connection_idx = state.adhesion_manager.cell_adhesion_indices[child_a_idx][slot_idx];
+        if connection_idx >= 0 {
+            parent_connections.push(connection_idx as usize);
+        }
+    }
+    
+    // Initialize adhesion indices for child cells
+    state.adhesion_manager.init_cell_adhesion_indices(child_a_idx);
+    state.adhesion_manager.init_cell_adhesion_indices(child_b_idx);
+    
+    // Process each parent connection
+    for &connection_idx in &parent_connections {
+        if connection_idx >= state.adhesion_connections.active_count {
+            continue;
+        }
+        
+        if state.adhesion_connections.is_active[connection_idx] == 0 {
+            continue;
+        }
+        
+        let cell_a_idx_conn = state.adhesion_connections.cell_a_index[connection_idx];
+        let cell_b_idx_conn = state.adhesion_connections.cell_b_index[connection_idx];
+        
+        let (neighbor_idx, parent_is_a) = if cell_a_idx_conn == child_a_idx {
+            (cell_b_idx_conn, true)
+        } else if cell_b_idx_conn == child_a_idx {
+            (cell_a_idx_conn, false)
+        } else {
+            continue;
+        };
+        
+        // CRITICAL: Skip inheritance if the neighbor also divided
+        // In that case, child-to-child adhesions will be created separately
+        if division_map.contains_key(&neighbor_idx) {
+            state.adhesion_connections.is_active[connection_idx] = 0;
+            continue;
+        }
+        
+        let (parent_anchor_direction, neighbor_anchor_direction) = if parent_is_a {
+            (
+                state.adhesion_connections.anchor_direction_a[connection_idx],
+                state.adhesion_connections.anchor_direction_b[connection_idx],
+            )
+        } else {
+            (
+                state.adhesion_connections.anchor_direction_b[connection_idx],
+                state.adhesion_connections.anchor_direction_a[connection_idx],
+            )
+        };
+        
+        let zone = classify_bond_direction(parent_anchor_direction, split_direction_local);
+        
+        match zone {
+            AdhesionZone::ZoneA if child_b_keep => {
+                create_inherited_adhesion(
+                    state,
+                    genome,
+                    child_b_idx,
+                    neighbor_idx,
+                    parent_mode_idx,
+                    parent_is_a,
+                    child_a_idx,
+                    parent_mode,
+                    parent_genome_orientation,
+                    parent_anchor_direction,
+                    neighbor_anchor_direction,
+                    parent_radius,
+                    state.radii[neighbor_idx],
+                    parent_mode.child_b.orientation,
+                    split_offset_magnitude,
+                    split_dir_parent,
+                    false,
+                );
+            }
+            AdhesionZone::ZoneB if child_a_keep => {
+                create_inherited_adhesion(
+                    state,
+                    genome,
+                    child_a_idx,
+                    neighbor_idx,
+                    parent_mode_idx,
+                    parent_is_a,
+                    child_a_idx,
+                    parent_mode,
+                    parent_genome_orientation,
+                    parent_anchor_direction,
+                    neighbor_anchor_direction,
+                    parent_radius,
+                    state.radii[neighbor_idx],
+                    parent_mode.child_a.orientation,
+                    split_offset_magnitude,
+                    split_dir_parent,
+                    true,
+                );
+            }
+            AdhesionZone::ZoneC => {
+                if child_b_keep {
+                    create_inherited_adhesion(
+                        state,
+                        genome,
+                        child_b_idx,
+                        neighbor_idx,
+                        parent_mode_idx,
+                        parent_is_a,
+                        child_a_idx,
+                        parent_mode,
+                        parent_genome_orientation,
+                        parent_anchor_direction,
+                        neighbor_anchor_direction,
+                        parent_radius,
+                        state.radii[neighbor_idx],
+                        parent_mode.child_b.orientation,
+                        split_offset_magnitude,
+                        split_dir_parent,
+                        false,
+                    );
+                }
+                if child_a_keep {
+                    create_inherited_adhesion(
+                        state,
+                        genome,
+                        child_a_idx,
+                        neighbor_idx,
+                        parent_mode_idx,
+                        parent_is_a,
+                        child_a_idx,
+                        parent_mode,
+                        parent_genome_orientation,
+                        parent_anchor_direction,
+                        neighbor_anchor_direction,
+                        parent_radius,
+                        state.radii[neighbor_idx],
+                        parent_mode.child_a.orientation,
+                        split_offset_magnitude,
+                        split_dir_parent,
+                        true,
+                    );
+                }
+            }
+            _ => {}
+        }
+        
+        state.adhesion_connections.is_active[connection_idx] = 0;
+    }
+}

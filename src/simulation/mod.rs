@@ -21,7 +21,7 @@ pub use double_buffer::DoubleBufferedState;
 pub use gpu_sim::{GpuSimPlugin, GpuSceneState, GpuSceneEntity};
 pub use initial_state::{InitialState, InitialCell};
 pub use preview_sim::{PreviewSimPlugin, PreviewSceneState, PreviewSceneEntity};
-pub use adhesion_inheritance::inherit_adhesions_on_division;
+pub use adhesion_inheritance::{inherit_adhesions_on_division, inherit_adhesions_on_division_with_map};
 pub use nutrient_system::{update_nutrient_growth, update_nutrient_growth_st, transport_nutrients, transport_nutrients_st};
 
 /// Configuration for simulation threading
