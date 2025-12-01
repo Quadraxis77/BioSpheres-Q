@@ -11,6 +11,21 @@ pub struct UiSettings {
     pub theme: ThemeSettings,
     /// Library of saved custom themes
     pub custom_themes: Vec<SavedCustomTheme>,
+    /// Window visibility settings
+    #[serde(default)]
+    pub window_visibility: WindowVisibilitySettings,
+}
+
+/// Window visibility settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct WindowVisibilitySettings {
+    pub show_cell_inspector: bool,
+    pub show_genome_editor: bool,
+    pub show_scene_manager: bool,
+    pub show_performance_monitor: bool,
+    pub show_rendering_controls: bool,
+    pub show_time_scrubber: bool,
+    pub show_theme_editor: bool,
 }
 
 /// Theme settings - includes both preset theme selection and custom theme data
@@ -78,6 +93,22 @@ impl Default for UiSettings {
             theme: ThemeSettings::default(),
             // No custom themes saved by default
             custom_themes: Vec::new(),
+            // All windows visible by default
+            window_visibility: WindowVisibilitySettings::default(),
+        }
+    }
+}
+
+impl Default for WindowVisibilitySettings {
+    fn default() -> Self {
+        Self {
+            show_cell_inspector: true,
+            show_genome_editor: true,
+            show_scene_manager: true,
+            show_performance_monitor: false, // Disabled by default
+            show_rendering_controls: true,
+            show_time_scrubber: true,
+            show_theme_editor: false, // Theme editor hidden by default
         }
     }
 }
@@ -131,6 +162,7 @@ pub(crate) struct LastSavedSettings {
     pub(crate) ui_scale: f32,
     pub(crate) theme_name: String,
     pub(crate) theme_is_custom: bool,
+    pub(crate) window_visibility: WindowVisibilitySettings,
 }
 
 /// System to save UI settings when they change
@@ -156,6 +188,15 @@ pub fn save_ui_settings_on_change(
             ui_scale: global_ui_state.ui_scale,
             theme_name: current_theme_name,
             theme_is_custom: is_custom,
+            window_visibility: WindowVisibilitySettings {
+                show_cell_inspector: global_ui_state.show_cell_inspector,
+                show_genome_editor: global_ui_state.show_genome_editor,
+                show_scene_manager: global_ui_state.show_scene_manager,
+                show_performance_monitor: global_ui_state.show_performance_monitor,
+                show_rendering_controls: global_ui_state.show_rendering_controls,
+                show_time_scrubber: global_ui_state.show_time_scrubber,
+                show_theme_editor: global_ui_state.show_theme_editor,
+            },
         });
         return;
     }
@@ -165,10 +206,20 @@ pub fn save_ui_settings_on_change(
     // Check if theme changed
     let theme_changed = last.theme_name != current_theme_name || last.theme_is_custom != is_custom;
 
+    // Check if window visibility changed
+    let visibility_changed = last.window_visibility.show_cell_inspector != global_ui_state.show_cell_inspector
+        || last.window_visibility.show_genome_editor != global_ui_state.show_genome_editor
+        || last.window_visibility.show_scene_manager != global_ui_state.show_scene_manager
+        || last.window_visibility.show_performance_monitor != global_ui_state.show_performance_monitor
+        || last.window_visibility.show_rendering_controls != global_ui_state.show_rendering_controls
+        || last.window_visibility.show_time_scrubber != global_ui_state.show_time_scrubber
+        || last.window_visibility.show_theme_editor != global_ui_state.show_theme_editor;
+
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
         || (last.ui_scale - global_ui_state.ui_scale).abs() > 0.001
-        || theme_changed;
+        || theme_changed
+        || visibility_changed;
 
     if changed {
         // Load existing settings to preserve custom themes library
@@ -181,6 +232,15 @@ pub fn save_ui_settings_on_change(
             current_theme_name: current_theme_name.clone(),
             is_custom_theme: is_custom,
         };
+        settings.window_visibility = WindowVisibilitySettings {
+            show_cell_inspector: global_ui_state.show_cell_inspector,
+            show_genome_editor: global_ui_state.show_genome_editor,
+            show_scene_manager: global_ui_state.show_scene_manager,
+            show_performance_monitor: global_ui_state.show_performance_monitor,
+            show_rendering_controls: global_ui_state.show_rendering_controls,
+            show_time_scrubber: global_ui_state.show_time_scrubber,
+            show_theme_editor: global_ui_state.show_theme_editor,
+        };
 
         if let Err(e) = settings.save() {
             error!("Failed to save UI settings: {}", e);
@@ -192,6 +252,15 @@ pub fn save_ui_settings_on_change(
             ui_scale: global_ui_state.ui_scale,
             theme_name: current_theme_name,
             theme_is_custom: is_custom,
+            window_visibility: WindowVisibilitySettings {
+                show_cell_inspector: global_ui_state.show_cell_inspector,
+                show_genome_editor: global_ui_state.show_genome_editor,
+                show_scene_manager: global_ui_state.show_scene_manager,
+                show_performance_monitor: global_ui_state.show_performance_monitor,
+                show_rendering_controls: global_ui_state.show_rendering_controls,
+                show_time_scrubber: global_ui_state.show_time_scrubber,
+                show_theme_editor: global_ui_state.show_theme_editor,
+            },
         });
     }
 }

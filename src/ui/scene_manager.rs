@@ -35,7 +35,7 @@ impl Plugin for SceneManagerPlugin {
 /// Main Scene Manager window rendering system
 fn render_scene_manager_window(
     mut imgui_context: NonSendMut<ImguiContext>,
-    mut scene_manager_state: ResMut<SceneManagerState>,
+    scene_manager_state: Res<SceneManagerState>,
     mut simulation_state: ResMut<SimulationState>,
     mut app_exit_events: MessageWriter<AppExit>,
     cpu_scene_state: Option<Res<State<CpuSceneState>>>,
@@ -62,6 +62,11 @@ fn render_scene_manager_window(
         return;
     }
 
+    // Only show if visibility is enabled
+    if !global_ui_state.show_scene_manager {
+        return;
+    }
+
     // Build flags based on lock state
     use imgui::WindowFlags;
     let flags = if global_ui_state.windows_locked {
@@ -75,7 +80,6 @@ fn render_scene_manager_window(
         .size([300.0, 245.0], Condition::FirstUseEver)
         .size_constraints([250.0, 150.0], [f32::MAX, f32::MAX])
         .collapsible(true)
-        .opened(&mut scene_manager_state.window_open)
         .flags(flags)
         .build(|| {
             // Exit button at the top in red

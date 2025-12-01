@@ -32,6 +32,14 @@ pub use rendering_controls::RenderingControlsPlugin;
 pub struct GlobalUiState {
     pub windows_locked: bool,
     pub ui_scale: f32,
+    // Window visibility toggles
+    pub show_cell_inspector: bool,
+    pub show_genome_editor: bool,
+    pub show_scene_manager: bool,
+    pub show_performance_monitor: bool,
+    pub show_rendering_controls: bool,
+    pub show_time_scrubber: bool,
+    pub show_theme_editor: bool,
 }
 
 impl Default for GlobalUiState {
@@ -41,6 +49,13 @@ impl Default for GlobalUiState {
         Self {
             windows_locked: saved_settings.windows_locked,
             ui_scale: saved_settings.ui_scale,
+            show_cell_inspector: saved_settings.window_visibility.show_cell_inspector,
+            show_genome_editor: saved_settings.window_visibility.show_genome_editor,
+            show_scene_manager: saved_settings.window_visibility.show_scene_manager,
+            show_performance_monitor: saved_settings.window_visibility.show_performance_monitor,
+            show_rendering_controls: saved_settings.window_visibility.show_rendering_controls,
+            show_time_scrubber: saved_settings.window_visibility.show_time_scrubber,
+            show_theme_editor: saved_settings.window_visibility.show_theme_editor,
         }
     }
 }

@@ -50,7 +50,6 @@ impl Default for DragState {
 
 /// System to handle starting a drag operation
 fn handle_drag_start(
-    time: Res<Time>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     mut drag_state: ResMut<DragState>,
     window_query: Query<&Window, With<PrimaryWindow>>,

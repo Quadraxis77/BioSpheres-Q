@@ -148,7 +148,7 @@ fn update_performance_metrics(
 
 /// Render the performance monitor window matching desktop layout
 fn render_performance_window(
-    mut perf_monitor: ResMut<PerformanceMonitor>,
+    perf_monitor: Res<PerformanceMonitor>,
     mut imgui_context: NonSendMut<ImguiContext>,
     sim_state: Option<Res<crate::simulation::SimulationState>>,
     main_sim_state: Option<Res<crate::simulation::cpu_sim::MainSimState>>,
@@ -177,6 +177,11 @@ fn render_performance_window(
 
     let ui = imgui_context.ui();
 
+    // Only show if visibility is enabled
+    if !global_ui_state.show_performance_monitor {
+        return;
+    }
+
     // Build flags based on lock state
     use imgui::WindowFlags;
     let flags = if global_ui_state.windows_locked {
@@ -188,7 +193,6 @@ fn render_performance_window(
     ui.window("Advanced Performance Monitor")
         .position([1615.0, 280.0], Condition::FirstUseEver)
         .size([300.0, 565.0], Condition::FirstUseEver)
-        .opened(&mut perf_monitor.window_open)
         .flags(flags)
         .build(|| {
             // Performance Overview Section

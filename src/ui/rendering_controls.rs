@@ -23,6 +23,10 @@ fn render_controls_ui(
 
     // Create a window for rendering controls
     use imgui::WindowFlags;
+    // Only show if visibility is enabled
+    if !global_ui_state.show_rendering_controls {
+        return;
+    }
     
     // Build flags based on lock state
     let flags = if global_ui_state.windows_locked {

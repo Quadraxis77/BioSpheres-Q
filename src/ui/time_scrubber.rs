@@ -49,6 +49,11 @@ fn render_time_scrubber(
     let ui = imgui_context.ui();
     
     // Build flags based on lock state
+    // Only show if visibility is enabled
+    if !global_ui_state.show_time_scrubber {
+        return;
+    }
+
     use imgui::WindowFlags;
     let flags = if global_ui_state.windows_locked {
         WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE

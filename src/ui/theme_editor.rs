@@ -206,6 +206,27 @@ fn theme_editor_ui(
             }
         }
         
+        // Windows menu - for toggling window visibility
+        if let Some(_menu) = ui.begin_menu("Windows") {
+            ui.checkbox("Cell Inspector", &mut global_ui_state.show_cell_inspector);
+            
+            ui.checkbox("Genome Editor", &mut global_ui_state.show_genome_editor);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Only available in Preview mode");
+            }
+            
+            ui.checkbox("Scene Manager", &mut global_ui_state.show_scene_manager);
+            ui.checkbox("Performance Monitor", &mut global_ui_state.show_performance_monitor);
+            ui.checkbox("Rendering Controls", &mut global_ui_state.show_rendering_controls);
+            
+            ui.checkbox("Time Scrubber", &mut global_ui_state.show_time_scrubber);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Only available in Preview mode");
+            }
+            
+            ui.checkbox("Theme Editor", &mut global_ui_state.show_theme_editor);
+        }
+        
         // Options menu
         if let Some(_menu) = ui.begin_menu("Options") {
             // Window lock toggle
@@ -259,11 +280,10 @@ fn theme_editor_ui(
         }
     }
 
-    // Theme editor window
-    let mut show_editor = editor_state.show_editor;
+    // Theme editor window - use global visibility state
     let windows_locked = global_ui_state.windows_locked;
     
-    if show_editor {
+    if global_ui_state.show_theme_editor {
         use imgui::WindowFlags;
         
         // Build flags based on lock state
@@ -276,7 +296,6 @@ fn theme_editor_ui(
         ui.window("Theme Editor")
             .size([398.0, 615.0], imgui::Condition::FirstUseEver)
             .position([610.0, 30.0], imgui::Condition::FirstUseEver)
-            .opened(&mut show_editor)
             .flags(flags)
             .build(|| {
                 ui.text("Customize Your Theme");
@@ -461,8 +480,6 @@ fn theme_editor_ui(
                 ui.separator();
                 ui.text_wrapped("Tip: Adjust colors and shapes, name your theme, then click 'Save Theme' to add it to the theme list!");
             });
-        
-        editor_state.show_editor = show_editor;
     }
 }
 

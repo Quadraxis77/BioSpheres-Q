@@ -178,6 +178,11 @@ fn render_cell_inspector_window(
     // Track if we need to clear selection
     let mut should_clear_selection = false;
 
+    // Only show if visibility is enabled
+    if !global_ui_state.show_cell_inspector {
+        return;
+    }
+
     use imgui::WindowFlags;
     let flags = if global_ui_state.windows_locked {
         WindowFlags::NO_MOVE | WindowFlags::NO_RESIZE
@@ -190,7 +195,6 @@ fn render_cell_inspector_window(
         .size([280.0, 450.0], Condition::FirstUseEver)
         .size_constraints([250.0, 200.0], [f32::MAX, f32::MAX])
         .collapsible(true)
-        .opened(&mut inspector_state.window_open)
         .flags(flags)
         .build(|| {
             // Check if we have a cell selected

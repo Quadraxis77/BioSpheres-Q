@@ -117,6 +117,11 @@ fn render_genome_editor(
 
     let ui = imgui_context.ui();
 
+    // Only show if visibility is enabled
+    if !global_ui_state.show_genome_editor {
+        return;
+    }
+
     // Build flags based on lock state
     use imgui::WindowFlags;
     let flags = if global_ui_state.windows_locked {
