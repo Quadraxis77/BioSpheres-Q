@@ -205,18 +205,21 @@ pub fn transport_nutrients_st(
         let mass_a = state.masses[cell_a_idx];
         let mass_b = state.masses[cell_b_idx];
         
-        // Apply dynamic priority boost when cells are dangerously low on nutrients
-        // Threshold: below 0.6 mass is considered "dangerously low"
-        // Boost: multiply priority by 10x when below threshold
+        // Apply temporary priority boost when cells are dangerously low on nutrients
+        // Boost activates when mass drops below 0.6 (danger threshold)
+        // Boost automatically deactivates when mass rises above 0.6
+        // This makes the boost temporary - it only applies during critical low-nutrient periods
         let danger_threshold = 0.6;
         let priority_boost = 10.0;
         
+        // For cell A: boost only when below danger threshold
         let priority_a = if prioritize_a && mass_a < danger_threshold {
             base_priority_a * priority_boost
         } else {
             base_priority_a
         };
         
+        // For cell B: boost only when below danger threshold
         let priority_b = if prioritize_b && mass_b < danger_threshold {
             base_priority_b * priority_boost
         } else {
