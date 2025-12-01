@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 pub mod camera;
+pub mod cell_inspector;
 pub mod debug_info;
 pub mod imgui_panel;
 pub mod imgui_style;
@@ -15,6 +16,7 @@ pub mod rendering_controls;
 pub mod settings;
 
 pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState};
+pub use cell_inspector::{CellInspectorPlugin, CellInspectorState};
 pub use debug_info::DebugInfoPlugin;
 pub use imgui_panel::{ImguiPanelPlugin, ImguiPanelState};
 pub use imgui_style::{ImguiTheme, ImguiThemeState};

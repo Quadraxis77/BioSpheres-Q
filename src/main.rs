@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::window::{WindowMode, WindowResolution, MonitorSelection};
 use biospheres_bevy::*;
 use biospheres_bevy::rendering::GpuSceneImguiEdgePlugin;
-use biospheres_bevy::ui::{GenomeEditorPlugin, SceneManagerPlugin, TimeScrubberPlugin};
+use biospheres_bevy::ui::{CellInspectorPlugin, GenomeEditorPlugin, SceneManagerPlugin, TimeScrubberPlugin};
 
 fn main() {
     App::new()
@@ -28,6 +28,7 @@ fn main() {
         // It adds the render graph edge: GpuScene -> ImGui
         .add_plugins(GpuSceneImguiEdgePlugin)
         // Optional UI plugins
+        .add_plugins(CellInspectorPlugin)
         .add_plugins(GenomeEditorPlugin)
         .add_plugins(SceneManagerPlugin)
         .add_plugins(TimeScrubberPlugin)
