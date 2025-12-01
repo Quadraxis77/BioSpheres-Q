@@ -514,7 +514,9 @@ fn setup_cpu_scene(
         MainCamera{
             center: Vec3::ZERO, // Orbit around world origin
             distance: 50.0, // Start with some distance from origin
+            target_distance: 50.0, // Target distance for spring interpolation
             rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
+            target_rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
             mode: crate::ui::camera::CameraMode::Orbit,
             followed_entity: None,
         },
@@ -651,6 +653,25 @@ fn setup_cpu_scene(
             brightness: 500.0,
             ..default()
         },
+        CpuSceneEntity,
+    ));
+
+    // Add world boundary sphere (100 unit diameter = 50 unit radius)
+    // Using inverted icosphere with inward-pointing normals for proper inside lighting
+    let mut world_sphere = crate::rendering::IcosphereMesh::generate_inverted(4);
+    world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
+    let world_mesh: Mesh = world_sphere.into();
+    
+    commands.spawn((
+        Mesh3d(meshes.add(world_mesh)),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.2, 0.2, 0.3),
+            cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
+            double_sided: false,
+            unlit: true, // Disable lighting for consistent appearance
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO),
         CpuSceneEntity,
     ));
 }

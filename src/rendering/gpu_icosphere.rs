@@ -5,6 +5,7 @@
 
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
+use bevy::prelude::*;
 
 /// Vertex data for an icosphere mesh.
 ///
@@ -84,6 +85,53 @@ impl IcosphereMesh {
     pub fn generate_with_buffers(device: &wgpu::Device, subdivisions: u32) -> IcosphereMeshBuffers {
         let mesh = Self::generate(subdivisions);
         IcosphereMeshBuffers::from_mesh(device, &mesh)
+    }
+
+    /// Generate an icosphere with inverted normals for inside-out rendering.
+    /// This is useful for creating "inside-out" spheres like world boundaries.
+    /// Use with cull_mode: None in the material to see from inside.
+    pub fn generate_inverted(subdivisions: u32) -> Self {
+        let mut mesh = Self::generate(subdivisions);
+        // Invert normals to point inward
+        for vertex in &mut mesh.vertices {
+            vertex.normal[0] = -vertex.normal[0];
+            vertex.normal[1] = -vertex.normal[1];
+            vertex.normal[2] = -vertex.normal[2];
+        }
+        mesh
+    }
+
+    /// Scale the mesh by a uniform factor.
+    pub fn scale(&mut self, scale: f32) {
+        for vertex in &mut self.vertices {
+            vertex.position[0] *= scale;
+            vertex.position[1] *= scale;
+            vertex.position[2] *= scale;
+        }
+    }
+}
+
+/// Convert IcosphereMesh to Bevy's Mesh type
+impl From<IcosphereMesh> for Mesh {
+    fn from(icosphere: IcosphereMesh) -> Self {
+        let positions: Vec<[f32; 3]> = icosphere.vertices.iter()
+            .map(|v| v.position)
+            .collect();
+        
+        let normals: Vec<[f32; 3]> = icosphere.vertices.iter()
+            .map(|v| v.normal)
+            .collect();
+        
+        let mut mesh = Mesh::new(
+            bevy_mesh::PrimitiveTopology::TriangleList,
+            bevy_asset::RenderAssetUsages::RENDER_WORLD,
+        );
+        
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+        mesh.insert_indices(bevy_mesh::Indices::U32(icosphere.indices));
+        
+        mesh
     }
 }
 

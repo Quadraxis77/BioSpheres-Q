@@ -313,7 +313,11 @@ mod tests {
         let main_camera = MainCamera {
             center: Vec3::new(5.0, 5.0, 5.0),
             distance: 10.0,
+            target_distance: 10.0,
             rotation: Quat::from_rotation_y(PI / 4.0),
+            target_rotation: Quat::from_rotation_y(PI / 4.0),
+            mode: crate::ui::camera::CameraMode::Orbit,
+            followed_entity: None,
         };
         
         let transform = Transform {

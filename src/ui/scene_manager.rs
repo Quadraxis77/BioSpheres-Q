@@ -143,12 +143,14 @@ fn render_scene_manager_window(
             
             ui.separator();
             
-            // Reset scene button
-            if ui.button("Reset Scene") {
-                reset_scene_events.write(ResetSceneEvent);
+            // Reset scene button (only for CPU and GPU scenes)
+            if simulation_state.mode != SimulationMode::Preview {
+                if ui.button("Reset Scene") {
+                    reset_scene_events.write(ResetSceneEvent);
+                }
+                
+                ui.separator();
             }
-            
-            ui.separator();
             
             // Time controls section
             ui.text("Time Controls");
@@ -424,6 +426,25 @@ fn spawn_cpu_scene_without_camera(
         },
         CpuSceneEntity,
     ));
+
+    // Add world boundary sphere (100 unit diameter = 50 unit radius)
+    // Using inverted icosphere with inward-pointing normals for proper inside lighting
+    let mut world_sphere = crate::rendering::IcosphereMesh::generate_inverted(4);
+    world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
+    let world_mesh: Mesh = world_sphere.into();
+    
+    commands.spawn((
+        Mesh3d(meshes.add(world_mesh)),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.2, 0.2, 0.3),
+            cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
+            double_sided: false,
+            unlit: true, // Disable lighting for consistent appearance
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO),
+        CpuSceneEntity,
+    ));
 }
 
 /// Placeholder for GPU scene spawn (implement when needed)
@@ -548,6 +569,25 @@ fn spawn_preview_scene(
             brightness: 500.0,
             ..default()
         },
+        crate::simulation::preview_sim::PreviewSceneEntity,
+    ));
+
+    // Add world boundary sphere (100 unit diameter = 50 unit radius)
+    // Using inverted icosphere with inward-pointing normals for proper inside lighting
+    let mut world_sphere = crate::rendering::IcosphereMesh::generate_inverted(4);
+    world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
+    let world_mesh: Mesh = world_sphere.into();
+    
+    commands.spawn((
+        Mesh3d(meshes.add(world_mesh)),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.2, 0.2, 0.3),
+            cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
+            double_sided: false,
+            unlit: true, // Disable lighting for consistent appearance
+            ..default()
+        })),
+        Transform::from_translation(Vec3::ZERO),
         crate::simulation::preview_sim::PreviewSceneEntity,
     ));
 }

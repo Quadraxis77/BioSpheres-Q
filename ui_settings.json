@@ -10,7 +10,7 @@
     "show_cell_inspector": true,
     "show_genome_editor": true,
     "show_scene_manager": true,
-    "show_performance_monitor": true,
+    "show_performance_monitor": false,
     "show_rendering_controls": true,
     "show_time_scrubber": true,
     "show_theme_editor": false

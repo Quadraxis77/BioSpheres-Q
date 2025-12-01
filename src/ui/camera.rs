@@ -33,7 +33,9 @@ pub enum CameraMode {
 pub struct MainCamera {
     pub center: Vec3,
     pub distance: f32,
+    pub target_distance: f32,
     pub rotation: Quat,
+    pub target_rotation: Quat,
     pub mode: CameraMode,
     pub followed_entity: Option<Entity>,
 }
@@ -64,12 +66,15 @@ impl Default for OrbitReferenceState {
 
 /// Spawn the orbit camera
 pub fn setup_camera(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+    let initial_rotation = Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5);
     commands.spawn((
         Camera3d::default(),
         MainCamera {
             center: Vec3::ZERO, // Orbit center is always world origin
             distance: 50.0, // Start with some distance from origin
-            rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5), // Start with a nice angle
+            target_distance: 50.0, // Target distance for spring interpolation
+            rotation: initial_rotation, // Start with a nice angle
+            target_rotation: initial_rotation,
             mode: CameraMode::Orbit, // Start in orbit mode
             followed_entity: None, // Not following any entity initially
         },
@@ -183,6 +188,8 @@ pub fn camera_update(
                 // Switch to FreeFly: move orbit center to current camera position
                 cam.center = transform.translation;
                 cam.distance = 0.0;
+                cam.target_distance = 0.0;
+                cam.target_rotation = cam.rotation; // Sync target with current
                 cam.mode = CameraMode::FreeFly;
                 cam.followed_entity = None; // Stop following when switching to free fly
                 orbit_ref_state.alpha = 0.0; // Hide reference ball
@@ -191,7 +198,10 @@ pub fn camera_update(
                 // Switch to Orbit: set orbit center to world origin, calculate distance
                 let current_pos = transform.translation;
                 cam.center = Vec3::ZERO; // Always orbit around world origin
-                cam.distance = current_pos.distance(Vec3::ZERO);
+                let new_distance = current_pos.distance(Vec3::ZERO);
+                cam.distance = new_distance;
+                cam.target_distance = new_distance;
+                cam.target_rotation = cam.rotation; // Sync target with current
                 cam.mode = CameraMode::Orbit;
                 orbit_ref_state.time_since_change = 0.0;
                 orbit_ref_state.alpha = 0.3; // Show reference ball
@@ -203,13 +213,27 @@ pub fn camera_update(
     // 1. ZOOM (scroll) - Only in Orbit mode
     // -------------------------------
     if cam.mode == CameraMode::Orbit && !imgui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
-        // Additive zoom - constant speed regardless of distance
-        cam.distance -= mouse_scroll.delta.y * config.zoom_speed * 15.0;
-        cam.distance = cam.distance.max(0.1); // Don't allow too close to origin
+        // Additive zoom - constant speed regardless of distance (doubled multiplier)
+        cam.target_distance -= mouse_scroll.delta.y * config.zoom_speed * 30.0;
+        cam.target_distance = cam.target_distance.max(0.1); // Don't allow too close to origin
         
         // Reset fade timer when orbit distance changes
         orbit_ref_state.time_since_change = 0.0;
         orbit_ref_state.alpha = 0.3; // Set to visible
+    }
+    
+    // Apply spring interpolation to distance and rotation in orbit mode
+    if cam.mode == CameraMode::Orbit {
+        let spring_stiffness = 16.0;
+        let spring_damping = 0.7; // Higher = less oscillation
+        
+        // Spring for distance
+        let distance_error = cam.target_distance - cam.distance;
+        let velocity = distance_error * spring_stiffness * dt;
+        cam.distance += velocity * (1.0 - spring_damping);
+        
+        // Spring for rotation (slerp with spring-like behavior)
+        cam.rotation = cam.rotation.slerp(cam.target_rotation, spring_stiffness * dt * (1.0 - spring_damping));
     }
 
     // -------------------------------
@@ -229,12 +253,12 @@ pub fn camera_update(
             let yaw = Quat::from_axis_angle(Vec3::Y, -delta.x);
             
             // Vertical rotation (pitch) around camera's local right axis
-            let right = cam.rotation * Vec3::X;
+            let right = cam.target_rotation * Vec3::X;
             let pitch = Quat::from_axis_angle(right, -delta.y);
             
-            // Apply rotations
-            cam.rotation = yaw * pitch * cam.rotation;
-            cam.rotation = cam.rotation.normalize();
+            // Apply rotations to target
+            cam.target_rotation = yaw * pitch * cam.target_rotation;
+            cam.target_rotation = cam.target_rotation.normalize();
             
             // Show reference ball when orbiting
             orbit_ref_state.time_since_change = 0.0;

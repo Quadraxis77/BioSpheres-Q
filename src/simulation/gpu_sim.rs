@@ -53,7 +53,9 @@ fn setup_gpu_scene(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut
         MainCamera {
             center: Vec3::ZERO, // Orbit around world origin
             distance: 50.0, // Start with some distance from origin
+            target_distance: 50.0, // Target distance for spring interpolation
             rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
+            target_rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
             mode: crate::ui::camera::CameraMode::Orbit,
             followed_entity: None,
         },
