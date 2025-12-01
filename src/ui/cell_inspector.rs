@@ -258,14 +258,39 @@ fn render_cell_inspector_window(
             if ui.collapsing_header("Nutrient Details", imgui::TreeNodeFlags::DEFAULT_OPEN) {
                 ui.indent();
                 
+                // Nutrient Storage (Mass)
+                const MIN_CELL_MASS: f32 = 0.5;
+                let storage_capacity = split_mass;
+                let stored_nutrients = (data.mass - MIN_CELL_MASS).max(0.0);
+                let storage_percent = (stored_nutrients / storage_capacity * 100.0).min(200.0);
+                
+                ui.text("Nutrient Storage:");
+                ui.same_line();
+                let storage_color = if data.mass >= split_mass {
+                    [0.0, 1.0, 0.0, 1.0] // Green - full/ready
+                } else if data.mass >= MIN_CELL_MASS + storage_capacity * 0.5 {
+                    [1.0, 1.0, 0.0, 1.0] // Yellow - half full
+                } else if data.mass > MIN_CELL_MASS {
+                    [1.0, 0.5, 0.0, 1.0] // Orange - low
+                } else {
+                    [1.0, 0.0, 0.0, 1.0] // Red - depleted
+                };
+                ui.text_colored(storage_color, format!("{:.2}/{:.2} ({:.0}%)", stored_nutrients, storage_capacity, storage_percent));
+                
+                ui.spacing();
                 ui.text(format!("Current Mass: {:.3}", data.mass));
                 ui.text(format!("Split Mass: {:.2}", split_mass));
-                ui.text(format!("Mass %: {:.1}%", (data.mass / split_mass * 100.0).min(200.0)));
+                ui.text(format!("Minimum Mass: {:.2}", MIN_CELL_MASS));
                 ui.text(format!("Radius: {:.3}", data.radius));
                 
                 if let Some(mode) = mode {
                     ui.spacing();
-                    ui.text(format!("Gain Rate: {:.2}/s", mode.nutrient_gain_rate));
+                    if mode.cell_type == 0 {
+                        ui.text(format!("Gain Rate: {:.2}/s", mode.nutrient_gain_rate));
+                    } else if mode.cell_type == 1 {
+                        ui.text(format!("Swim Force: {:.2}", mode.swim_force));
+                        ui.text(format!("Consumption: {:.3}/s", mode.swim_force * 0.2));
+                    }
                     ui.text(format!("Max Size: {:.2}", mode.max_cell_size));
                     ui.text(format!("Priority: {:.2}", mode.nutrient_priority));
                     ui.text(format!("Protect Low: {}", if mode.prioritize_when_low { "Yes" } else { "No" }));

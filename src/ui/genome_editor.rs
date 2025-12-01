@@ -923,6 +923,15 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
         help_marker(ui, "Maximum visual size the cell can grow to (1.0 to 2.0 units).");
         slider_with_input_f32(ui, "##MaxCellSize", &mut mode.max_cell_size, 1.0, 2.0, ui.content_region_avail()[0]);
         
+        // Nutrient priority
+        ui.text("Nutrient Priority:");
+        help_marker(ui, "Priority for nutrient transport between adhesion-connected cells. Higher priority cells receive more nutrients. Nutrients flow from low-priority to high-priority cells and from high-mass to low-mass cells. Range: 0.1 (low) to 10.0 (high).");
+        slider_with_input_f32(ui, "##NutrientPriority", &mut mode.nutrient_priority, 0.1, 10.0, ui.content_region_avail()[0]);
+        
+        // Prioritize when low checkbox
+        ui.checkbox("Prioritize When Low", &mut mode.prioritize_when_low);
+        help_marker(ui, "When enabled, cells automatically increase their nutrient priority when dangerously low on nutrients to prevent death. Cells without this enabled can be completely depleted and die.");
+        
         ui.spacing();
         ui.separator();
         ui.spacing();

@@ -1943,8 +1943,8 @@ pub fn apply_swim_forces_st(
                 let forward = rotations[i] * Vec3::Z;
                 
                 // Apply thrust force in forward direction
-                // Scale by 10.0 to make the force meaningful in the physics simulation
-                let thrust_force = forward * mode.swim_force * 10.0;
+                // Scale by 40.0 (4x multiplier from base 10.0) to make the force meaningful in the physics simulation
+                let thrust_force = forward * mode.swim_force * 40.0;
                 forces[i] += thrust_force;
             }
         }
@@ -1978,8 +1978,8 @@ pub fn apply_swim_forces(
                     let forward = *rotation * Vec3::Z;
                     
                     // Apply thrust force in forward direction
-                    // Scale by 10.0 to make the force meaningful in the physics simulation
-                    let thrust_force = forward * mode.swim_force * 10.0;
+                    // Scale by 40.0 (4x multiplier from base 10.0) to make the force meaningful in the physics simulation
+                    let thrust_force = forward * mode.swim_force * 40.0;
                     *force += thrust_force;
                 }
             }
@@ -2143,4 +2143,3 @@ pub fn integrate_rotations_soa(
             }
         });
 }
-

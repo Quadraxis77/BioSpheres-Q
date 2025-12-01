@@ -148,9 +148,9 @@ pub fn consume_swim_nutrients(
 }
 
 /// Transport nutrients between adhesion-connected cells - Single-threaded
-/// Nutrients flow based on weighted mass difference: from high-mass to low-mass cells,
-/// and from low-priority to high-priority cells. The flow rate is proportional to
-/// the weighted difference using opposite cell's priority as the weight.
+/// Nutrients flow to establish equilibrium where mass ratios match priority ratios.
+/// At equilibrium: mass_a / mass_b = priority_a / priority_b
+/// Flow is driven by "pressure" (mass/priority ratio) differences between cells.
 pub fn transport_nutrients_st(
     state: &mut CanonicalState,
     genome: &crate::genome::GenomeData,
@@ -178,11 +178,8 @@ pub fn transport_nutrients_st(
         let mode_a = genome.modes.get(state.mode_indices[cell_a_idx]);
         let mode_b = genome.modes.get(state.mode_indices[cell_b_idx]);
         
-        // Only transport between Test cells
-        let is_test_a = mode_a.map(|m| m.cell_type == 0).unwrap_or(false);
-        let is_test_b = mode_b.map(|m| m.cell_type == 0).unwrap_or(false);
-        
-        if !is_test_a || !is_test_b {
+        // Skip if either mode is invalid
+        if mode_a.is_none() || mode_b.is_none() {
             continue;
         }
         
@@ -199,9 +196,9 @@ pub fn transport_nutrients_st(
         let mass_b = state.masses[cell_b_idx];
         
         // Apply dynamic priority boost when cells are dangerously low on nutrients
-        // Threshold: below 0.3 mass is considered "dangerously low"
+        // Threshold: below 0.6 mass is considered "dangerously low"
         // Boost: multiply priority by 10x when below threshold
-        let danger_threshold = 0.3;
+        let danger_threshold = 0.6;
         let priority_boost = 10.0;
         
         let priority_a = if prioritize_a && mass_a < danger_threshold {
@@ -216,22 +213,25 @@ pub fn transport_nutrients_st(
             base_priority_b
         };
         
-        // Calculate weighted mass difference
-        // Weight A's mass by B's priority, and B's mass by A's priority
-        // This creates flow from low-priority to high-priority cells
-        let weighted_mass_a = mass_a * priority_b;
-        let weighted_mass_b = mass_b * priority_a;
+        // Calculate equilibrium-based nutrient flow
+        // At equilibrium: mass_a / mass_b = priority_a / priority_b
+        // This means: mass_a * priority_b = mass_b * priority_a
+        // 
+        // We calculate the "pressure" difference based on mass/priority ratio
+        // Flow goes from high pressure (low priority/mass ratio) to low pressure (high priority/mass ratio)
+        let pressure_a = mass_a / priority_a;
+        let pressure_b = mass_b / priority_b;
         
-        // Flow is proportional to weighted difference
+        // Flow is proportional to pressure difference
         // Positive flow means A -> B, negative means B -> A
-        let weighted_diff = weighted_mass_a - weighted_mass_b;
+        let pressure_diff = pressure_a - pressure_b;
         
         // Transport rate constant (tune this for desired equilibration speed)
         // Higher values = faster equilibration
         let transport_rate = 0.5;
         
         // Calculate mass transfer (positive = A loses, B gains)
-        let mass_transfer = weighted_diff * transport_rate * dt;
+        let mass_transfer = pressure_diff * transport_rate * dt;
         
         // Apply transfer with different minimum thresholds based on prioritize_when_low
         let min_mass_a = if prioritize_a { 0.1 } else { 0.0 };
@@ -267,9 +267,13 @@ pub fn transport_nutrients_st(
             
             // Update radius based on new mass
             if let Some(mode) = genome.modes.get(state.mode_indices[i]) {
+                let target_radius = state.masses[i].min(mode.max_cell_size);
                 if mode.cell_type == 0 {
-                    let target_radius = state.masses[i].min(mode.max_cell_size);
+                    // Test cells: radius 1.0 to 2.0
                     state.radii[i] = target_radius.clamp(1.0, 2.0);
+                } else if mode.cell_type == 1 {
+                    // Flagellocytes: radius 0.5 to 2.0
+                    state.radii[i] = target_radius.clamp(0.5, 2.0);
                 }
             }
         }
