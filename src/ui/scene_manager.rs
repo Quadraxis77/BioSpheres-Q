@@ -10,12 +10,14 @@ pub struct ResetSceneEvent;
 #[derive(Resource)]
 pub struct SceneManagerState {
     pub window_open: bool,
+    pub show_exit_confirmation: bool,
 }
 
 impl Default for SceneManagerState {
     fn default() -> Self {
         Self {
             window_open: true,
+            show_exit_confirmation: false,
         }
     }
 }
@@ -35,7 +37,7 @@ impl Plugin for SceneManagerPlugin {
 /// Main Scene Manager window rendering system
 fn render_scene_manager_window(
     mut imgui_context: NonSendMut<ImguiContext>,
-    scene_manager_state: Res<SceneManagerState>,
+    mut scene_manager_state: ResMut<SceneManagerState>,
     mut simulation_state: ResMut<SimulationState>,
     mut app_exit_events: MessageWriter<AppExit>,
     cpu_scene_state: Option<Res<State<CpuSceneState>>>,
@@ -92,7 +94,7 @@ fn render_scene_manager_window(
             let _button_active = ui.push_style_color(StyleColor::ButtonActive, red_active);
             
             if ui.button("Exit Application") {
-                app_exit_events.write(AppExit::Success);
+                scene_manager_state.show_exit_confirmation = true;
             }
             
             ui.separator();
@@ -203,6 +205,62 @@ fn render_scene_manager_window(
             // Display current simulation statistics
             // Note: Time tracking now handled by Bevy's Time<Fixed> resource
         });
+    
+    // Exit confirmation modal
+    if scene_manager_state.show_exit_confirmation {
+        // Get display size to center the dialog
+        let display_size = ui.io().display_size;
+        let center_x = display_size[0] * 0.5;
+        let center_y = display_size[1] * 0.5;
+        
+        ui.window("Exit Confirmation")
+            .position([center_x, center_y], Condition::Always)
+            .position_pivot([0.5, 0.5])
+            .size([300.0, 120.0], Condition::Always)
+            .collapsible(false)
+            .resizable(false)
+            .flags(WindowFlags::NO_MOVE | WindowFlags::NO_COLLAPSE)
+            .build(|| {
+                ui.text("Are you sure you want to exit?");
+                ui.spacing();
+                ui.separator();
+                ui.spacing();
+                
+                // Center the buttons
+                let button_width = 120.0;
+                let spacing = 10.0;
+                let total_width = button_width * 2.0 + spacing;
+                let window_width = 300.0;
+                let offset = (window_width - total_width) * 0.5;
+                
+                ui.set_cursor_pos([offset, ui.cursor_pos()[1]]);
+                
+                // Yes button (red)
+                let red = [0.8, 0.2, 0.2, 1.0];
+                let red_hovered = [1.0, 0.3, 0.3, 1.0];
+                let red_active = [0.6, 0.1, 0.1, 1.0];
+                
+                let _button_color = ui.push_style_color(StyleColor::Button, red);
+                let _button_hovered = ui.push_style_color(StyleColor::ButtonHovered, red_hovered);
+                let _button_active = ui.push_style_color(StyleColor::ButtonActive, red_active);
+                
+                if ui.button_with_size("Yes", [button_width, 0.0]) {
+                    app_exit_events.write(AppExit::Success);
+                    scene_manager_state.show_exit_confirmation = false;
+                }
+                
+                drop(_button_color);
+                drop(_button_hovered);
+                drop(_button_active);
+                
+                ui.same_line();
+                
+                // No button (default style)
+                if ui.button_with_size("No", [button_width, 0.0]) {
+                    scene_manager_state.show_exit_confirmation = false;
+                }
+            });
+    }
 }
 
 /// Handle scene transitions when user selects a different scene

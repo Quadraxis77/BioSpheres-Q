@@ -30,10 +30,6 @@ pub struct WindowVisibilitySettings {
     pub show_camera_settings: bool,
 }
 
-fn default_true() -> bool {
-    true
-}
-
 fn default_false() -> bool {
     false
 }

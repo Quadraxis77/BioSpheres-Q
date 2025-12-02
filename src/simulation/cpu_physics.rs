@@ -932,7 +932,7 @@ pub fn physics_step_st_with_genome(
     state: &mut CanonicalState,
     config: &crate::simulation::PhysicsConfig,
     genome: &crate::genome::GenomeData,
-    current_time: f32,
+    _current_time: f32,
 ) {
     // 1. Verlet integration (position update)
     verlet_integrate_positions_soa_st(
@@ -1058,6 +1058,7 @@ pub fn physics_step_st_with_genome(
 /// Calculate which cells should have nutrient transfer blocked this frame
 /// Returns a set of cell indices that should have nutrient transfer deferred
 /// Cells are blocked for 0.5 seconds when attempting to split
+#[allow(dead_code)]
 fn calculate_cells_attempting_split(
     state: &mut CanonicalState,
     genome: &crate::genome::GenomeData,
@@ -1207,7 +1208,7 @@ pub fn physics_step_with_genome(
     state: &mut CanonicalState,
     config: &crate::simulation::PhysicsConfig,
     genome: &crate::genome::GenomeData,
-    current_time: f32,
+    _current_time: f32,
 ) {
     // 1. Verlet integration (position update)
     verlet_integrate_positions_soa(
