@@ -15,6 +15,7 @@ impl Plugin for CameraPlugin {
                 camera_mouse_grab,
                 camera_update,
                 follow_entity_system,
+                update_camera_fov,
             ).chain());
     }
 }
@@ -39,12 +40,16 @@ pub struct MainCamera {
 }
 
 /// Spawn the orbit camera
-pub fn setup_camera(mut commands: Commands) {
+pub fn setup_camera(mut commands: Commands, config: Res<CameraConfig>) {
     // Initial rotation: looking down at the scene from a 45-degree angle
     // Rotate around X axis by -45 degrees (look down) and Y axis by 0 degrees (straight on)
     let initial_rotation = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4);
     commands.spawn((
         Camera3d::default(),
+        Projection::Perspective(PerspectiveProjection {
+            fov: config.fov.to_radians(),
+            ..default()
+        }),
         MainCamera {
             center: Vec3::ZERO, // Orbit center is always world origin
             distance: 50.0, // Start with some distance from origin
@@ -68,6 +73,12 @@ pub struct CameraConfig {
     pub roll_speed: f32,
     pub invert_look: bool,
     pub zoom_speed: f32,
+    // Spring settings for orbit mode
+    pub enable_spring: bool,
+    pub spring_stiffness: f32,
+    pub spring_damping: f32,
+    // Field of view in degrees
+    pub fov: f32,
 }
 
 impl Default for CameraConfig {
@@ -79,6 +90,10 @@ impl Default for CameraConfig {
             roll_speed: 1.5,           // Roll radians per second
             invert_look: false,         // Invert mouse Y axis
             zoom_speed: 0.2,
+            enable_spring: true,        // Enable spring smoothing by default
+            spring_stiffness: 16.0,     // Spring stiffness for smooth camera movement
+            spring_damping: 0.7,        // Spring damping (higher = less oscillation)
+            fov: 70.0,                  // Field of view in degrees
         }
     }
 }
@@ -179,16 +194,19 @@ pub fn camera_update(
     
     // Apply spring interpolation to distance and rotation in orbit mode
     if cam.mode == CameraMode::Orbit {
-        let spring_stiffness = 16.0;
-        let spring_damping = 0.7; // Higher = less oscillation
-        
-        // Spring for distance
-        let distance_error = cam.target_distance - cam.distance;
-        let velocity = distance_error * spring_stiffness * dt;
-        cam.distance += velocity * (1.0 - spring_damping);
-        
-        // Spring for rotation (slerp with spring-like behavior)
-        cam.rotation = cam.rotation.slerp(cam.target_rotation, spring_stiffness * dt * (1.0 - spring_damping));
+        if config.enable_spring {
+            // Spring for distance
+            let distance_error = cam.target_distance - cam.distance;
+            let velocity = distance_error * config.spring_stiffness * dt;
+            cam.distance += velocity * (1.0 - config.spring_damping);
+            
+            // Spring for rotation (slerp with spring-like behavior)
+            cam.rotation = cam.rotation.slerp(cam.target_rotation, config.spring_stiffness * dt * (1.0 - config.spring_damping));
+        } else {
+            // Instant movement - no spring
+            cam.distance = cam.target_distance;
+            cam.rotation = cam.target_rotation;
+        }
     }
 
     // -------------------------------
@@ -432,6 +450,22 @@ fn ray_sphere_intersection(
             Some(t)
         } else {
             None
+        }
+    }
+}
+
+/// System to update camera FOV when config changes
+fn update_camera_fov(
+    config: Res<CameraConfig>,
+    mut camera_query: Query<&mut Projection, With<MainCamera>>,
+) {
+    if !config.is_changed() {
+        return;
+    }
+    
+    for mut projection in camera_query.iter_mut() {
+        if let Projection::Perspective(ref mut perspective) = *projection {
+            perspective.fov = config.fov.to_radians();
         }
     }
 }

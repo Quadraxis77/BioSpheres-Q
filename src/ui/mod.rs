@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 pub mod camera;
+pub mod camera_settings;
 pub mod cell_inspector;
 pub mod debug_info;
 pub mod imgui_panel;
@@ -16,6 +17,7 @@ pub mod rendering_controls;
 pub mod settings;
 
 pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState, CameraMode};
+pub use camera_settings::CameraSettingsPlugin;
 pub use cell_inspector::{CellInspectorPlugin, CellInspectorState};
 pub use debug_info::DebugInfoPlugin;
 pub use imgui_panel::{ImguiPanelPlugin, ImguiPanelState};
@@ -40,6 +42,7 @@ pub struct GlobalUiState {
     pub show_rendering_controls: bool,
     pub show_time_scrubber: bool,
     pub show_theme_editor: bool,
+    pub show_camera_settings: bool,
 }
 
 impl Default for GlobalUiState {
@@ -56,6 +59,7 @@ impl Default for GlobalUiState {
             show_rendering_controls: saved_settings.window_visibility.show_rendering_controls,
             show_time_scrubber: saved_settings.window_visibility.show_time_scrubber,
             show_theme_editor: saved_settings.window_visibility.show_theme_editor,
+            show_camera_settings: saved_settings.window_visibility.show_camera_settings,
         }
     }
 }
@@ -202,6 +206,7 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GlobalUiState>()
             .add_plugins(CameraPlugin)
+            .add_plugins(CameraSettingsPlugin)
             .add_plugins(DebugInfoPlugin)
             .add_plugins(ImguiPanelPlugin)
             .add_plugins(PerformanceMonitorPlugin)

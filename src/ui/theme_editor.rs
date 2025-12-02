@@ -218,6 +218,7 @@ fn theme_editor_ui(
             ui.checkbox("Scene Manager", &mut global_ui_state.show_scene_manager);
             ui.checkbox("Performance Monitor", &mut global_ui_state.show_performance_monitor);
             ui.checkbox("Rendering Controls", &mut global_ui_state.show_rendering_controls);
+            ui.checkbox("Camera Settings", &mut global_ui_state.show_camera_settings);
             
             ui.checkbox("Time Scrubber", &mut global_ui_state.show_time_scrubber);
             if ui.is_item_hovered() {
@@ -278,6 +279,16 @@ fn theme_editor_ui(
             };
             ui.text(status);
         }
+        
+        // Add version text on the right side of the menu bar
+        let version_text = "Bio-Spheres (v.0.0.4)";
+        let text_width = ui.calc_text_size(version_text)[0];
+        let window_width = ui.window_size()[0];
+        let padding = 10.0;
+        
+        // Position cursor to the right side
+        ui.set_cursor_pos([window_width - text_width - padding, ui.cursor_pos()[1]]);
+        ui.text(version_text);
     }
 
     // Theme editor window - use global visibility state

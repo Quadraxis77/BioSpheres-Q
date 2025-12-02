@@ -26,6 +26,16 @@ pub struct WindowVisibilitySettings {
     pub show_rendering_controls: bool,
     pub show_time_scrubber: bool,
     pub show_theme_editor: bool,
+    #[serde(default = "default_false")]
+    pub show_camera_settings: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_false() -> bool {
+    false
 }
 
 /// Theme settings - includes both preset theme selection and custom theme data
@@ -109,6 +119,7 @@ impl Default for WindowVisibilitySettings {
             show_rendering_controls: true,
             show_time_scrubber: true,
             show_theme_editor: false, // Theme editor hidden by default
+            show_camera_settings: false, // Camera settings hidden by default
         }
     }
 }
@@ -196,6 +207,7 @@ pub fn save_ui_settings_on_change(
                 show_rendering_controls: global_ui_state.show_rendering_controls,
                 show_time_scrubber: global_ui_state.show_time_scrubber,
                 show_theme_editor: global_ui_state.show_theme_editor,
+                show_camera_settings: global_ui_state.show_camera_settings,
             },
         });
         return;
@@ -213,7 +225,8 @@ pub fn save_ui_settings_on_change(
         || last.window_visibility.show_performance_monitor != global_ui_state.show_performance_monitor
         || last.window_visibility.show_rendering_controls != global_ui_state.show_rendering_controls
         || last.window_visibility.show_time_scrubber != global_ui_state.show_time_scrubber
-        || last.window_visibility.show_theme_editor != global_ui_state.show_theme_editor;
+        || last.window_visibility.show_theme_editor != global_ui_state.show_theme_editor
+        || last.window_visibility.show_camera_settings != global_ui_state.show_camera_settings;
 
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
@@ -240,6 +253,7 @@ pub fn save_ui_settings_on_change(
             show_rendering_controls: global_ui_state.show_rendering_controls,
             show_time_scrubber: global_ui_state.show_time_scrubber,
             show_theme_editor: global_ui_state.show_theme_editor,
+            show_camera_settings: global_ui_state.show_camera_settings,
         };
 
         if let Err(e) = settings.save() {
@@ -260,6 +274,7 @@ pub fn save_ui_settings_on_change(
                 show_rendering_controls: global_ui_state.show_rendering_controls,
                 show_time_scrubber: global_ui_state.show_time_scrubber,
                 show_theme_editor: global_ui_state.show_theme_editor,
+                show_camera_settings: global_ui_state.show_camera_settings,
             },
         });
     }
