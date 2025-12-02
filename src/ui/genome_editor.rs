@@ -834,7 +834,7 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     // Split mass threshold
     ui.text("Split Mass:");
     help_marker(ui, "Minimum mass required for cell division. Both this AND the split interval must be satisfied for a split to occur.");
-    slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 1.0, 5.0, ui.content_region_avail()[0]);
+    slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 1.5, 5.0, ui.content_region_avail()[0]);
 
     // Split interval
     ui.text("Split Interval:");

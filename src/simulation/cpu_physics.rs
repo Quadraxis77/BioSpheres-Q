@@ -929,6 +929,7 @@ pub fn physics_step_st_with_genome(
     state: &mut CanonicalState,
     config: &crate::simulation::PhysicsConfig,
     genome: &crate::genome::GenomeData,
+    current_time: f32,
 ) {
     // 1. Verlet integration (position update)
     verlet_integrate_positions_soa_st(
@@ -1047,8 +1048,90 @@ pub fn physics_step_st_with_genome(
         crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
     }
     
-    // 10. Transport nutrients between adhesion-connected cells
-    crate::simulation::nutrient_system::transport_nutrients_st(state, genome, config.fixed_timestep);
+    // 10. Calculate which cells are deferring division due to neighbor priority
+    let deferred_cells = calculate_deferred_divisions(state, genome, current_time);
+    
+    // 11. Transport nutrients between adhesion-connected cells
+    // Skip nutrient transfer for cells that are deferring division
+    crate::simulation::nutrient_system::transport_nutrients_with_deferred_st(state, genome, config.fixed_timestep, &deferred_cells);
+}
+
+/// Calculate which cells are deferring division due to neighbor priority
+/// Returns a set of cell indices that are ready to split but deferring to a neighbor
+fn calculate_deferred_divisions(
+    state: &CanonicalState,
+    genome: &crate::genome::GenomeData,
+    current_time: f32,
+) -> std::collections::HashSet<usize> {
+    // Find cells ready to divide
+    let mut divisions_to_process = Vec::new();
+    for i in 0..state.cell_count {
+        let cell_age = current_time - state.birth_times[i];
+        let mode_index = state.mode_indices[i];
+        let mode = genome.modes.get(mode_index);
+        
+        // Check max_splits limit (-1 means infinite)
+        let can_split_by_count = if let Some(m) = mode {
+            m.max_splits < 0 || state.split_counts[i] < m.max_splits
+        } else {
+            true
+        };
+        
+        // Check adhesion limits
+        let adhesion_count = state.adhesion_manager.count_active_adhesions(i);
+        let can_split_by_adhesions = if let Some(m) = mode {
+            adhesion_count >= m.min_adhesions as usize && adhesion_count < m.max_adhesions as usize
+        } else {
+            true
+        };
+        
+        // Check mass threshold
+        let can_split_by_mass = if let Some(m) = mode {
+            state.masses[i] >= m.split_mass
+        } else {
+            true
+        };
+        
+        // Check if ready to split
+        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
+            divisions_to_process.push(i);
+        }
+    }
+    
+    // Find cells that are deferring due to neighbor priority
+    let mut deferred_cells = std::collections::HashSet::new();
+    for &cell_idx in &divisions_to_process {
+        let mut should_defer = false;
+        
+        for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
+            if *adhesion_idx < 0 {
+                continue;
+            }
+            let adhesion_idx = *adhesion_idx as usize;
+            
+            if state.adhesion_connections.is_active[adhesion_idx] == 0 {
+                continue;
+            }
+            
+            let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
+                state.adhesion_connections.cell_b_index[adhesion_idx]
+            } else {
+                state.adhesion_connections.cell_a_index[adhesion_idx]
+            };
+            
+            // Check if other cell is ALSO ready to divide and has higher priority (lower index)
+            if divisions_to_process.contains(&other_idx) && other_idx < cell_idx {
+                should_defer = true;
+                break;
+            }
+        }
+        
+        if should_defer {
+            deferred_cells.insert(cell_idx);
+        }
+    }
+    
+    deferred_cells
 }
 
 /// Deterministic physics step function - Multithreaded version
@@ -1056,6 +1139,8 @@ pub fn physics_step_st_with_genome(
 pub fn physics_step(
     state: &mut CanonicalState,
     config: &crate::simulation::PhysicsConfig,
+    _genome: &crate::genome::GenomeData,
+    _current_time: f32,
 ) {
     // 1. Verlet integration (position update)
     verlet_integrate_positions_soa(
@@ -1137,6 +1222,7 @@ pub fn physics_step_with_genome(
     state: &mut CanonicalState,
     config: &crate::simulation::PhysicsConfig,
     genome: &crate::genome::GenomeData,
+    current_time: f32,
 ) {
     // 1. Verlet integration (position update)
     verlet_integrate_positions_soa(
@@ -1255,8 +1341,12 @@ pub fn physics_step_with_genome(
         crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
     }
     
-    // 10. Transport nutrients between adhesion-connected cells
-    crate::simulation::nutrient_system::transport_nutrients(state, genome, config.fixed_timestep);
+    // 10. Calculate which cells are deferring division due to neighbor priority
+    let deferred_cells = calculate_deferred_divisions(state, genome, current_time);
+    
+    // 11. Transport nutrients between adhesion-connected cells
+    // Skip nutrient transfer for cells that are deferring division
+    crate::simulation::nutrient_system::transport_nutrients_with_deferred(state, genome, config.fixed_timestep, &deferred_cells);
 }
 
 // ============================================================================
@@ -1524,15 +1614,15 @@ pub fn division_step(
             
             // Calculate child radii based on their masses
             let child_a_radius = if let Some(m) = child_a_mode {
-                child_a_split_mass.min(m.max_cell_size).clamp(1.0, 2.0)
+                child_a_split_mass.min(m.max_cell_size).clamp(0.5, 2.0)
             } else {
-                child_a_split_mass.clamp(1.0, 2.0)
+                child_a_split_mass.clamp(0.5, 2.0)
             };
             
             let child_b_radius = if let Some(m) = child_b_mode {
-                child_b_split_mass.min(m.max_cell_size).clamp(1.0, 2.0)
+                child_b_split_mass.min(m.max_cell_size).clamp(0.5, 2.0)
             } else {
-                child_b_split_mass.clamp(1.0, 2.0)
+                child_b_split_mass.clamp(0.5, 2.0)
             };
             
             let child_a_split_interval = if let Some(m) = child_a_mode {

@@ -362,6 +362,125 @@ pub fn remove_dead_cell(state: &mut CanonicalState, cell_idx: usize) {
     state.cell_count -= 1;
 }
 
+/// Transport nutrients between adhesion-connected cells - Single-threaded with deferred cells
+/// Skips nutrient transfer for cells that are deferring division due to neighbor priority
+pub fn transport_nutrients_with_deferred_st(
+    state: &mut CanonicalState,
+    genome: &crate::genome::GenomeData,
+    dt: f32,
+    deferred_cells: &std::collections::HashSet<usize>,
+) {
+    // Calculate mass changes for each cell (accumulate transfers)
+    let mut mass_deltas = vec![0.0f32; state.cell_count];
+    
+    // Process each active adhesion connection
+    let adhesion_capacity = state.adhesion_connections.is_active.len();
+    for adhesion_idx in 0..adhesion_capacity {
+        if state.adhesion_connections.is_active[adhesion_idx] == 0 {
+            continue;
+        }
+        
+        let cell_a_idx = state.adhesion_connections.cell_a_index[adhesion_idx];
+        let cell_b_idx = state.adhesion_connections.cell_b_index[adhesion_idx];
+        
+        // Skip if either cell is out of range
+        if cell_a_idx >= state.cell_count || cell_b_idx >= state.cell_count {
+            continue;
+        }
+        
+        // Skip nutrient transfer if either cell is deferring division
+        if deferred_cells.contains(&cell_a_idx) || deferred_cells.contains(&cell_b_idx) {
+            continue;
+        }
+        
+        // Get mode settings for both cells
+        let mode_a = genome.modes.get(state.mode_indices[cell_a_idx]);
+        let mode_b = genome.modes.get(state.mode_indices[cell_b_idx]);
+        
+        // Skip if either mode is invalid
+        if mode_a.is_none() || mode_b.is_none() {
+            continue;
+        }
+        
+        // Get base priorities (default to 1.0 if mode not found)
+        let base_priority_a = mode_a.map(|m| m.nutrient_priority).unwrap_or(1.0);
+        let base_priority_b = mode_b.map(|m| m.nutrient_priority).unwrap_or(1.0);
+        
+        // Get prioritize_when_low flags
+        let prioritize_a = mode_a.map(|m| m.prioritize_when_low).unwrap_or(true);
+        let prioritize_b = mode_b.map(|m| m.prioritize_when_low).unwrap_or(true);
+        
+        // Get masses
+        let mass_a = state.masses[cell_a_idx];
+        let mass_b = state.masses[cell_b_idx];
+        
+        // Apply temporary priority boost when cells are dangerously low on nutrients
+        let danger_threshold = 0.6;
+        let priority_boost = 10.0;
+        
+        let priority_a = if prioritize_a && mass_a < danger_threshold {
+            base_priority_a * priority_boost
+        } else {
+            base_priority_a
+        };
+        
+        let priority_b = if prioritize_b && mass_b < danger_threshold {
+            base_priority_b * priority_boost
+        } else {
+            base_priority_b
+        };
+        
+        // Calculate equilibrium-based nutrient flow
+        let pressure_a = mass_a / priority_a;
+        let pressure_b = mass_b / priority_b;
+        let pressure_diff = pressure_a - pressure_b;
+        let transport_rate = 0.5;
+        let mass_transfer = pressure_diff * transport_rate * dt;
+        
+        // Apply transfer with minimum thresholds
+        let min_mass_a = if prioritize_a { 0.1 } else { 0.0 };
+        let min_mass_b = if prioritize_b { 0.1 } else { 0.0 };
+        
+        let actual_transfer = if mass_transfer > 0.0 {
+            mass_transfer.min(mass_a - min_mass_a)
+        } else {
+            mass_transfer.max(-(mass_b - min_mass_b))
+        };
+        
+        // Accumulate deltas
+        mass_deltas[cell_a_idx] -= actual_transfer;
+        mass_deltas[cell_b_idx] += actual_transfer;
+    }
+    
+    // Apply mass changes and update radii
+    const MIN_CELL_MASS: f32 = 0.5;
+    let mut cells_to_remove = Vec::new();
+    
+    for i in 0..state.cell_count {
+        if mass_deltas[i].abs() > 0.0001 {
+            state.masses[i] += mass_deltas[i];
+            
+            // Check if cell died
+            if state.masses[i] < MIN_CELL_MASS {
+                cells_to_remove.push(i);
+                continue;
+            }
+            
+            // Update radius based on new mass
+            let mode_index = state.mode_indices[i];
+            if let Some(mode) = genome.modes.get(mode_index) {
+                let target_radius = state.masses[i].min(mode.max_cell_size);
+                state.radii[i] = target_radius.clamp(0.5, 2.0);
+            }
+        }
+    }
+    
+    // Remove dead cells (in reverse order to maintain indices)
+    for &cell_idx in cells_to_remove.iter().rev() {
+        remove_dead_cell(state, cell_idx);
+    }
+}
+
 /// Transport nutrients between adhesion-connected cells - Multithreaded
 /// This is a simplified parallel version that processes adhesions in parallel
 pub fn transport_nutrients(
@@ -372,4 +491,15 @@ pub fn transport_nutrients(
     // For thread safety, we use the single-threaded version
     // A fully parallel version would require atomic operations or more complex synchronization
     transport_nutrients_st(state, genome, dt);
+}
+
+/// Transport nutrients between adhesion-connected cells - Multithreaded with deferred cells
+pub fn transport_nutrients_with_deferred(
+    state: &mut CanonicalState,
+    genome: &crate::genome::GenomeData,
+    dt: f32,
+    deferred_cells: &std::collections::HashSet<usize>,
+) {
+    // For thread safety, we use the single-threaded version
+    transport_nutrients_with_deferred_st(state, genome, dt, deferred_cells);
 }

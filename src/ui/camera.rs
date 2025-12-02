@@ -40,7 +40,9 @@ pub struct MainCamera {
 
 /// Spawn the orbit camera
 pub fn setup_camera(mut commands: Commands) {
-    let initial_rotation = Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5);
+    // Initial rotation: looking down at the scene from a 45-degree angle
+    // Rotate around X axis by -45 degrees (look down) and Y axis by 0 degrees (straight on)
+    let initial_rotation = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4);
     commands.spawn((
         Camera3d::default(),
         MainCamera {

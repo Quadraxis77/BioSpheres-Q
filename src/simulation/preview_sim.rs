@@ -341,6 +341,7 @@ fn run_preview_resimulation(
             &mut preview_state.canonical_state, 
             &config,
             &genome.genome,
+            current_time,
         );
         total_physics_time += physics_start.elapsed();
 

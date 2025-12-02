@@ -299,8 +299,33 @@ fn render_cell_inspector_window(
                         ui.text(format!("Consumption: {:.3}/s", mode.swim_force * 0.2));
                     }
                     ui.text(format!("Max Size: {:.2}", mode.max_cell_size));
-                    ui.text(format!("Priority: {:.2}", mode.nutrient_priority));
+                    
+                    // Show base priority and boosted priority if applicable
+                    let danger_threshold = 0.6;
+                    let priority_boost = 10.0;
+                    let is_boosted = mode.prioritize_when_low && data.mass < danger_threshold;
+                    let effective_priority = if is_boosted {
+                        mode.nutrient_priority * priority_boost
+                    } else {
+                        mode.nutrient_priority
+                    };
+                    
+                    ui.text(format!("Base Priority: {:.2}", mode.nutrient_priority));
+                    if is_boosted {
+                        ui.same_line();
+                        ui.text_colored([1.0, 0.0, 0.0, 1.0], format!("→ {:.1} (BOOSTED!)", effective_priority));
+                    }
+                    
                     ui.text(format!("Protect Low: {}", if mode.prioritize_when_low { "Yes" } else { "No" }));
+                    if mode.prioritize_when_low {
+                        ui.same_line();
+                        if is_boosted {
+                            ui.text_colored([1.0, 0.0, 0.0, 1.0], "(ACTIVE)");
+                        } else {
+                            ui.text_colored([0.5, 0.5, 0.5, 1.0], "(inactive)");
+                        }
+                    }
+                    
                     ui.text(format!("Split Ratio: {:.0}%", mode.split_ratio * 100.0));
                 }
                 

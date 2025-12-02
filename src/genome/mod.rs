@@ -137,7 +137,7 @@ impl ModeSettings {
             color: Vec3::new(1.0, 1.0, 1.0),
             cell_type: 0,
             parent_make_adhesion: false,
-            split_mass: 1.0,
+            split_mass: 1.5,
             split_interval: 5.0,
             nutrient_gain_rate: 0.2, // Default: gain 0.2 mass per second
             max_cell_size: 2.0, // Default: max size of 2.0 units
@@ -172,7 +172,7 @@ impl Default for ModeSettings {
             color: Vec3::new(1.0, 1.0, 1.0),
             cell_type: 0,
             parent_make_adhesion: false,
-            split_mass: 1.0,
+            split_mass: 1.5,
             split_interval: 5.0,
             nutrient_gain_rate: 0.2, // Default: gain 0.2 mass per second
             max_cell_size: 2.0, // Default: max size of 2.0 units
