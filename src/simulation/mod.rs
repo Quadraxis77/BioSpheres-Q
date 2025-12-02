@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 pub mod cpu_physics;
 pub mod cell_allocation;
+pub mod cell_debug;
 pub mod clock;
 pub mod cpu_sim;
 pub mod double_buffer;
@@ -11,6 +12,7 @@ pub mod physics_config;
 pub mod preview_sim;
 pub mod adhesion_inheritance;
 pub mod nutrient_system;
+pub mod synchronized_nutrients;
 
 pub use cpu_physics::{CanonicalState, DeterministicSpatialGrid, physics_step, deterministic_random};
 pub use physics_config::PhysicsConfig;
@@ -23,6 +25,7 @@ pub use initial_state::{InitialState, InitialCell};
 pub use preview_sim::{PreviewSimPlugin, PreviewSceneState, PreviewSceneEntity};
 pub use adhesion_inheritance::{inherit_adhesions_on_division, inherit_adhesions_on_division_with_map};
 pub use nutrient_system::{update_nutrient_growth, update_nutrient_growth_st, transport_nutrients, transport_nutrients_st};
+pub use cell_debug::{CellDebugPlugin, CellDebugTracker};
 
 /// Configuration for simulation threading
 #[derive(Resource, Clone, Copy, Debug)]
@@ -59,6 +62,8 @@ impl Plugin for SimulationPlugin {
             .add_plugins(CpuSimPlugin)
             .add_plugins(GpuSimPlugin)
             .add_plugins(PreviewSimPlugin)
+            // Add debug tracking plugin
+            .add_plugins(CellDebugPlugin)
             .init_resource::<PhysicsConfig>()
             .init_resource::<SimulationState>()
             .init_resource::<SimulationConfig>()

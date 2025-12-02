@@ -1051,12 +1051,8 @@ pub fn physics_step_st_with_genome(
         crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
     }
     
-    // 10. Calculate which cells should have nutrient transfer blocked (deferred for 3 frames)
-    let cells_to_block = calculate_cells_attempting_split(state, genome, current_time);
-    
-    // 11. Transport nutrients between adhesion-connected cells
-    // Skip nutrient transfer for cells that are deferred (blocks for 3 frames after becoming ready)
-    crate::simulation::nutrient_system::transport_nutrients_with_deferred_st(state, genome, config.fixed_timestep, &cells_to_block);
+    // 10. Synchronized nutrient transport (maintains cohort synchronization)
+    crate::simulation::synchronized_nutrients::transport_nutrients_synchronized(state, genome, config.fixed_timestep);
 }
 
 /// Calculate which cells should have nutrient transfer blocked this frame
@@ -1330,12 +1326,8 @@ pub fn physics_step_with_genome(
         crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
     }
     
-    // 10. Calculate which cells should have nutrient transfer blocked (deferred for 3 frames)
-    let cells_to_block = calculate_cells_attempting_split(state, genome, current_time);
-    
-    // 11. Transport nutrients between adhesion-connected cells
-    // Skip nutrient transfer for cells that are deferred (blocks for 3 frames after becoming ready)
-    crate::simulation::nutrient_system::transport_nutrients_with_deferred(state, genome, config.fixed_timestep, &cells_to_block);
+    // 10. Synchronized nutrient transport (maintains cohort synchronization)
+    crate::simulation::synchronized_nutrients::transport_nutrients_synchronized(state, genome, config.fixed_timestep);
 }
 
 // ============================================================================
@@ -1437,19 +1429,18 @@ pub fn division_step(
             true
         };
         
-        // Check mass threshold for all cell types
-        // split_mass is the minimum mass required to divide
+        // Check mass threshold - cells must have enough mass to split
         let can_split_by_mass = if let Some(m) = mode {
-            // For Test cells (cell_type == 0), split_mass is the minimum mass gate
-            // For other cell types, split_mass represents the mass allocated to children,
-            // but we still require the parent to have at least that much mass to divide
             state.masses[i] >= m.split_mass
         } else {
             true
         };
         
-        // Skip division if split_interval > 25 (never-split condition), max_splits reached, max_adhesions reached, or insufficient mass
-        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
+        // Check time threshold - cells must be old enough to split
+        let can_split_by_time = cell_age >= state.split_intervals[i];
+        
+        // Cell can split if ALL conditions are met
+        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && can_split_by_time && state.split_intervals[i] <= 25.0 {
             divisions_to_process.push(i);
         }
     }
@@ -1509,6 +1500,7 @@ pub fn division_step(
     // simultaneous divisions where all parents are freed at once.
     
     // Collect division data before modifying state
+    #[allow(dead_code)]
     struct DivisionData {
         parent_idx: usize,
         parent_mode_idx: usize,
@@ -1671,6 +1663,9 @@ pub fn division_step(
     
     // Now write all the children to their allocated slots
     for data in &division_data_list {
+        // Children are born at current_time (no compensation needed due to mass equalization)
+        let child_birth_time = current_time;
+
         if data.child_a_slot < state.capacity {
             // Write child A
             let child_a_id = state.next_cell_id;
@@ -1695,7 +1690,7 @@ pub fn division_step(
             state.accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_a_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
-            state.birth_times[data.child_a_slot] = current_time;
+            state.birth_times[data.child_a_slot] = child_birth_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
             // Child A inherits parent's split count + 1
             state.split_counts[data.child_a_slot] = data.parent_split_count + 1;
@@ -1727,7 +1722,7 @@ pub fn division_step(
             state.accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.prev_accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
             state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
-            state.birth_times[data.child_b_slot] = current_time;
+            state.birth_times[data.child_b_slot] = child_birth_time;
             state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
             // Child B starts with fresh split count of 0
             state.split_counts[data.child_b_slot] = 0;
@@ -1839,12 +1834,11 @@ pub fn division_step(
     // - Child B is at a new index (adhesions were created with correct index)
     // - Non-dividing cells keep their indices
     
-    // Adjust birth times for cells that deferred to prevent time debt accumulation
-    // Offset by 0.5 seconds to compensate for the deferred period
-    const DEFER_TIME: f32 = 0.5;
+    // Reset birth_time for cells that deferred due to adhesion priority
+    // This ensures they split next frame at exactly split_interval age (perfect sync)
     for &cell_idx in &deferred_cells {
         if cell_idx < state.cell_count {
-            state.birth_times[cell_idx] += DEFER_TIME;
+            state.birth_times[cell_idx] = current_time - state.split_intervals[cell_idx];
         }
     }
     
