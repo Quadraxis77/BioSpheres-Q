@@ -62,6 +62,7 @@ pub struct CanonicalState {
     pub birth_times: Vec<f32>,
     pub split_intervals: Vec<f32>,
     pub split_counts: Vec<i32>, // Number of times this cell has split
+    pub split_ready_frame: Vec<i32>, // Frame when cell first became ready to split (-1 = not ready)
     
     // === Adhesion System ===
     /// Adhesion connections between cells
@@ -104,6 +105,7 @@ impl CanonicalState {
             birth_times: vec![0.0; capacity],
             split_intervals: vec![10.0; capacity],
             split_counts: vec![0; capacity],
+            split_ready_frame: vec![-1; capacity],
             adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
             adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
             spatial_grid: DeterministicSpatialGrid::new(16, 100.0, 50.0), // Reduced from 64 to 16
@@ -153,6 +155,7 @@ impl CanonicalState {
         self.birth_times[idx] = birth_time;
         self.split_intervals[idx] = split_interval;
         self.split_counts[idx] = split_count;
+        self.split_ready_frame[idx] = -1; // Not ready to split yet
         
         // Initialize adhesion indices for new cell
         self.adhesion_manager.init_cell_adhesion_indices(idx);
@@ -1048,23 +1051,28 @@ pub fn physics_step_st_with_genome(
         crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
     }
     
-    // 10. Calculate which cells are deferring division due to neighbor priority
-    let deferred_cells = calculate_deferred_divisions(state, genome, current_time);
+    // 10. Calculate which cells should have nutrient transfer blocked (deferred for 3 frames)
+    let cells_to_block = calculate_cells_attempting_split(state, genome, current_time);
     
     // 11. Transport nutrients between adhesion-connected cells
-    // Skip nutrient transfer for cells that are deferring division
-    crate::simulation::nutrient_system::transport_nutrients_with_deferred_st(state, genome, config.fixed_timestep, &deferred_cells);
+    // Skip nutrient transfer for cells that are deferred (blocks for 3 frames after becoming ready)
+    crate::simulation::nutrient_system::transport_nutrients_with_deferred_st(state, genome, config.fixed_timestep, &cells_to_block);
 }
 
-/// Calculate which cells are deferring division due to neighbor priority
-/// Returns a set of cell indices that are ready to split but deferring to a neighbor
-fn calculate_deferred_divisions(
-    state: &CanonicalState,
+/// Calculate which cells should have nutrient transfer blocked this frame
+/// Returns a set of cell indices that should have nutrient transfer deferred
+/// Cells are blocked for 0.5 seconds when attempting to split
+fn calculate_cells_attempting_split(
+    state: &mut CanonicalState,
     genome: &crate::genome::GenomeData,
     current_time: f32,
 ) -> std::collections::HashSet<usize> {
-    // Find cells ready to divide
-    let mut divisions_to_process = Vec::new();
+    // Calculate current frame number (fixed timestep is 1/64 seconds)
+    let current_frame = (current_time * 64.0) as i32;
+    const DEFER_FRAMES: i32 = 32; // 0.5 seconds at 64 fps = 32 frames
+    
+    let mut cells_to_block = std::collections::HashSet::new();
+    
     for i in 0..state.cell_count {
         let cell_age = current_time - state.birth_times[i];
         let mode_index = state.mode_indices[i];
@@ -1092,46 +1100,27 @@ fn calculate_deferred_divisions(
             true
         };
         
-        // Check if ready to split
-        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i] {
-            divisions_to_process.push(i);
+        let is_ready_to_split = can_split_by_count && can_split_by_adhesions && can_split_by_mass 
+            && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i];
+        
+        if is_ready_to_split {
+            // If this is the first frame the cell is ready, record it
+            if state.split_ready_frame[i] < 0 {
+                state.split_ready_frame[i] = current_frame;
+            }
+            
+            // Block nutrient transfer for 0.5 seconds during split attempt
+            let frames_since_ready = current_frame - state.split_ready_frame[i];
+            if frames_since_ready < DEFER_FRAMES {
+                cells_to_block.insert(i);
+            }
+        } else {
+            // Cell is no longer ready to split, reset the frame counter
+            state.split_ready_frame[i] = -1;
         }
     }
     
-    // Find cells that are deferring due to neighbor priority
-    let mut deferred_cells = std::collections::HashSet::new();
-    for &cell_idx in &divisions_to_process {
-        let mut should_defer = false;
-        
-        for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
-            if *adhesion_idx < 0 {
-                continue;
-            }
-            let adhesion_idx = *adhesion_idx as usize;
-            
-            if state.adhesion_connections.is_active[adhesion_idx] == 0 {
-                continue;
-            }
-            
-            let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
-                state.adhesion_connections.cell_b_index[adhesion_idx]
-            } else {
-                state.adhesion_connections.cell_a_index[adhesion_idx]
-            };
-            
-            // Check if other cell is ALSO ready to divide and has higher priority (lower index)
-            if divisions_to_process.contains(&other_idx) && other_idx < cell_idx {
-                should_defer = true;
-                break;
-            }
-        }
-        
-        if should_defer {
-            deferred_cells.insert(cell_idx);
-        }
-    }
-    
-    deferred_cells
+    cells_to_block
 }
 
 /// Deterministic physics step function - Multithreaded version
@@ -1341,12 +1330,12 @@ pub fn physics_step_with_genome(
         crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
     }
     
-    // 10. Calculate which cells are deferring division due to neighbor priority
-    let deferred_cells = calculate_deferred_divisions(state, genome, current_time);
+    // 10. Calculate which cells should have nutrient transfer blocked (deferred for 3 frames)
+    let cells_to_block = calculate_cells_attempting_split(state, genome, current_time);
     
     // 11. Transport nutrients between adhesion-connected cells
-    // Skip nutrient transfer for cells that are deferring division
-    crate::simulation::nutrient_system::transport_nutrients_with_deferred(state, genome, config.fixed_timestep, &deferred_cells);
+    // Skip nutrient transfer for cells that are deferred (blocks for 3 frames after becoming ready)
+    crate::simulation::nutrient_system::transport_nutrients_with_deferred(state, genome, config.fixed_timestep, &cells_to_block);
 }
 
 // ============================================================================
@@ -1469,6 +1458,8 @@ pub fn division_step(
     // Use priority-based system where lower cell index has higher priority
     // This ensures clean adhesion inheritance without race conditions
     let mut filtered_divisions = Vec::new();
+    let mut deferred_cells = Vec::new(); // Track cells that deferred
+    
     for &cell_idx in &divisions_to_process {
         let mut should_defer = false;
         
@@ -1498,6 +1489,8 @@ pub fn division_step(
         
         if !should_defer {
             filtered_divisions.push(cell_idx);
+        } else {
+            deferred_cells.push(cell_idx);
         }
     }
     
@@ -1845,6 +1838,15 @@ pub fn division_step(
     // - Child A reuses parent index (adhesions already point to correct cell)
     // - Child B is at a new index (adhesions were created with correct index)
     // - Non-dividing cells keep their indices
+    
+    // Adjust birth times for cells that deferred to prevent time debt accumulation
+    // Offset by 0.5 seconds to compensate for the deferred period
+    const DEFER_TIME: f32 = 0.5;
+    for &cell_idx in &deferred_cells {
+        if cell_idx < state.cell_count {
+            state.birth_times[cell_idx] += DEFER_TIME;
+        }
+    }
     
     division_events
 }

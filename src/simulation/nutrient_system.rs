@@ -331,6 +331,7 @@ pub fn remove_dead_cell(state: &mut CanonicalState, cell_idx: usize) {
         state.birth_times[cell_idx] = state.birth_times[last_idx];
         state.split_intervals[cell_idx] = state.split_intervals[last_idx];
         state.split_counts[cell_idx] = state.split_counts[last_idx];
+        state.split_ready_frame[cell_idx] = state.split_ready_frame[last_idx];
         
         // Update adhesion indices: all references to last_idx should now point to cell_idx
         if last_idx < state.adhesion_manager.cell_adhesion_indices.len() {
@@ -362,13 +363,13 @@ pub fn remove_dead_cell(state: &mut CanonicalState, cell_idx: usize) {
     state.cell_count -= 1;
 }
 
-/// Transport nutrients between adhesion-connected cells - Single-threaded with deferred cells
-/// Skips nutrient transfer for cells that are deferring division due to neighbor priority
+/// Transport nutrients between adhesion-connected cells - Single-threaded with blocked cells
+/// Skips nutrient transfer for cells attempting to split this frame (prevents nutrient loss during division)
 pub fn transport_nutrients_with_deferred_st(
     state: &mut CanonicalState,
     genome: &crate::genome::GenomeData,
     dt: f32,
-    deferred_cells: &std::collections::HashSet<usize>,
+    cells_attempting_split: &std::collections::HashSet<usize>,
 ) {
     // Calculate mass changes for each cell (accumulate transfers)
     let mut mass_deltas = vec![0.0f32; state.cell_count];
@@ -388,8 +389,9 @@ pub fn transport_nutrients_with_deferred_st(
             continue;
         }
         
-        // Skip nutrient transfer if either cell is deferring division
-        if deferred_cells.contains(&cell_a_idx) || deferred_cells.contains(&cell_b_idx) {
+        // Skip nutrient transfer if either cell is attempting to split this frame
+        // This prevents cells from losing mass during the division attempt
+        if cells_attempting_split.contains(&cell_a_idx) || cells_attempting_split.contains(&cell_b_idx) {
             continue;
         }
         
@@ -493,13 +495,13 @@ pub fn transport_nutrients(
     transport_nutrients_st(state, genome, dt);
 }
 
-/// Transport nutrients between adhesion-connected cells - Multithreaded with deferred cells
+/// Transport nutrients between adhesion-connected cells - Multithreaded with blocked cells
 pub fn transport_nutrients_with_deferred(
     state: &mut CanonicalState,
     genome: &crate::genome::GenomeData,
     dt: f32,
-    deferred_cells: &std::collections::HashSet<usize>,
+    cells_attempting_split: &std::collections::HashSet<usize>,
 ) {
     // For thread safety, we use the single-threaded version
-    transport_nutrients_with_deferred_st(state, genome, dt, deferred_cells);
+    transport_nutrients_with_deferred_st(state, genome, dt, cells_attempting_split);
 }
