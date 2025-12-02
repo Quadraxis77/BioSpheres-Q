@@ -11,6 +11,9 @@ pub struct ImguiPanelPlugin;
 
 impl Plugin for ImguiPanelPlugin {
     fn build(&self, app: &mut App) {
+        // Create default imgui.ini for first-time users with docked layout
+        Self::ensure_default_imgui_ini();
+        
         app.insert_resource(ImguiPanelState {
             show_debug_info: true,
         })
@@ -29,6 +32,81 @@ impl Plugin for ImguiPanelPlugin {
         })
         .add_systems(Update, imgui_style::apply_imgui_style_system)
         .add_systems(Update, enable_window_clamping);
+    }
+}
+
+impl ImguiPanelPlugin {
+    /// Create default imgui.ini for first-time users with proper docked layout
+    fn ensure_default_imgui_ini() {
+        use std::path::Path;
+        
+        let imgui_ini = Path::new("imgui.ini");
+        
+        // Only create if it doesn't exist (first-time user)
+        if !imgui_ini.exists() {
+            let default_layout = r#"[Window][Debug##Default]
+Pos=60,60
+Size=400,400
+Collapsed=0
+
+[Window][Genome Editor]
+Pos=0,27
+Size=700,1053
+Collapsed=0
+
+[Window][Scene Manager]
+Pos=1704,26
+Size=212,321
+Collapsed=0
+DockId=0x00000002,0
+
+[Window][Time Scrubber]
+Pos=702,910
+Size=1000,163
+Collapsed=0
+
+[Window][Rendering Controls]
+Pos=1704,349
+Size=212,390
+Collapsed=0
+DockId=0x00000005,0
+
+[Window][Cell Inspector]
+Pos=1704,741
+Size=212,336
+Collapsed=0
+DockId=0x00000008,0
+
+[Window][Advanced Performance Monitor]
+Pos=1704,349
+Size=212,390
+Collapsed=0
+DockId=0x00000003,0
+
+[Window][Theme Editor]
+Pos=994,421
+Size=398,615
+Collapsed=0
+
+[Window][Camera Settings]
+Pos=2223,215
+Size=815,613
+Collapsed=0
+
+[Docking][Data]
+DockNode        ID=0x00000001 Pos=1704,26 Size=212,1051 Split=Y
+  DockNode      ID=0x00000007 Parent=0x00000001 SizeRef=388,954 Split=Y
+    DockNode    ID=0x00000004 Parent=0x00000007 SizeRef=403,430 Split=Y
+      DockNode  ID=0x00000002 Parent=0x00000004 SizeRef=401,418 Selected=0x6B58BA6D
+      DockNode  ID=0x00000003 Parent=0x00000004 SizeRef=401,273 Selected=0x9B936203
+    DockNode    ID=0x00000005 Parent=0x00000007 SizeRef=403,522 Selected=0x018F13E1
+  DockNode      ID=0x00000008 Parent=0x00000001 SizeRef=388,450 Selected=0x0CE0C78D
+"#;
+            
+            if let Err(e) = std::fs::write(imgui_ini, default_layout) {
+                eprintln!("Failed to create default imgui.ini: {}", e);
+            }
+        }
     }
 }
 

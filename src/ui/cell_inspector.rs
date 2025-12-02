@@ -191,8 +191,8 @@ fn render_cell_inspector_window(
     };
 
     ui.window("Cell Inspector")
-        .position([10.0, 400.0], Condition::FirstUseEver)
-        .size([280.0, 450.0], Condition::FirstUseEver)
+        .position([1704.0, 741.0], Condition::FirstUseEver)
+        .size([212.0, 336.0], Condition::FirstUseEver)
         .size_constraints([250.0, 200.0], [f32::MAX, f32::MAX])
         .collapsible(true)
         .flags(flags)

@@ -191,8 +191,8 @@ fn render_performance_window(
     };
 
     ui.window("Advanced Performance Monitor")
-        .position([1615.0, 280.0], Condition::FirstUseEver)
-        .size([300.0, 565.0], Condition::FirstUseEver)
+        .position([1704.0, 349.0], Condition::FirstUseEver)
+        .size([212.0, 390.0], Condition::FirstUseEver)
         .flags(flags)
         .build(|| {
             // Performance Overview Section
