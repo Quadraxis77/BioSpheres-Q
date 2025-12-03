@@ -899,8 +899,10 @@ pub fn physics_step_st(
     
     // 6. Apply boundary conditions
     apply_boundary_forces_soa_st(
-        &state.positions[..state.cell_count],
+        &mut state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
+        &state.rotations[..state.cell_count],
+        &mut state.torques[..state.cell_count],
         config,
     );
     
@@ -1002,8 +1004,10 @@ pub fn physics_step_st_with_genome(
     
     // 6. Apply boundary conditions
     apply_boundary_forces_soa_st(
-        &state.positions[..state.cell_count],
+        &mut state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
+        &state.rotations[..state.cell_count],
+        &mut state.torques[..state.cell_count],
         config,
     );
     
@@ -1038,20 +1042,11 @@ pub fn physics_step_st_with_genome(
     );
     
     // 9.5. Consume nutrients for Flagellocyte cells and remove dead cells
-    let dead_cells = crate::simulation::nutrient_system::consume_swim_nutrients_st(
-        &mut state.masses[..state.cell_count],
-        &mut state.radii[..state.cell_count],
-        &state.mode_indices[..state.cell_count],
-        genome,
-        config.fixed_timestep,
-    );
-    
-    // Remove dead flagellocytes (in reverse order to maintain indices)
-    for &cell_idx in dead_cells.iter().rev() {
-        crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
-    }
+    // NOTE: Consumption is now handled inside synchronized nutrient transport
+    // to prevent mass loss from being overwritten by cohort equalization
     
     // 10. Synchronized nutrient transport (maintains cohort synchronization)
+    // This now handles both Test cell nutrient gain AND Flagellocyte consumption
     crate::simulation::synchronized_nutrients::transport_nutrients_synchronized(state, genome, config.fixed_timestep);
 }
 
@@ -1175,8 +1170,10 @@ pub fn physics_step(
     
     // 6. Apply boundary conditions
     apply_boundary_forces_soa(
-        &state.positions[..state.cell_count],
+        &mut state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
+        &state.rotations[..state.cell_count],
+        &mut state.torques[..state.cell_count],
         config,
     );
     
@@ -1278,8 +1275,10 @@ pub fn physics_step_with_genome(
     
     // 6. Apply boundary conditions
     apply_boundary_forces_soa(
-        &state.positions[..state.cell_count],
+        &mut state.positions[..state.cell_count],
         &mut state.velocities[..state.cell_count],
+        &state.rotations[..state.cell_count],
+        &mut state.torques[..state.cell_count],
         config,
     );
     
@@ -1314,20 +1313,11 @@ pub fn physics_step_with_genome(
     );
     
     // 9.5. Consume nutrients for Flagellocyte cells and remove dead cells
-    let dead_cells = crate::simulation::nutrient_system::consume_swim_nutrients(
-        &mut state.masses[..state.cell_count],
-        &mut state.radii[..state.cell_count],
-        &state.mode_indices[..state.cell_count],
-        genome,
-        config.fixed_timestep,
-    );
-    
-    // Remove dead flagellocytes (in reverse order to maintain indices)
-    for &cell_idx in dead_cells.iter().rev() {
-        crate::simulation::nutrient_system::remove_dead_cell(state, cell_idx);
-    }
+    // NOTE: Consumption is now handled inside synchronized nutrient transport
+    // to prevent mass loss from being overwritten by cohort equalization
     
     // 10. Synchronized nutrient transport (maintains cohort synchronization)
+    // This now handles both Test cell nutrient gain AND Flagellocyte consumption
     crate::simulation::synchronized_nutrients::transport_nutrients_synchronized(state, genome, config.fixed_timestep);
 }
 
@@ -2072,65 +2062,171 @@ pub fn apply_swim_forces(
         });
 }
 
-/// Apply boundary velocity reversal for cells crossing the spherical boundary (SoA version) - Single-threaded
+/// Apply boundary forces that push cells toward center near the spherical boundary - Single-threaded
+/// 
+/// Creates a smooth inward force that increases as cells approach the boundary.
+/// The force activates in a "soft zone" near the boundary and becomes stronger closer to the edge.
+/// Also applies torque to rotate cells to face inward.
 pub fn apply_boundary_forces_soa_st(
-    positions: &[Vec3],
+    positions: &mut [Vec3],
     velocities: &mut [Vec3],
+    rotations: &[Quat],
+    torques: &mut [Vec3],
     config: &crate::simulation::PhysicsConfig,
 ) {
+    // Boundary force parameters
+    let boundary_radius = config.sphere_radius;
+    let soft_zone_thickness = 5.0; // Start applying force 5 units before boundary
+    let soft_zone_start = boundary_radius - soft_zone_thickness;
+    let max_boundary_force = 500.0; // Maximum inward force at the boundary
+    
     for i in 0..positions.len() {
         let distance_from_origin = positions[i].length();
         
-        if distance_from_origin > config.sphere_radius {
-            let r_hat = if distance_from_origin > 0.0001 {
-                positions[i] / distance_from_origin
-            } else {
-                continue;
-            };
+        // Skip if at origin
+        if distance_from_origin < 0.0001 {
+            continue;
+        }
+        
+        let r_hat = positions[i] / distance_from_origin;
+        
+        // Apply smooth inward force in the soft zone
+        if distance_from_origin > soft_zone_start {
+            // Calculate how far into the soft zone (0.0 at start, 1.0 at boundary)
+            let penetration = (distance_from_origin - soft_zone_start) / soft_zone_thickness;
+            let penetration_clamped = penetration.clamp(0.0, 1.0);
             
-            // Decompose velocity into radial and tangential components
-            let radial_component_magnitude = velocities[i].dot(r_hat);
-            let v_radial = radial_component_magnitude * r_hat;
-            let v_tangential = velocities[i] - v_radial;
+            // Quadratic force curve: gentle at first, strong near boundary
+            let force_magnitude = max_boundary_force * penetration_clamped * penetration_clamped;
             
-            // Reverse radial component
-            velocities[i] = v_tangential - v_radial;
+            // Apply inward force (negative radial direction)
+            let inward_force = -r_hat * force_magnitude;
+            velocities[i] += inward_force * 0.016; // Approximate dt for velocity adjustment
+            
+            // Apply torque to rotate cell to face inward
+            // Get the cell's forward direction (local +Z axis)
+            let forward = rotations[i] * Vec3::Z;
+            
+            // Calculate desired direction (toward center)
+            let desired_direction = -r_hat;
+            
+            // Calculate rotation axis (cross product of current forward and desired direction)
+            let rotation_axis = forward.cross(desired_direction);
+            let rotation_axis_length = rotation_axis.length();
+            
+            // Only apply torque if there's a meaningful rotation needed
+            if rotation_axis_length > 0.001 {
+                let normalized_axis = rotation_axis / rotation_axis_length;
+                
+                // Calculate angle between current and desired direction
+                let dot_product = forward.dot(desired_direction).clamp(-1.0, 1.0);
+                let angle = dot_product.acos();
+                
+                // Torque magnitude increases with penetration and angle
+                let torque_strength = 50.0 * penetration_clamped * angle;
+                
+                // Apply torque to rotate toward center
+                torques[i] += normalized_axis * torque_strength;
+            }
+        }
+        
+        // Hard clamp: if somehow past boundary, push back and reverse velocity
+        if distance_from_origin > boundary_radius {
+            positions[i] = r_hat * boundary_radius;
+            
+            // Reverse any outward velocity component
+            let radial_velocity = velocities[i].dot(r_hat);
+            if radial_velocity > 0.0 {
+                velocities[i] -= r_hat * radial_velocity * 2.0; // Remove and reverse
+            }
         }
     }
 }
 
-/// Apply boundary velocity reversal for cells crossing the spherical boundary (SoA version) - Multithreaded
+/// Apply boundary forces that push cells toward center near the spherical boundary - Multithreaded
 /// 
-/// Uses parallel iteration for improved performance with large cell counts.
+/// Creates a smooth inward force that increases as cells approach the boundary.
+/// The force activates in a "soft zone" near the boundary and becomes stronger closer to the edge.
+/// Also applies torque to rotate cells to face inward.
 pub fn apply_boundary_forces_soa(
-    positions: &[Vec3],
+    positions: &mut [Vec3],
     velocities: &mut [Vec3],
+    rotations: &[Quat],
+    torques: &mut [Vec3],
     config: &crate::simulation::PhysicsConfig,
 ) {
     use rayon::prelude::*;
     
-    let sphere_radius = config.sphere_radius;
+    // Boundary force parameters
+    let boundary_radius = config.sphere_radius;
+    let soft_zone_thickness = 5.0; // Start applying force 5 units before boundary
+    let soft_zone_start = boundary_radius - soft_zone_thickness;
+    let max_boundary_force = 500.0; // Maximum inward force at the boundary
     
     // Use parallel iteration for better performance with many cells
-    positions.par_iter()
+    positions.par_iter_mut()
         .zip(velocities.par_iter_mut())
-        .for_each(|(pos, vel)| {
+        .zip(rotations.par_iter())
+        .zip(torques.par_iter_mut())
+        .for_each(|(((pos, vel), rot), torque)| {
             let distance_from_origin = pos.length();
             
-            if distance_from_origin > sphere_radius {
-                let r_hat = if distance_from_origin > 0.0001 {
-                    *pos / distance_from_origin
-                } else {
-                    return;
-                };
+            // Skip if at origin
+            if distance_from_origin < 0.0001 {
+                return;
+            }
+            
+            let r_hat = *pos / distance_from_origin;
+            
+            // Apply smooth inward force in the soft zone
+            if distance_from_origin > soft_zone_start {
+                // Calculate how far into the soft zone (0.0 at start, 1.0 at boundary)
+                let penetration = (distance_from_origin - soft_zone_start) / soft_zone_thickness;
+                let penetration_clamped = penetration.clamp(0.0, 1.0);
                 
-                // Decompose velocity into radial and tangential components
-                let radial_component_magnitude = vel.dot(r_hat);
-                let v_radial = radial_component_magnitude * r_hat;
-                let v_tangential = *vel - v_radial;
+                // Quadratic force curve: gentle at first, strong near boundary
+                let force_magnitude = max_boundary_force * penetration_clamped * penetration_clamped;
                 
-                // Reverse radial component
-                *vel = v_tangential - v_radial;
+                // Apply inward force (negative radial direction)
+                let inward_force = -r_hat * force_magnitude;
+                *vel += inward_force * 0.016; // Approximate dt for velocity adjustment
+                
+                // Apply torque to rotate cell to face inward
+                // Get the cell's forward direction (local +Z axis)
+                let forward = *rot * Vec3::Z;
+                
+                // Calculate desired direction (toward center)
+                let desired_direction = -r_hat;
+                
+                // Calculate rotation axis (cross product of current forward and desired direction)
+                let rotation_axis = forward.cross(desired_direction);
+                let rotation_axis_length = rotation_axis.length();
+                
+                // Only apply torque if there's a meaningful rotation needed
+                if rotation_axis_length > 0.001 {
+                    let normalized_axis = rotation_axis / rotation_axis_length;
+                    
+                    // Calculate angle between current and desired direction
+                    let dot_product = forward.dot(desired_direction).clamp(-1.0, 1.0);
+                    let angle = dot_product.acos();
+                    
+                    // Torque magnitude increases with penetration and angle
+                    let torque_strength = 50.0 * penetration_clamped * angle;
+                    
+                    // Apply torque to rotate toward center
+                    *torque += normalized_axis * torque_strength;
+                }
+            }
+            
+            // Hard clamp: if somehow past boundary, push back and reverse velocity
+            if distance_from_origin > boundary_radius {
+                *pos = r_hat * boundary_radius;
+                
+                // Reverse any outward velocity component
+                let radial_velocity = vel.dot(r_hat);
+                if radial_velocity > 0.0 {
+                    *vel -= r_hat * radial_velocity * 2.0; // Remove and reverse
+                }
             }
         });
 }
