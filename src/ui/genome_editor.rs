@@ -266,8 +266,11 @@ fn render_genome_editor(
                 // Update mode numbers for all modes after insertion point
                 update_mode_numbers_after_insert(&mut current_genome.genome, insert_idx);
                 
-                // Select the newly created mode
-                current_genome.selected_mode_index = insert_idx as i32;
+                // Keep the current mode selected (adjust index if needed)
+                // If we inserted before or at the current selection, increment the selection index
+                if insert_idx <= selected_idx && selected_idx < current_genome.genome.modes.len() {
+                    current_genome.selected_mode_index = (selected_idx + 1) as i32;
+                }
                 
                 // Calculate grid position for the new node
                 const NODE_SPACING_X: f32 = 250.0;
@@ -1453,8 +1456,11 @@ fn render_genome_graph(
                         // Update mode numbers for all modes after insertion point
                         update_mode_numbers_after_insert(&mut current_genome.genome, insert_idx);
                         
-                        // Select the newly created mode
-                        current_genome.selected_mode_index = insert_idx as i32;
+                        // Keep the current mode selected (adjust index if needed)
+                        // If we inserted before or at the current selection, increment the selection index
+                        if insert_idx <= selected_idx && selected_idx < current_genome.genome.modes.len() {
+                            current_genome.selected_mode_index = (selected_idx + 1) as i32;
+                        }
                         
                         // Store the desired position for the new mode before rebuild
                         node_graph.pending_position = Some((insert_idx, mouse_pos_editor[0], mouse_pos_editor[1]));
