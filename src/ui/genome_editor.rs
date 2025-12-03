@@ -841,42 +841,40 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     help_marker(ui, "Time in seconds between cell divisions. Both this AND the split mass must be satisfied for a split to occur. Set to 'Never' (>25s) to prevent splitting.");
     split_interval_slider(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
 
-    // Split ratio (only for Test cells)
-    if mode.cell_type == 0 {
-        ui.text("Split Ratio:");
-        help_marker(ui, "How parent mass is divided between children. 50% means equal split, lower values give more mass to Child B.");
-        
-        // Clamp split_ratio to valid range
-        mode.split_ratio = mode.split_ratio.clamp(0.0, 1.0);
-        
-        // Convert to percentage (0-100) for integer slider with 1% increments
-        let mut percent_value = (mode.split_ratio * 100.0).round() as i32;
-        
-        // Draw slider
-        ui.set_next_item_width(ui.content_region_avail()[0] - 80.0);
-        if ui.slider("##SplitRatio", 0, 100, &mut percent_value) {
-            mode.split_ratio = (percent_value as f32) / 100.0;
-        }
-        
-        // Draw text input on same line
-        ui.same_line();
-        ui.set_next_item_width(70.0);
-        let mut text_buffer = format!("{:.2}", mode.split_ratio);
-        if ui.input_text("##inputSplitRatio", &mut text_buffer)
-            .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
-            .build()
-        {
-            if let Ok(new_value) = text_buffer.parse::<f32>() {
-                mode.split_ratio = new_value.clamp(0.0, 1.0);
-            }
-        }
-        
-        // Show visual indicator of the split
-        let child_a_percent = mode.split_ratio * 100.0;
-        let child_b_percent = (1.0 - mode.split_ratio) * 100.0;
-        ui.text(format!("  Child A (Blue): {:.0}%", child_a_percent));
-        ui.text(format!("  Child B (Green): {:.0}%", child_b_percent));
+    // Split ratio (all cell types)
+    ui.text("Split Ratio:");
+    help_marker(ui, "How parent mass is divided between children. 50% means equal split, lower values give more mass to Child B.");
+    
+    // Clamp split_ratio to valid range
+    mode.split_ratio = mode.split_ratio.clamp(0.0, 1.0);
+    
+    // Convert to percentage (0-100) for integer slider with 1% increments
+    let mut percent_value = (mode.split_ratio * 100.0).round() as i32;
+    
+    // Draw slider
+    ui.set_next_item_width(ui.content_region_avail()[0] - 80.0);
+    if ui.slider("##SplitRatio", 0, 100, &mut percent_value) {
+        mode.split_ratio = (percent_value as f32) / 100.0;
     }
+    
+    // Draw text input on same line
+    ui.same_line();
+    ui.set_next_item_width(70.0);
+    let mut text_buffer = format!("{:.2}", mode.split_ratio);
+    if ui.input_text("##inputSplitRatio", &mut text_buffer)
+        .flags(InputTextFlags::CHARS_DECIMAL | InputTextFlags::AUTO_SELECT_ALL | InputTextFlags::ENTER_RETURNS_TRUE)
+        .build()
+    {
+        if let Ok(new_value) = text_buffer.parse::<f32>() {
+            mode.split_ratio = new_value.clamp(0.0, 1.0);
+        }
+    }
+    
+    // Show visual indicator of the split
+    let child_a_percent = mode.split_ratio * 100.0;
+    let child_b_percent = (1.0 - mode.split_ratio) * 100.0;
+    ui.text(format!("  Child A (Blue): {:.0}%", child_a_percent));
+    ui.text(format!("  Child B (Green): {:.0}%", child_b_percent));
 
     ui.spacing();
     ui.separator();
