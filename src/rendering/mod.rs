@@ -6,6 +6,10 @@ pub mod debug;
 pub mod adhesion_lines;
 pub mod flagellocyte_mesh;
 
+/// Marker component for the world sphere entity
+#[derive(Component)]
+pub struct WorldSphere;
+
 // GPU rendering modules
 pub mod gpu_types;
 pub mod gpu_renderer;
@@ -45,6 +49,7 @@ impl Plugin for RenderingPlugin {
             .add_systems(Update, (
                 update_gizmos_for_mode,
                 update_wireframe_mode,
+                update_world_sphere_material,
             ));
     }
 }
@@ -107,6 +112,10 @@ pub struct RenderingConfig {
     pub show_split_plane_gizmos: bool,
     pub target_fps: f32,
     pub user_has_changed_gizmos: bool,
+    // World sphere settings
+    pub world_sphere_opacity: f32,
+    pub world_sphere_color: Vec3,
+    pub world_sphere_emissive: f32,
 }
 
 impl Default for RenderingConfig {
@@ -118,6 +127,9 @@ impl Default for RenderingConfig {
             show_split_plane_gizmos: false,
             target_fps: 60.0,
             user_has_changed_gizmos: false,
+            world_sphere_opacity: 0.35,
+            world_sphere_color: Vec3::new(0.2, 0.25, 0.35),
+            world_sphere_emissive: 0.08,
         }
     }
 }
@@ -135,5 +147,32 @@ pub fn sync_transforms(
         transform.rotation = cell_orientation.rotation;
         // OPTIMIZATION: All cells share the same unit sphere mesh, scaled by radius
         transform.scale = Vec3::splat(cell.radius);
+    }
+}
+
+/// System to update world sphere material when rendering config changes
+fn update_world_sphere_material(
+    rendering_config: Res<RenderingConfig>,
+    world_sphere_query: Query<&MeshMaterial3d<StandardMaterial>, With<WorldSphere>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !rendering_config.is_changed() {
+        return;
+    }
+    
+    for material_handle in world_sphere_query.iter() {
+        if let Some(material) = materials.get_mut(&material_handle.0) {
+            material.base_color = Color::srgba(
+                rendering_config.world_sphere_color.x,
+                rendering_config.world_sphere_color.y,
+                rendering_config.world_sphere_color.z,
+                rendering_config.world_sphere_opacity,
+            );
+            material.emissive = LinearRgba::rgb(
+                rendering_config.world_sphere_emissive,
+                rendering_config.world_sphere_emissive * 1.25,
+                rendering_config.world_sphere_emissive * 1.5,
+            );
+        }
     }
 }

@@ -67,6 +67,35 @@ fn render_controls_ui(
             ui.separator();
             ui.checkbox("Wireframe Mode", &mut rendering_config.wireframe_mode);
             
+            // World Sphere Settings
+            ui.separator();
+            ui.text("World Sphere:");
+            
+            ui.text("Opacity:");
+            ui.slider("##world_opacity", 0.0, 1.0, &mut rendering_config.world_sphere_opacity);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Transparency of the world boundary sphere");
+            }
+            
+            ui.text("Color:");
+            let mut color = [
+                rendering_config.world_sphere_color.x,
+                rendering_config.world_sphere_color.y,
+                rendering_config.world_sphere_color.z,
+            ];
+            if ui.color_edit3("##world_color", &mut color) {
+                rendering_config.world_sphere_color = Vec3::new(color[0], color[1], color[2]);
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Base color of the world sphere");
+            }
+            
+            ui.text("Edge Glow:");
+            ui.slider("##world_emissive", 0.0, 0.5, &mut rendering_config.world_sphere_emissive);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Emissive lighting intensity for Fresnel edge glow");
+            }
+            
             // Theme selector
             ui.separator();
             ui.text("UI Theme:");
