@@ -1398,147 +1398,168 @@ pub fn division_step(
         return Vec::new();
     }
     
-    // Find cells ready to divide
-    let mut divisions_to_process = Vec::new();
-    for i in 0..state.cell_count {
-        let cell_age = current_time - state.birth_times[i];
-        let mode_index = state.mode_indices[i];
-        let mode = genome.modes.get(mode_index);
-        
-        // Check max_splits limit (-1 means infinite)
-        let can_split_by_count = if let Some(m) = mode {
-            m.max_splits < 0 || state.split_counts[i] < m.max_splits
-        } else {
-            true
-        };
-        
-        // Check adhesion limits - prevent splitting if at/above max or below min connections
-        let adhesion_count = state.adhesion_manager.count_active_adhesions(i);
-        let can_split_by_adhesions = if let Some(m) = mode {
-            adhesion_count >= m.min_adhesions as usize && adhesion_count < m.max_adhesions as usize
-        } else {
-            true
-        };
-        
-        // Check mass threshold - cells must have enough mass to split
-        let can_split_by_mass = if let Some(m) = mode {
-            state.masses[i] >= m.split_mass
-        } else {
-            true
-        };
-        
-        // Check time threshold - cells must be old enough to split
-        let can_split_by_time = cell_age >= state.split_intervals[i];
-        
-        // Cell can split if ALL conditions are met
-        if can_split_by_count && can_split_by_adhesions && can_split_by_mass && can_split_by_time && state.split_intervals[i] <= 25.0 {
-            divisions_to_process.push(i);
-        }
-    }
+    // Multi-pass split system: Instead of deferring splits to the next tick,
+    // we perform multiple passes within this tick. Each pass handles splits
+    // that don't conflict with each other, then we move to the next pass.
+    // This prevents nutrient diffusion from invalidating split conditions.
+    let mut all_division_events = Vec::new();
+    let mut already_split = vec![false; state.capacity]; // Track which cells have split
     
-    // CRITICAL: Prevent simultaneous splits of adhered cells
-    // Use priority-based system where lower cell index has higher priority
-    // This ensures clean adhesion inheritance without race conditions
-    let mut filtered_divisions = Vec::new();
-    let mut deferred_cells = Vec::new(); // Track cells that deferred
+    // Maximum number of passes to prevent infinite loops
+    const MAX_PASSES: usize = 10;
     
-    for &cell_idx in &divisions_to_process {
-        let mut should_defer = false;
-        
-        for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
-            if *adhesion_idx < 0 {
-                continue;
-            }
-            let adhesion_idx = *adhesion_idx as usize;
-            
-            if state.adhesion_connections.is_active[adhesion_idx] == 0 {
+    for _pass in 0..MAX_PASSES {
+        // Find cells ready to divide in this pass
+        let mut divisions_to_process = Vec::new();
+        for i in 0..state.cell_count {
+            // Skip cells that already split in a previous pass
+            if already_split[i] {
                 continue;
             }
             
-            let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
-                state.adhesion_connections.cell_b_index[adhesion_idx]
+            let cell_age = current_time - state.birth_times[i];
+            let mode_index = state.mode_indices[i];
+            let mode = genome.modes.get(mode_index);
+            
+            // Check max_splits limit (-1 means infinite)
+            let can_split_by_count = if let Some(m) = mode {
+                m.max_splits < 0 || state.split_counts[i] < m.max_splits
             } else {
-                state.adhesion_connections.cell_a_index[adhesion_idx]
+                true
             };
             
-            // Check if other cell is ALSO in the divisions_to_process list
-            // (meaning it's fully ready to divide this frame)
-            if divisions_to_process.contains(&other_idx) && other_idx < cell_idx {
-                should_defer = true;
-                break;
+            // Check adhesion limits - prevent splitting if at/above max or below min connections
+            let adhesion_count = state.adhesion_manager.count_active_adhesions(i);
+            let can_split_by_adhesions = if let Some(m) = mode {
+                adhesion_count >= m.min_adhesions as usize && adhesion_count < m.max_adhesions as usize
+            } else {
+                true
+            };
+            
+            // Check mass threshold - cells must have enough mass to split
+            let can_split_by_mass = if let Some(m) = mode {
+                state.masses[i] >= m.split_mass
+            } else {
+                true
+            };
+            
+            // Check time threshold - cells must be old enough to split
+            let can_split_by_time = cell_age >= state.split_intervals[i];
+            
+            // Cell can split if ALL conditions are met
+            if can_split_by_count && can_split_by_adhesions && can_split_by_mass && can_split_by_time && state.split_intervals[i] <= 25.0 {
+                divisions_to_process.push(i);
             }
         }
         
-        if !should_defer {
-            filtered_divisions.push(cell_idx);
-        } else {
-            deferred_cells.push(cell_idx);
+        // If no cells ready to split, we're done
+        if divisions_to_process.is_empty() {
+            break;
         }
-    }
-    
-    let divisions_to_process = filtered_divisions;
-    
-    // Early exit if no divisions - avoid expensive AllocationSim creation
-    if divisions_to_process.is_empty() {
-        return Vec::new();
-    }
-
-    // For staggered divisions, we use a simpler allocation strategy:
-    // Write children to slots at the end of the array (starting from cell_count)
-    // Then compact to remove parents and consolidate everything
-    //
-    // This avoids the complex reservation system which was designed for
-    // simultaneous divisions where all parents are freed at once.
-    
-    // Collect division data before modifying state
-    #[allow(dead_code)]
-    struct DivisionData {
-        parent_idx: usize,
-        parent_mode_idx: usize,
-        child_a_slot: usize,
-        child_b_slot: usize,
-        parent_velocity: bevy::prelude::Vec3,
-        _parent_radius: f32,
-        parent_genome_id: usize,
-        parent_stiffness: f32,
-        parent_split_count: i32,
-        parent_genome_orientation: bevy::prelude::Quat,  // CRITICAL: Save parent's genome orientation before overwriting
-        child_a_pos: bevy::prelude::Vec3,
-        child_b_pos: bevy::prelude::Vec3,
-        child_a_orientation: bevy::prelude::Quat,
-        child_b_orientation: bevy::prelude::Quat,
-        child_a_genome_orientation: bevy::prelude::Quat,
-        child_b_genome_orientation: bevy::prelude::Quat,
-        child_a_mode_idx: usize,
-        child_b_mode_idx: usize,
-        child_a_split_mass: f32,
-        child_b_split_mass: f32,
-        child_a_radius: f32,
-        child_b_radius: f32,
-        child_a_split_interval: f32,
-        child_b_split_interval: f32,
-    }
-    
-    let mut division_data_list = Vec::new();
-    let mut division_events = Vec::new();
-
-    // Calculate available slots for children
-    // Child A reuses parent index (matches C++), Child B gets new slot
-    let mut next_available_slot = state.cell_count;
-
-    // Process each division and collect data
-    for &parent_idx in &divisions_to_process {
-        // Check if we have space for 1 more cell (child B)
-        if next_available_slot >= state.capacity {
+        
+        // CRITICAL: Prevent simultaneous splits of adhered cells
+        // Use priority-based system where lower cell index has higher priority
+        // This ensures clean adhesion inheritance without race conditions
+        let mut filtered_divisions = Vec::new();
+        
+        for &cell_idx in &divisions_to_process {
+            let mut should_defer = false;
+            
+            for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
+                if *adhesion_idx < 0 {
+                    continue;
+                }
+                let adhesion_idx = *adhesion_idx as usize;
+                
+                if state.adhesion_connections.is_active[adhesion_idx] == 0 {
+                    continue;
+                }
+                
+                let other_idx = if state.adhesion_connections.cell_a_index[adhesion_idx] == cell_idx {
+                    state.adhesion_connections.cell_b_index[adhesion_idx]
+                } else {
+                    state.adhesion_connections.cell_a_index[adhesion_idx]
+                };
+                
+                // Check if other cell is ALSO in the divisions_to_process list
+                // (meaning it's fully ready to divide this pass)
+                if divisions_to_process.contains(&other_idx) && other_idx < cell_idx {
+                    should_defer = true;
+                    break;
+                }
+            }
+            
+            if !should_defer {
+                filtered_divisions.push(cell_idx);
+            }
+        }
+        
+        let divisions_to_process = filtered_divisions;
+        
+        // If no divisions can proceed in this pass, we're done
+        if divisions_to_process.is_empty() {
             break;
         }
 
-        // Child A reuses parent index, Child B gets new slot (matches C++ behavior)
-        let child_a_slot = parent_idx;
-        let child_b_slot = next_available_slot;
-        next_available_slot += 1;
+        // For staggered divisions, we use a simpler allocation strategy:
+        // Write children to slots at the end of the array (starting from cell_count)
+        // Then compact to remove parents and consolidate everything
+        //
+        // This avoids the complex reservation system which was designed for
+        // simultaneous divisions where all parents are freed at once.
         
-        let mode_index = state.mode_indices[parent_idx];
+        // Collect division data before modifying state
+        #[allow(dead_code)]
+        struct DivisionData {
+            parent_idx: usize,
+            parent_mode_idx: usize,
+            child_a_slot: usize,
+            child_b_slot: usize,
+            parent_velocity: bevy::prelude::Vec3,
+            _parent_radius: f32,
+            parent_genome_id: usize,
+            parent_stiffness: f32,
+            parent_split_count: i32,
+            parent_genome_orientation: bevy::prelude::Quat,  // CRITICAL: Save parent's genome orientation before overwriting
+            child_a_pos: bevy::prelude::Vec3,
+            child_b_pos: bevy::prelude::Vec3,
+            child_a_orientation: bevy::prelude::Quat,
+            child_b_orientation: bevy::prelude::Quat,
+            child_a_genome_orientation: bevy::prelude::Quat,
+            child_b_genome_orientation: bevy::prelude::Quat,
+            child_a_mode_idx: usize,
+            child_b_mode_idx: usize,
+            child_a_split_mass: f32,
+            child_b_split_mass: f32,
+            child_a_radius: f32,
+            child_b_radius: f32,
+            child_a_split_interval: f32,
+            child_b_split_interval: f32,
+        }
+        
+        let mut division_data_list = Vec::new();
+        let mut pass_division_events = Vec::new();
+
+        // Calculate available slots for children
+        // Child A reuses parent index (matches C++), Child B gets new slot
+        let mut next_available_slot = state.cell_count;
+
+        // Process each division and collect data
+        for &parent_idx in &divisions_to_process {
+            // Check if we have space for 1 more cell (child B)
+            if next_available_slot >= state.capacity {
+                break;
+            }
+
+            // Mark this cell as having split in this pass
+            already_split[parent_idx] = true;
+
+            // Child A reuses parent index, Child B gets new slot (matches C++ behavior)
+            let child_a_slot = parent_idx;
+            let child_b_slot = next_available_slot;
+            next_available_slot += 1;
+            
+            let mode_index = state.mode_indices[parent_idx];
         let mode = genome.modes.get(mode_index);
         
         if let Some(mode) = mode {
@@ -1649,15 +1670,15 @@ pub fn division_step(
                 child_a_split_interval,
                 child_b_split_interval,
             });
+            }
         }
-    }
-    
-    // Now write all the children to their allocated slots
-    for data in &division_data_list {
-        // Children are born at current_time (no compensation needed due to mass equalization)
-        let child_birth_time = current_time;
+        
+        // Now write all the children to their allocated slots
+        for data in &division_data_list {
+            // Children are born at current_time (same birth time for cohort synchronization)
+            let child_birth_time = current_time;
 
-        if data.child_a_slot < state.capacity {
+            if data.child_a_slot < state.capacity {
             // Write child A
             let child_a_id = state.next_cell_id;
             state.cell_ids[data.child_a_slot] = child_a_id;
@@ -1686,70 +1707,70 @@ pub fn division_step(
             // Child A inherits parent's split count + 1
             state.split_counts[data.child_a_slot] = data.parent_split_count + 1;
 
-            // Adhesion indices will be initialized in inheritance function (matches C++)
-        }
+                // Adhesion indices will be initialized in inheritance function (matches C++)
+            }
 
-        if data.child_b_slot < state.capacity {
-            // Write child B
-            let child_b_id = state.next_cell_id;
-            state.cell_ids[data.child_b_slot] = child_b_id;
-            state.next_cell_id += 1;
-            state.positions[data.child_b_slot] = data.child_b_pos;
-            state.prev_positions[data.child_b_slot] = data.child_b_pos;
-            state.velocities[data.child_b_slot] = data.parent_velocity;
-            state.masses[data.child_b_slot] = data.child_b_split_mass;
-            state.radii[data.child_b_slot] = data.child_b_radius;
-            state.genome_ids[data.child_b_slot] = data.parent_genome_id;
-            state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
+            if data.child_b_slot < state.capacity {
+                // Write child B
+                let child_b_id = state.next_cell_id;
+                state.cell_ids[data.child_b_slot] = child_b_id;
+                state.next_cell_id += 1;
+                state.positions[data.child_b_slot] = data.child_b_pos;
+                state.prev_positions[data.child_b_slot] = data.child_b_pos;
+                state.velocities[data.child_b_slot] = data.parent_velocity;
+                state.masses[data.child_b_slot] = data.child_b_split_mass;
+                state.radii[data.child_b_slot] = data.child_b_radius;
+                state.genome_ids[data.child_b_slot] = data.parent_genome_id;
+                state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
 
-            // Apply pseudo-random rotation perturbation (0.001 radians)
-            let random_rotation_b = pseudo_random_rotation(child_b_id, _rng_seed);
-            state.rotations[data.child_b_slot] = data.child_b_orientation * random_rotation_b;
+                // Apply pseudo-random rotation perturbation (0.001 radians)
+                let random_rotation_b = pseudo_random_rotation(child_b_id, _rng_seed);
+                state.rotations[data.child_b_slot] = data.child_b_orientation * random_rotation_b;
 
-            state.genome_orientations[data.child_b_slot] = data.child_b_genome_orientation;
-            state.angular_velocities[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
-            state.forces[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
-            state.torques[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
-            state.accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
-            state.prev_accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
-            state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
-            state.birth_times[data.child_b_slot] = child_birth_time;
-            state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
-            // Child B starts with fresh split count of 0
-            state.split_counts[data.child_b_slot] = 0;
+                state.genome_orientations[data.child_b_slot] = data.child_b_genome_orientation;
+                state.angular_velocities[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
+                state.forces[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
+                state.torques[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
+                state.accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
+                state.prev_accelerations[data.child_b_slot] = bevy::prelude::Vec3::ZERO;
+                state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
+                state.birth_times[data.child_b_slot] = child_birth_time;
+                state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
+                // Child B starts with fresh split count of 0
+                state.split_counts[data.child_b_slot] = 0;
 
-            // Initialize adhesion indices for child B
-            state.adhesion_manager.init_cell_adhesion_indices(data.child_b_slot);
+                // Initialize adhesion indices for child B
+                state.adhesion_manager.init_cell_adhesion_indices(data.child_b_slot);
+            }
+            
+            // Record the division event
+            pass_division_events.push(DivisionEvent {
+                parent_idx: data.parent_idx,
+                child_a_idx: data.child_a_slot,
+                child_b_idx: data.child_b_slot,
+            });
         }
         
-        // Record the division event
-        division_events.push(DivisionEvent {
-            parent_idx: data.parent_idx,
-            child_a_idx: data.child_a_slot,
-            child_b_idx: data.child_b_slot,
-        });
-    }
-    
-    // Now handle adhesion inheritance and creation AFTER all children are written
-    // Child A reuses parent index (matches C++), so neighborIndex automatically points to correct cell
-    for data in &division_data_list {
-        // Create child-to-child adhesion if parent mode allows it
-        let mode_index = data.parent_mode_idx;
-        let mode = genome.modes.get(mode_index);
+        // Now handle adhesion inheritance and creation AFTER all children are written
+        // Child A reuses parent index (matches C++), so neighborIndex automatically points to correct cell
+        for data in &division_data_list {
+            // Create child-to-child adhesion if parent mode allows it
+            let mode_index = data.parent_mode_idx;
+            let mode = genome.modes.get(mode_index);
 
-        // Inherit adhesions from parent to children based on zone classification
-        // CRITICAL: Pass parent's saved genome orientation, not from state (child A has overwritten it)
-        crate::simulation::inherit_adhesions_on_division(
-            state,
-            genome,
-            data.parent_mode_idx,
-            data.child_a_slot,
-            data.child_b_slot,
-            data.parent_genome_orientation,
-        );
+            // Inherit adhesions from parent to children based on zone classification
+            // CRITICAL: Pass parent's saved genome orientation, not from state (child A has overwritten it)
+            crate::simulation::inherit_adhesions_on_division(
+                state,
+                genome,
+                data.parent_mode_idx,
+                data.child_a_slot,
+                data.child_b_slot,
+                data.parent_genome_orientation,
+            );
 
 
-        if let Some(mode) = mode {
+            if let Some(mode) = mode {
             if mode.parent_make_adhesion && mode.child_a.keep_adhesion && mode.child_b.keep_adhesion {
                 // CRITICAL: Use split direction from parent's GENOME orientation (not world positions!)
                 // This ensures anchors stay aligned with the genome's intended split direction
@@ -1809,31 +1830,32 @@ pub fn division_step(
                 );
                 
                 let _ = result; // Suppress unused warning
+                }
             }
         }
-    }
-    
-    // Optimized compaction: Since child A reuses parent index, we only need to move child B cells
-    // from temporary slots to fill gaps left by non-dividing parents
-    
-    // Simply update cell count (child B cells are already written)
-    let new_cell_count = state.cell_count + division_data_list.len();
-    state.cell_count = new_cell_count;
-    
-    // No index remapping needed for adhesion connections since:
-    // - Child A reuses parent index (adhesions already point to correct cell)
-    // - Child B is at a new index (adhesions were created with correct index)
-    // - Non-dividing cells keep their indices
-    
-    // Reset birth_time for cells that deferred due to adhesion priority
-    // This ensures they split next frame at exactly split_interval age (perfect sync)
-    for &cell_idx in &deferred_cells {
-        if cell_idx < state.cell_count {
-            state.birth_times[cell_idx] = current_time - state.split_intervals[cell_idx];
+        
+        // Optimized compaction: Since child A reuses parent index, we only need to move child B cells
+        // from temporary slots to fill gaps left by non-dividing parents
+        
+        // Simply update cell count (child B cells are already written)
+        let new_cell_count = state.cell_count + division_data_list.len();
+        state.cell_count = new_cell_count;
+        
+        // No index remapping needed for adhesion connections since:
+        // - Child A reuses parent index (adhesions already point to correct cell)
+        // - Child B is at a new index (adhesions were created with correct index)
+        // - Non-dividing cells keep their indices
+        
+        // Add this pass's events to the total
+        all_division_events.extend(pass_division_events);
+        
+        // Check if we're at capacity - if so, stop processing passes
+        if state.cell_count >= max_cells {
+            break;
         }
-    }
+    } // End of multi-pass loop
     
-    division_events
+    all_division_events
 }
 
 // ============================================================================
