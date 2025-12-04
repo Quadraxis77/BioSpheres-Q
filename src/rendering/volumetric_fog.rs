@@ -165,13 +165,7 @@ fn spawn_missing_fog_volumes(
     density_texture: Option<Res<SphericalDensityTexture>>,
     settings: Res<VolumetricFogSettings>,
     existing_volumes: Query<Entity, With<SphericalFogVolume>>,
-    mut spawned: Local<bool>,
 ) {
-    // Only spawn once
-    if *spawned {
-        return;
-    }
-    
     let existing_count = existing_volumes.iter().count();
     
     // Only spawn if we have the density texture and no fog volumes exist yet
@@ -206,16 +200,6 @@ fn spawn_missing_fog_volumes(
             )).id();
             
             info!("Fog volume entity spawned: {:?}", entity);
-            *spawned = true;
-        } else {
-            info!("Fog volumes already exist: {} found", existing_count);
-            *spawned = true;
-        }
-    } else {
-        // Density texture not ready yet
-        if existing_count > 0 {
-            warn!("Fog volumes exist but density texture is missing!");
-            *spawned = true;
         }
     }
 }

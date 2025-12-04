@@ -52,10 +52,10 @@ impl Default for FogSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            density_factor: 0.051,
-            absorption: 0.131,
-            scattering: 0.214,
-            ambient_intensity: 0.009,
+            density_factor: 0.056,
+            absorption: 0.023,
+            scattering: 0.172,
+            ambient_intensity: 0.0,
             fog_color: [0.37210405, 0.38575435, 0.6007463],
         }
     }
