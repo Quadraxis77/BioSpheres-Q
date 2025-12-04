@@ -106,7 +106,6 @@ fn setup_preview_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     fog_settings: Res<crate::rendering::VolumetricFogSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    density_texture: Option<Res<crate::rendering::SphericalDensityTexture>>,
     mut preview_state: ResMut<PreviewSimState>,
     genome: Res<CurrentGenome>,
     config: Res<PhysicsConfig>,
@@ -177,22 +176,7 @@ fn setup_preview_scene(
         PreviewSceneEntity,
     ));
     
-    // Add spherical volumetric fog volume (without scene marker so it persists through resets)
-    if let Some(density_texture) = density_texture {
-        commands.spawn((
-            bevy::light::FogVolume {
-                density_texture: Some(density_texture.0.clone()),
-                density_factor: fog_settings.density_factor,
-                absorption: fog_settings.absorption,
-                scattering: fog_settings.scattering,
-                fog_color: fog_settings.fog_color,
-                ..default()
-            },
-            Transform::from_scale(Vec3::splat(100.0)), // Match world sphere diameter to contain entire sphere
-            crate::rendering::SphericalFogVolume { radius: 50.0 },
-            if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
-        ));
-    }
+    // Fog volume is now spawned automatically by VolumetricFogPlugin
     
     // Initialize preview state with single cell at origin
     let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
