@@ -33,6 +33,13 @@ pub struct VolumetricFogSettings {
 
 impl Default for VolumetricFogSettings {
     fn default() -> Self {
+        Self::first_time_defaults()
+    }
+}
+
+impl VolumetricFogSettings {
+    /// First-time run settings - these are the recommended defaults for new users
+    pub fn first_time_defaults() -> Self {
         Self {
             enabled: true,
             density_factor: 0.15,
@@ -54,6 +61,10 @@ fn setup_spherical_density_texture(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
 ) {
+    info!("========================================");
+    info!("SETUP_SPHERICAL_DENSITY_TEXTURE CALLED");
+    info!("========================================");
+    
     // Create a 3D texture with uniform spherical density (no falloff)
     const SIZE: u32 = 256; // Resolution of the 3D texture
     let mut data = Vec::with_capacity((SIZE * SIZE * SIZE) as usize);
@@ -99,7 +110,11 @@ fn setup_spherical_density_texture(
     // Texture sampler is set to default (clamp to edge)
     
     let handle = images.add(image);
+    info!("=== CREATED SPHERICAL DENSITY TEXTURE ===");
+    info!("Texture size: {}x{}x{}, format: {:?}", SIZE, SIZE, SIZE, TextureFormat::R8Unorm);
+    info!("Texture handle: {:?}", handle);
     commands.insert_resource(SphericalDensityTexture(handle));
+    info!("SphericalDensityTexture resource inserted");
 }
 
 /// System to update volumetric fog settings on cameras and fog volumes
@@ -108,24 +123,25 @@ fn update_volumetric_fog_settings(
     mut cameras: Query<&mut BevyVolumetricFog>,
     mut fog_volumes: Query<&mut Visibility, With<SphericalFogVolume>>,
     mut fog_volume_components: Query<&mut FogVolume, With<SphericalFogVolume>>,
+    mut last_logged: Local<bool>,
 ) {
     if !settings.is_changed() {
         return;
     }
     
-    info!("Updating volumetric fog settings: enabled={}, density={}, absorption={}, scattering={}, ambient={}", 
-          settings.enabled, settings.density_factor, settings.absorption, settings.scattering, settings.ambient_intensity);
+    if !*last_logged {
+        info!("Updating volumetric fog settings: enabled={}, density={}, absorption={}, scattering={}, ambient={}", 
+              settings.enabled, settings.density_factor, settings.absorption, settings.scattering, settings.ambient_intensity);
+        *last_logged = true;
+    }
     
     // Update camera volumetric fog settings
-    let camera_count = cameras.iter().count();
     for mut volumetric_fog in cameras.iter_mut() {
         volumetric_fog.step_count = settings.step_count;
         volumetric_fog.ambient_intensity = settings.ambient_intensity;
     }
-    info!("Updated {} cameras with volumetric fog", camera_count);
     
     // Update fog volume visibility based on enabled flag
-    let volume_count = fog_volumes.iter().count();
     for mut visibility in fog_volumes.iter_mut() {
         *visibility = if settings.enabled {
             Visibility::Inherited
@@ -133,7 +149,6 @@ fn update_volumetric_fog_settings(
             Visibility::Hidden
         };
     }
-    info!("Updated {} fog volume visibilities", volume_count);
     
     // Update fog volume properties
     for mut fog_volume in fog_volume_components.iter_mut() {
@@ -150,12 +165,22 @@ fn spawn_missing_fog_volumes(
     density_texture: Option<Res<SphericalDensityTexture>>,
     settings: Res<VolumetricFogSettings>,
     existing_volumes: Query<Entity, With<SphericalFogVolume>>,
+    mut spawned: Local<bool>,
 ) {
+    // Only spawn once
+    if *spawned {
+        return;
+    }
+    
+    let existing_count = existing_volumes.iter().count();
+    
     // Only spawn if we have the density texture and no fog volumes exist yet
     if let Some(density_texture) = density_texture {
-        if existing_volumes.is_empty() {
-            info!("Spawning volumetric fog volume with density_texture, density_factor={}, enabled={}", 
-                  settings.density_factor, settings.enabled);
+        if existing_count == 0 {
+            info!("=== SPAWNING VOLUMETRIC FOG VOLUME ===");
+            info!("Density texture handle: {:?}", density_texture.0);
+            info!("Settings: density={}, absorption={}, scattering={}, enabled={}", 
+                  settings.density_factor, settings.absorption, settings.scattering, settings.enabled);
             
             let visibility = if settings.enabled { 
                 Visibility::Inherited 
@@ -165,7 +190,7 @@ fn spawn_missing_fog_volumes(
             
             // Spawn fog volume without a mesh - it's a spatial volume effect
             // The density texture defines the 3D density distribution
-            commands.spawn((
+            let entity = commands.spawn((
                 FogVolume {
                     density_texture: Some(density_texture.0.clone()),
                     density_factor: settings.density_factor,
@@ -175,14 +200,22 @@ fn spawn_missing_fog_volumes(
                     ..default()
                 },
                 SphericalFogVolume { radius: 50.0 },
-                // Transform defines the size and position of the fog volume in world space
-                // Scale of 100 means the 3D texture is mapped to a 100-unit cube
-                Transform::from_scale(Vec3::splat(100.0)),
+                Transform::from_translation(Vec3::ZERO).with_scale(Vec3::splat(100.0)),
                 GlobalTransform::default(),
                 visibility,
-            ));
+            )).id();
             
-            info!("Fog volume spawned successfully with spherical density texture");
+            info!("Fog volume entity spawned: {:?}", entity);
+            *spawned = true;
+        } else {
+            info!("Fog volumes already exist: {} found", existing_count);
+            *spawned = true;
+        }
+    } else {
+        // Density texture not ready yet
+        if existing_count > 0 {
+            warn!("Fog volumes exist but density texture is missing!");
+            *spawned = true;
         }
     }
 }
