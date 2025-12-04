@@ -1001,13 +1001,13 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
 
     // Max splits
     ui.text("Max Splits:");
-    help_marker(ui, "Maximum number of times a cell can split. Child A inherits the count, Child B starts fresh. Set to 'Infinite' for unlimited divisions.");
+    help_marker(ui, "Maximum number of times a cell can split. Both children inherit the parent's split count. Set to 'Infinite' for unlimited divisions.");
     max_splits_slider(ui, "##MaxSplits", &mut mode.max_splits, -1, 20, ui.content_region_avail()[0]);
 
     // Mode after splits (only show if max_splits is not infinite)
     if mode.max_splits >= 0 {
         ui.text("Mode After Splits:");
-        help_marker(ui, "When Child A reaches max splits, it transitions to this mode instead of the normal child mode.");
+        help_marker(ui, "When a cell reaches max splits, both children transition to this mode instead of their normal child modes.");
         
         // Build display strings for mode dropdown
         let mode_display_names: Vec<String> = all_modes.iter()

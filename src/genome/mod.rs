@@ -115,7 +115,7 @@ pub struct ModeSettings {
     pub min_adhesions: i32, // Minimum number of connections required before cell can split
     pub enable_parent_angle_snapping: bool,
     pub max_splits: i32, // Maximum number of times a cell can split (1-20, or -1 for infinite)
-    pub mode_after_splits: i32, // Mode that Child A transitions to when max_splits is reached (-1 = stay in current mode)
+    pub mode_after_splits: i32, // Mode that both children transition to when max_splits is reached (-1 = stay in current mode)
     
     // Flagellocyte settings
     pub swim_force: f32, // Forward thrust force (0.0 to 1.0, for Flagellocyte cells)
