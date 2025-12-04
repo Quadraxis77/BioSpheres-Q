@@ -212,7 +212,7 @@ impl Plugin for UiPlugin {
             .add_plugins(PerformanceMonitorPlugin)
             .add_plugins(RenderingControlsPlugin)
             .add_plugins(ThemeEditorPlugin)
-            .add_systems(Startup, load_theme_from_settings)
+            .add_systems(Startup, (load_theme_from_settings, settings::load_fog_settings_on_startup))
             .add_systems(Update, (
                 apply_custom_theme_on_startup,
                 settings::save_ui_settings_on_change,

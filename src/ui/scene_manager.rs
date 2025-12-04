@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::light::NotShadowCaster;
 use bevy_mod_imgui::prelude::*;
 use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, GpuSceneState, CpuSceneEntity};
 
@@ -322,6 +323,8 @@ fn handle_reset_scene_event(
     mut materials: ResMut<Assets<StandardMaterial>>,
     genome: Res<crate::genome::CurrentGenome>,
     config: Res<crate::cell::physics::PhysicsConfig>,
+    fog_settings: Res<crate::rendering::VolumetricFogSettings>,
+    density_texture: Option<Res<crate::rendering::SphericalDensityTexture>>,
     cpu_entities: Query<Entity, (With<CpuSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
     gpu_entities: Query<Entity, (With<crate::simulation::gpu_sim::GpuSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
     preview_entities: Query<Entity, (With<crate::simulation::preview_sim::PreviewSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
@@ -341,7 +344,7 @@ fn handle_reset_scene_event(
                 
                 // Reset MainSimState
                 if let Some(ref mut main_state) = main_sim_state {
-                    spawn_cpu_scene_without_camera(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state);
+                    spawn_cpu_scene_without_camera(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state, &fog_settings, density_texture.as_deref());
                 }
             }
             SimulationMode::Gpu => {
@@ -361,7 +364,7 @@ fn handle_reset_scene_event(
                 
                 // Reset PreviewSimState
                 if let Some(ref mut preview_state) = preview_sim_state {
-                    spawn_preview_scene(&mut commands, &mut meshes, &mut materials, &genome, &config, preview_state);
+                    spawn_preview_scene(&mut commands, &mut meshes, &mut materials, &fog_settings, density_texture.as_deref(), &genome, &config, preview_state);
                 }
             }
         }
@@ -376,6 +379,8 @@ fn spawn_cpu_scene_without_camera(
     genome: &Res<crate::genome::CurrentGenome>,
     config: &Res<crate::cell::physics::PhysicsConfig>,
     main_state: &mut crate::simulation::cpu_sim::MainSimState,
+    fog_settings: &crate::rendering::VolumetricFogSettings,
+    density_texture: Option<&crate::rendering::SphericalDensityTexture>,
 ) {
     use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
     use crate::simulation::{InitialState, InitialCell};
@@ -499,8 +504,27 @@ fn spawn_cpu_scene_without_camera(
         })),
         Transform::default(),
         crate::rendering::WorldSphere,
+        NotShadowCaster,
         CpuSceneEntity,
     ));
+    
+    // Add spherical volumetric fog volume
+    if let Some(density_texture) = density_texture {
+        commands.spawn((
+            bevy::light::FogVolume {
+                density_texture: Some(density_texture.0.clone()),
+                density_factor: fog_settings.density_factor,
+                absorption: fog_settings.absorption,
+                scattering: fog_settings.scattering,
+                fog_color: fog_settings.fog_color,
+                ..default()
+            },
+            Transform::from_scale(Vec3::splat(100.0)),
+            crate::rendering::SphericalFogVolume { radius: 50.0 },
+            if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
+            CpuSceneEntity,
+        ));
+    }
 }
 
 /// Placeholder for GPU scene spawn (implement when needed)
@@ -518,6 +542,8 @@ fn spawn_preview_scene(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    fog_settings: &crate::rendering::VolumetricFogSettings,
+    density_texture: Option<&crate::rendering::SphericalDensityTexture>,
     genome: &Res<crate::genome::CurrentGenome>,
     config: &Res<crate::cell::physics::PhysicsConfig>,
     preview_state: &mut crate::simulation::preview_sim::PreviewSimState,
@@ -650,6 +676,25 @@ fn spawn_preview_scene(
         })),
         Transform::default(),
         crate::rendering::WorldSphere,
+        NotShadowCaster,
         crate::simulation::preview_sim::PreviewSceneEntity,
     ));
+    
+    // Add spherical volumetric fog volume
+    if let Some(density_texture) = density_texture {
+        commands.spawn((
+            bevy::light::FogVolume {
+                density_texture: Some(density_texture.0.clone()),
+                density_factor: fog_settings.density_factor,
+                absorption: fog_settings.absorption,
+                scattering: fog_settings.scattering,
+                fog_color: fog_settings.fog_color,
+                ..default()
+            },
+            Transform::from_scale(Vec3::splat(100.0)),
+            crate::rendering::SphericalFogVolume { radius: 50.0 },
+            if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
+            crate::simulation::preview_sim::PreviewSceneEntity,
+        ));
+    }
 }

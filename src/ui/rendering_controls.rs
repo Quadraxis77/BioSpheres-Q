@@ -16,6 +16,7 @@ impl Plugin for RenderingControlsPlugin {
 fn render_controls_ui(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut rendering_config: ResMut<RenderingConfig>,
+    mut fog_settings: ResMut<crate::rendering::VolumetricFogSettings>,
     mut theme_state: ResMut<crate::ui::ImguiThemeState>,
     global_ui_state: Res<crate::ui::GlobalUiState>,
 ) {
@@ -36,7 +37,7 @@ fn render_controls_ui(
     };
     
     ui.window("Rendering Controls")
-        .size([212.0, 390.0], imgui::Condition::FirstUseEver)
+        .size([212.0, 550.0], imgui::Condition::FirstUseEver)
         .position([1704.0, 349.0], imgui::Condition::FirstUseEver)
         .flags(flags)
         .build(|| {
@@ -94,6 +95,52 @@ fn render_controls_ui(
             ui.slider("##world_emissive", 0.0, 0.5, &mut rendering_config.world_sphere_emissive);
             if ui.is_item_hovered() {
                 ui.tooltip_text("Emissive lighting intensity for Fresnel edge glow");
+            }
+            
+            // Volumetric Fog Settings
+            ui.separator();
+            ui.text("Volumetric Fog:");
+            
+            ui.checkbox("Enable Fog", &mut fog_settings.enabled);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Toggle volumetric fog rendering");
+            }
+            
+            ui.text("Density:");
+            ui.slider("##fog_density", 0.0, 1.0, &mut fog_settings.density_factor);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Overall fog density");
+            }
+            
+            ui.text("Absorption:");
+            ui.slider("##fog_absorption", 0.0, 1.0, &mut fog_settings.absorption);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("How much light is absorbed by the fog");
+            }
+            
+            ui.text("Scattering:");
+            ui.slider("##fog_scattering", 0.0, 1.0, &mut fog_settings.scattering);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("How much light is scattered by the fog");
+            }
+            
+            ui.text("Ambient:");
+            ui.slider("##fog_ambient", 0.0, 0.1, &mut fog_settings.ambient_intensity);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Ambient light intensity in fog");
+            }
+            
+            ui.text("Fog Color:");
+            let mut fog_color = [
+                fog_settings.fog_color.to_srgba().red,
+                fog_settings.fog_color.to_srgba().green,
+                fog_settings.fog_color.to_srgba().blue,
+            ];
+            if ui.color_edit3("##fog_color", &mut fog_color) {
+                fog_settings.fog_color = Color::srgb(fog_color[0], fog_color[1], fog_color[2]);
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Color of the volumetric fog");
             }
             
             // Theme selector

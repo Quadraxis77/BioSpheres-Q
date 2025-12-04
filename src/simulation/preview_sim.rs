@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::light::NotShadowCaster;
 use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
 use crate::genome::CurrentGenome;
 use crate::ui::camera::MainCamera;
@@ -103,12 +104,14 @@ pub struct PreviewRequest {
 fn setup_preview_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    fog_settings: Res<crate::rendering::VolumetricFogSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    density_texture: Option<Res<crate::rendering::SphericalDensityTexture>>,
     mut preview_state: ResMut<PreviewSimState>,
     genome: Res<CurrentGenome>,
     config: Res<PhysicsConfig>,
 ) {
-    // Spawn camera
+    // Spawn camera with volumetric fog
     commands.spawn((
         Camera3d::default(),
         MainCamera{
@@ -120,6 +123,11 @@ fn setup_preview_scene(
             mode: crate::ui::camera::CameraMode::Orbit,
             followed_entity: None,
         },
+        bevy::light::VolumetricFog {
+            ambient_intensity: fog_settings.ambient_intensity,
+            step_count: fog_settings.step_count,
+            ..default()
+        },
         PreviewSceneEntity,
     ));
 
@@ -127,10 +135,11 @@ fn setup_preview_scene(
     commands.spawn((
         DirectionalLight {
             illuminance: 10000.0,
-            shadows_enabled: false,
+            shadows_enabled: true, // Enable shadows for volumetric lighting
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+        bevy::light::VolumetricLight, // Enable volumetric lighting
         PreviewSceneEntity,
     ));
 
@@ -150,23 +159,41 @@ fn setup_preview_scene(
     let world_mesh: Mesh = world_sphere.into();
     
     // World sphere with Fresnel edge lighting effect
-    // Outward normals catch light from opposite direction of cells
     commands.spawn((
         Mesh3d(meshes.add(world_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(0.2, 0.25, 0.35, 0.35), // Semi-transparent with subtle blue tint
-            emissive: LinearRgba::rgb(0.05, 0.08, 0.12), // Subtle emissive for base glow
+            base_color: Color::srgba(0.2, 0.25, 0.35, 0.35),
+            emissive: LinearRgba::rgb(0.05, 0.08, 0.12),
             metallic: 0.0,
-            perceptual_roughness: 0.2, // Very smooth for strong Fresnel effect
-            reflectance: 0.95, // Very high reflectance for pronounced edge brightening
-            cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
+            perceptual_roughness: 0.2,
+            reflectance: 0.95,
+            cull_mode: Some(bevy::render::render_resource::Face::Front),
             alpha_mode: AlphaMode::Blend,
             ..default()
         })),
         Transform::default(),
         crate::rendering::WorldSphere,
+        NotShadowCaster,
         PreviewSceneEntity,
     ));
+    
+    // Add spherical volumetric fog volume
+    if let Some(density_texture) = density_texture {
+        commands.spawn((
+            bevy::light::FogVolume {
+                density_texture: Some(density_texture.0.clone()),
+                density_factor: fog_settings.density_factor,
+                absorption: fog_settings.absorption,
+                scattering: fog_settings.scattering,
+                fog_color: fog_settings.fog_color,
+                ..default()
+            },
+            Transform::from_scale(Vec3::splat(100.0)), // Match world sphere diameter to contain entire sphere
+            crate::rendering::SphericalFogVolume { radius: 50.0 },
+            if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
+            PreviewSceneEntity,
+        ));
+    }
     
     // Initialize preview state with single cell at origin
     let initial_mode_index = genome.genome.initial_mode.max(0) as usize;

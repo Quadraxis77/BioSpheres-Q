@@ -1,5 +1,5 @@
 {
-  "windows_locked": true,
+  "windows_locked": false,
   "ui_scale": 1.25,
   "theme": {
     "current_theme_name": "Industrial",
@@ -15,5 +15,17 @@
     "show_time_scrubber": true,
     "show_theme_editor": false,
     "show_camera_settings": false
+  },
+  "fog_settings": {
+    "enabled": true,
+    "density_factor": 0.042,
+    "absorption": 0.107,
+    "scattering": 0.121,
+    "ambient_intensity": 0.0,
+    "fog_color": [
+      0.37210405,
+      0.38575435,
+      0.6007463
+    ]
   }
 }

@@ -14,6 +14,9 @@ pub struct UiSettings {
     /// Window visibility settings
     #[serde(default)]
     pub window_visibility: WindowVisibilitySettings,
+    /// Volumetric fog settings
+    #[serde(default)]
+    pub fog_settings: FogSettings,
 }
 
 /// Window visibility settings
@@ -32,6 +35,30 @@ pub struct WindowVisibilitySettings {
 
 fn default_false() -> bool {
     false
+}
+
+/// Fog settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FogSettings {
+    pub enabled: bool,
+    pub density_factor: f32,
+    pub absorption: f32,
+    pub scattering: f32,
+    pub ambient_intensity: f32,
+    pub fog_color: [f32; 3],
+}
+
+impl Default for FogSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            density_factor: 0.15,
+            absorption: 0.3,
+            scattering: 0.3,
+            ambient_intensity: 0.02,
+            fog_color: [0.3, 0.4, 0.5],
+        }
+    }
 }
 
 /// Theme settings - includes both preset theme selection and custom theme data
@@ -101,6 +128,8 @@ impl Default for UiSettings {
             custom_themes: Vec::new(),
             // All windows visible by default
             window_visibility: WindowVisibilitySettings::default(),
+            // Default fog settings
+            fog_settings: FogSettings::default(),
         }
     }
 }
@@ -170,6 +199,7 @@ pub(crate) struct LastSavedSettings {
     pub(crate) theme_name: String,
     pub(crate) theme_is_custom: bool,
     pub(crate) window_visibility: WindowVisibilitySettings,
+    pub(crate) fog_settings: FogSettings,
 }
 
 /// System to save UI settings when they change
@@ -178,6 +208,7 @@ pub fn save_ui_settings_on_change(
     global_ui_state: Res<crate::ui::GlobalUiState>,
     theme_state: Res<crate::ui::imgui_style::ImguiThemeState>,
     theme_editor_state: Res<crate::ui::theme_editor::ThemeEditorState>,
+    fog_settings: Res<crate::rendering::VolumetricFogSettings>,
     mut last_saved: Local<Option<LastSavedSettings>>,
 ) {
     // Get the current theme name from theme_editor_state
@@ -205,6 +236,18 @@ pub fn save_ui_settings_on_change(
                 show_theme_editor: global_ui_state.show_theme_editor,
                 show_camera_settings: global_ui_state.show_camera_settings,
             },
+            fog_settings: FogSettings {
+                enabled: fog_settings.enabled,
+                density_factor: fog_settings.density_factor,
+                absorption: fog_settings.absorption,
+                scattering: fog_settings.scattering,
+                ambient_intensity: fog_settings.ambient_intensity,
+                fog_color: [
+                    fog_settings.fog_color.to_srgba().red,
+                    fog_settings.fog_color.to_srgba().green,
+                    fog_settings.fog_color.to_srgba().blue,
+                ],
+            },
         });
         return;
     }
@@ -224,11 +267,22 @@ pub fn save_ui_settings_on_change(
         || last.window_visibility.show_theme_editor != global_ui_state.show_theme_editor
         || last.window_visibility.show_camera_settings != global_ui_state.show_camera_settings;
 
+    // Check if fog settings changed
+    let fog_changed = last.fog_settings.enabled != fog_settings.enabled
+        || (last.fog_settings.density_factor - fog_settings.density_factor).abs() > 0.001
+        || (last.fog_settings.absorption - fog_settings.absorption).abs() > 0.001
+        || (last.fog_settings.scattering - fog_settings.scattering).abs() > 0.001
+        || (last.fog_settings.ambient_intensity - fog_settings.ambient_intensity).abs() > 0.001
+        || (last.fog_settings.fog_color[0] - fog_settings.fog_color.to_srgba().red).abs() > 0.001
+        || (last.fog_settings.fog_color[1] - fog_settings.fog_color.to_srgba().green).abs() > 0.001
+        || (last.fog_settings.fog_color[2] - fog_settings.fog_color.to_srgba().blue).abs() > 0.001;
+
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
         || (last.ui_scale - global_ui_state.ui_scale).abs() > 0.001
         || theme_changed
-        || visibility_changed;
+        || visibility_changed
+        || fog_changed;
 
     if changed {
         // Load existing settings to preserve custom themes library
@@ -251,6 +305,18 @@ pub fn save_ui_settings_on_change(
             show_theme_editor: global_ui_state.show_theme_editor,
             show_camera_settings: global_ui_state.show_camera_settings,
         };
+        settings.fog_settings = FogSettings {
+            enabled: fog_settings.enabled,
+            density_factor: fog_settings.density_factor,
+            absorption: fog_settings.absorption,
+            scattering: fog_settings.scattering,
+            ambient_intensity: fog_settings.ambient_intensity,
+            fog_color: [
+                fog_settings.fog_color.to_srgba().red,
+                fog_settings.fog_color.to_srgba().green,
+                fog_settings.fog_color.to_srgba().blue,
+            ],
+        };
 
         if let Err(e) = settings.save() {
             error!("Failed to save UI settings: {}", e);
@@ -272,7 +338,36 @@ pub fn save_ui_settings_on_change(
                 show_theme_editor: global_ui_state.show_theme_editor,
                 show_camera_settings: global_ui_state.show_camera_settings,
             },
+            fog_settings: FogSettings {
+                enabled: fog_settings.enabled,
+                density_factor: fog_settings.density_factor,
+                absorption: fog_settings.absorption,
+                scattering: fog_settings.scattering,
+                ambient_intensity: fog_settings.ambient_intensity,
+                fog_color: [
+                    fog_settings.fog_color.to_srgba().red,
+                    fog_settings.fog_color.to_srgba().green,
+                    fog_settings.fog_color.to_srgba().blue,
+                ],
+            },
         });
     }
 }
 
+
+/// System to load fog settings from saved UI settings on startup
+pub fn load_fog_settings_on_startup(
+    mut fog_settings: ResMut<crate::rendering::VolumetricFogSettings>,
+) {
+    let saved_settings = UiSettings::load();
+    fog_settings.enabled = saved_settings.fog_settings.enabled;
+    fog_settings.density_factor = saved_settings.fog_settings.density_factor;
+    fog_settings.absorption = saved_settings.fog_settings.absorption;
+    fog_settings.scattering = saved_settings.fog_settings.scattering;
+    fog_settings.ambient_intensity = saved_settings.fog_settings.ambient_intensity;
+    fog_settings.fog_color = Color::srgb(
+        saved_settings.fog_settings.fog_color[0],
+        saved_settings.fog_settings.fog_color[1],
+        saved_settings.fog_settings.fog_color[2],
+    );
+}

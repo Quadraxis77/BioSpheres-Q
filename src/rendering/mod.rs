@@ -5,6 +5,7 @@ pub mod cells;
 pub mod debug;
 pub mod adhesion_lines;
 pub mod flagellocyte_mesh;
+pub mod volumetric_fog;
 
 /// Marker component for the world sphere entity
 #[derive(Component)]
@@ -24,6 +25,7 @@ pub mod gpu_compute_dispatcher;
 pub use cells::CellRenderingPlugin;
 pub use debug::DebugRenderingPlugin;
 pub use adhesion_lines::{AdhesionLineRenderPlugin, AdhesionLineSettings, AdhesionLines};
+pub use volumetric_fog::{VolumetricFogPlugin, VolumetricFogSettings, SphericalFogVolume, SphericalDensityTexture};
 
 // GPU rendering exports
 pub use gpu_types::{CellInstanceData, WebGpuError};
@@ -42,6 +44,7 @@ impl Plugin for RenderingPlugin {
             .add_plugins(CellRenderingPlugin)
             .add_plugins(DebugRenderingPlugin)
             .add_plugins(AdhesionLineRenderPlugin)
+            .add_plugins(VolumetricFogPlugin)
             // Add WebGPU renderer plugin for GPU scene
             .add_plugins(WebGpuRendererPlugin)
             .init_resource::<RenderingConfig>()
