@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::light::NotShadowCaster;
 use bevy_mod_imgui::prelude::*;
 use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, GpuSceneState, CpuSceneEntity};
 
@@ -314,7 +313,7 @@ fn handle_scene_transition(
     simulation_state.mode = new_mode;
 }
 
-/// Handle reset scene events by directly despawning and respawning scene entities
+/// Handle reset scene events by despawning and respawning only cells
 fn handle_reset_scene_event(
     mut reset_events: MessageReader<ResetSceneEvent>,
     mut commands: Commands,
@@ -323,64 +322,58 @@ fn handle_reset_scene_event(
     mut materials: ResMut<Assets<StandardMaterial>>,
     genome: Res<crate::genome::CurrentGenome>,
     config: Res<crate::cell::physics::PhysicsConfig>,
-    fog_settings: Res<crate::rendering::VolumetricFogSettings>,
-    density_texture: Option<Res<crate::rendering::SphericalDensityTexture>>,
-    cpu_entities: Query<Entity, (With<CpuSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
-    gpu_entities: Query<Entity, (With<crate::simulation::gpu_sim::GpuSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
-    preview_entities: Query<Entity, (With<crate::simulation::preview_sim::PreviewSceneEntity>, Without<crate::ui::camera::MainCamera>)>,
+    cpu_cells: Query<Entity, (With<crate::cell::Cell>, With<CpuSceneEntity>)>,
+    gpu_cells: Query<Entity, (With<crate::cell::Cell>, With<crate::simulation::gpu_sim::GpuSceneEntity>)>,
+    preview_cells: Query<Entity, (With<crate::cell::Cell>, With<crate::simulation::preview_sim::PreviewSceneEntity>)>,
     mut main_sim_state: Option<ResMut<crate::simulation::cpu_sim::MainSimState>>,
     mut preview_sim_state: Option<ResMut<crate::simulation::preview_sim::PreviewSimState>>,
 ) {
     for _ in reset_events.read() {
-        // Note: Time is now managed by Bevy's Time<Fixed> resource
-        
-        // Despawn all entities and respawn initial scene based on mode
+        // Only despawn and respawn cells, leaving lights, fog, and world sphere intact
         match simulation_state.mode {
             SimulationMode::Cpu => {
-                // Despawn all CPU scene entities
-                for entity in cpu_entities.iter() {
+                // Despawn only CPU cells
+                for entity in cpu_cells.iter() {
                     commands.entity(entity).despawn();
                 }
                 
-                // Reset MainSimState
+                // Reset MainSimState and spawn initial cell
                 if let Some(ref mut main_state) = main_sim_state {
-                    spawn_cpu_scene_without_camera(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state, &fog_settings, density_texture.as_deref());
+                    spawn_cpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state);
                 }
             }
             SimulationMode::Gpu => {
-                // Despawn all GPU scene entities
-                for entity in gpu_entities.iter() {
+                // Despawn only GPU cells
+                for entity in gpu_cells.iter() {
                     commands.entity(entity).despawn();
                 }
                 
-                // Respawn initial GPU scene
-                spawn_gpu_scene(&mut commands, &mut meshes, &mut materials, &genome);
+                // Respawn initial GPU cells
+                spawn_gpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome);
             }
             SimulationMode::Preview => {
-                // Despawn all Preview scene entities
-                for entity in preview_entities.iter() {
+                // Despawn only Preview cells
+                for entity in preview_cells.iter() {
                     commands.entity(entity).despawn();
                 }
                 
-                // Reset PreviewSimState
+                // Reset PreviewSimState and spawn initial cell
                 if let Some(ref mut preview_state) = preview_sim_state {
-                    spawn_preview_scene(&mut commands, &mut meshes, &mut materials, &fog_settings, density_texture.as_deref(), &genome, &config, preview_state);
+                    spawn_preview_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, preview_state);
                 }
             }
         }
     }
 }
 
-/// Spawn CPU scene entities without camera (for reset)
-fn spawn_cpu_scene_without_camera(
+/// Spawn only CPU cells (for reset - doesn't spawn lights, fog, or world sphere)
+fn spawn_cpu_cells_only(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     genome: &Res<crate::genome::CurrentGenome>,
     config: &Res<crate::cell::physics::PhysicsConfig>,
     main_state: &mut crate::simulation::cpu_sim::MainSimState,
-    fog_settings: &crate::rendering::VolumetricFogSettings,
-    density_texture: Option<&crate::rendering::SphericalDensityTexture>,
 ) {
     use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
     use crate::simulation::{InitialState, InitialCell};
@@ -460,90 +453,23 @@ fn spawn_cpu_scene_without_camera(
     // Map cell ID to entity
     main_state.id_to_entity.insert(0, entity);
     main_state.entity_to_index.insert(entity, 0);
-
-    // Add lighting
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 10000.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
-        CpuSceneEntity,
-    ));
-
-    // Add ambient light as an entity
-    commands.spawn((
-        AmbientLight {
-            color: Color::WHITE,
-            brightness: 500.0,
-            ..default()
-        },
-        CpuSceneEntity,
-    ));
-
-    // Add world boundary sphere (100 unit diameter = 50 unit radius)
-    // Using regular icosphere with outward-pointing normals for reversed lighting
-    let mut world_sphere = crate::rendering::IcosphereMesh::generate(4);
-    world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
-    let world_mesh: Mesh = world_sphere.into();
-    
-    // World sphere with Fresnel edge lighting effect
-    // Outward normals catch light from opposite direction of cells
-    commands.spawn((
-        Mesh3d(meshes.add(world_mesh)),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(0.2, 0.25, 0.35, 0.35), // Semi-transparent with subtle blue tint
-            emissive: LinearRgba::rgb(0.05, 0.08, 0.12), // Subtle emissive for base glow
-            metallic: 0.0,
-            perceptual_roughness: 0.2, // Very smooth for strong Fresnel effect
-            reflectance: 0.95, // Very high reflectance for pronounced edge brightening
-            cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        })),
-        Transform::default(),
-        crate::rendering::WorldSphere,
-        NotShadowCaster,
-        CpuSceneEntity,
-    ));
-    
-    // Add spherical volumetric fog volume
-    if let Some(density_texture) = density_texture {
-        commands.spawn((
-            bevy::light::FogVolume {
-                density_texture: Some(density_texture.0.clone()),
-                density_factor: fog_settings.density_factor,
-                absorption: fog_settings.absorption,
-                scattering: fog_settings.scattering,
-                fog_color: fog_settings.fog_color,
-                ..default()
-            },
-            Transform::from_scale(Vec3::splat(100.0)),
-            crate::rendering::SphericalFogVolume { radius: 50.0 },
-            if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
-            CpuSceneEntity,
-        ));
-    }
 }
 
-/// Placeholder for GPU scene spawn (implement when needed)
-fn spawn_gpu_scene(
+/// Placeholder for GPU cells spawn (implement when needed)
+fn spawn_gpu_cells_only(
     _commands: &mut Commands,
     _meshes: &mut ResMut<Assets<Mesh>>,
     _materials: &mut ResMut<Assets<StandardMaterial>>,
     _genome: &Res<crate::genome::CurrentGenome>,
 ) {
-    // TODO: Implement GPU scene spawning
+    // TODO: Implement GPU cells spawning
 }
 
-/// Spawn Preview scene entities without camera (for reset)
-fn spawn_preview_scene(
+/// Spawn only Preview cells (for reset - doesn't spawn lights, fog, or world sphere)
+fn spawn_preview_cells_only(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    fog_settings: &crate::rendering::VolumetricFogSettings,
-    density_texture: Option<&crate::rendering::SphericalDensityTexture>,
     genome: &Res<crate::genome::CurrentGenome>,
     config: &Res<crate::cell::physics::PhysicsConfig>,
     preview_state: &mut crate::simulation::preview_sim::PreviewSimState,
@@ -633,68 +559,4 @@ fn spawn_preview_scene(
     
     // Map cell index to entity
     preview_state.index_to_entity[0] = Some(entity);
-
-    // Add lighting
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 10000.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
-        crate::simulation::preview_sim::PreviewSceneEntity,
-    ));
-
-    commands.spawn((
-        AmbientLight {
-            color: Color::WHITE,
-            brightness: 500.0,
-            ..default()
-        },
-        crate::simulation::preview_sim::PreviewSceneEntity,
-    ));
-
-    // Add world boundary sphere (100 unit diameter = 50 unit radius)
-    // Using regular icosphere with outward-pointing normals for reversed lighting
-    let mut world_sphere = crate::rendering::IcosphereMesh::generate(4);
-    world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
-    let world_mesh: Mesh = world_sphere.into();
-    
-    // World sphere with Fresnel edge lighting effect
-    // Outward normals catch light from opposite direction of cells
-    commands.spawn((
-        Mesh3d(meshes.add(world_mesh)),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(0.2, 0.25, 0.35, 0.35), // Semi-transparent with subtle blue tint
-            emissive: LinearRgba::rgb(0.05, 0.08, 0.12), // Subtle emissive for base glow
-            metallic: 0.0,
-            perceptual_roughness: 0.2, // Very smooth for strong Fresnel effect
-            reflectance: 0.95, // Very high reflectance for pronounced edge brightening
-            cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        })),
-        Transform::default(),
-        crate::rendering::WorldSphere,
-        NotShadowCaster,
-        crate::simulation::preview_sim::PreviewSceneEntity,
-    ));
-    
-    // Add spherical volumetric fog volume
-    if let Some(density_texture) = density_texture {
-        commands.spawn((
-            bevy::light::FogVolume {
-                density_texture: Some(density_texture.0.clone()),
-                density_factor: fog_settings.density_factor,
-                absorption: fog_settings.absorption,
-                scattering: fog_settings.scattering,
-                fog_color: fog_settings.fog_color,
-                ..default()
-            },
-            Transform::from_scale(Vec3::splat(100.0)),
-            crate::rendering::SphericalFogVolume { radius: 50.0 },
-            if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
-            crate::simulation::preview_sim::PreviewSceneEntity,
-        ));
-    }
 }

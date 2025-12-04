@@ -177,7 +177,7 @@ fn setup_preview_scene(
         PreviewSceneEntity,
     ));
     
-    // Add spherical volumetric fog volume
+    // Add spherical volumetric fog volume (without scene marker so it persists through resets)
     if let Some(density_texture) = density_texture {
         commands.spawn((
             bevy::light::FogVolume {
@@ -191,7 +191,6 @@ fn setup_preview_scene(
             Transform::from_scale(Vec3::splat(100.0)), // Match world sphere diameter to contain entire sphere
             crate::rendering::SphericalFogVolume { radius: 50.0 },
             if fog_settings.enabled { Visibility::Visible } else { Visibility::Hidden },
-            PreviewSceneEntity,
         ));
     }
     
