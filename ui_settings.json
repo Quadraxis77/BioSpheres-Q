@@ -18,9 +18,9 @@
   },
   "fog_settings": {
     "enabled": true,
-    "density_factor": 0.051,
-    "absorption": 0.107,
-    "scattering": 0.093,
+    "density_factor": 0.032,
+    "absorption": 0.131,
+    "scattering": 0.214,
     "ambient_intensity": 0.0,
     "fog_color": [
       0.37210405,

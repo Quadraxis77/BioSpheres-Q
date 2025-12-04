@@ -54,7 +54,7 @@ fn setup_spherical_density_texture(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
 ) {
-    // Create a 3D texture with spherical density falloff
+    // Create a 3D texture with uniform spherical density (no falloff)
     const SIZE: u32 = 256; // Resolution of the 3D texture
     let mut data = Vec::with_capacity((SIZE * SIZE * SIZE) as usize);
     
@@ -70,7 +70,7 @@ fn setup_spherical_density_texture(
                 let dz = z as f32 - center;
                 let distance = (dx * dx + dy * dy + dz * dz).sqrt();
                 
-                // Uniform density: 1.0 inside sphere, 0.0 outside
+                // Uniform density: 1.0 inside sphere, 0.0 outside (sharp cutoff, no falloff)
                 let normalized_distance = distance / max_radius;
                 let density = if normalized_distance <= 1.0 {
                     1.0
@@ -154,7 +154,7 @@ fn spawn_missing_fog_volumes(
     // Only spawn if we have the density texture and no fog volumes exist yet
     if let Some(density_texture) = density_texture {
         if existing_volumes.is_empty() {
-            info!("Spawning volumetric fog volume with density_factor={}, enabled={}", 
+            info!("Spawning volumetric fog volume with density_texture, density_factor={}, enabled={}", 
                   settings.density_factor, settings.enabled);
             
             let visibility = if settings.enabled { 
@@ -163,6 +163,8 @@ fn spawn_missing_fog_volumes(
                 Visibility::Hidden 
             };
             
+            // Spawn fog volume without a mesh - it's a spatial volume effect
+            // The density texture defines the 3D density distribution
             commands.spawn((
                 FogVolume {
                     density_texture: Some(density_texture.0.clone()),
@@ -173,9 +175,14 @@ fn spawn_missing_fog_volumes(
                     ..default()
                 },
                 SphericalFogVolume { radius: 50.0 },
+                // Transform defines the size and position of the fog volume in world space
+                // Scale of 100 means the 3D texture is mapped to a 100-unit cube
                 Transform::from_scale(Vec3::splat(100.0)),
+                GlobalTransform::default(),
                 visibility,
             ));
+            
+            info!("Fog volume spawned successfully with spherical density texture");
         }
     }
 }
