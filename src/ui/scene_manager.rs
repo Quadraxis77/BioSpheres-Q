@@ -467,6 +467,7 @@ fn spawn_cpu_scene_without_camera(
         CpuSceneEntity,
     ));
 
+    // Add ambient light as an entity
     commands.spawn((
         AmbientLight {
             color: Color::WHITE,
@@ -477,21 +478,27 @@ fn spawn_cpu_scene_without_camera(
     ));
 
     // Add world boundary sphere (100 unit diameter = 50 unit radius)
-    // Using inverted icosphere with inward-pointing normals for proper inside lighting
-    let mut world_sphere = crate::rendering::IcosphereMesh::generate_inverted(4);
+    // Using regular icosphere with outward-pointing normals for reversed lighting
+    let mut world_sphere = crate::rendering::IcosphereMesh::generate(4);
     world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
     let world_mesh: Mesh = world_sphere.into();
     
+    // World sphere with Fresnel edge lighting effect
+    // Outward normals catch light from opposite direction of cells
     commands.spawn((
         Mesh3d(meshes.add(world_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.2, 0.2, 0.3),
+            base_color: Color::srgba(0.2, 0.25, 0.35, 0.35), // Semi-transparent with subtle blue tint
+            emissive: LinearRgba::rgb(0.05, 0.08, 0.12), // Subtle emissive for base glow
+            metallic: 0.0,
+            perceptual_roughness: 0.2, // Very smooth for strong Fresnel effect
+            reflectance: 0.95, // Very high reflectance for pronounced edge brightening
             cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
-            double_sided: false,
-            unlit: true, // Disable lighting for consistent appearance
+            alpha_mode: AlphaMode::Blend,
             ..default()
         })),
-        Transform::from_translation(Vec3::ZERO),
+        Transform::default(),
+        crate::rendering::WorldSphere,
         CpuSceneEntity,
     ));
 }
@@ -622,21 +629,27 @@ fn spawn_preview_scene(
     ));
 
     // Add world boundary sphere (100 unit diameter = 50 unit radius)
-    // Using inverted icosphere with inward-pointing normals for proper inside lighting
-    let mut world_sphere = crate::rendering::IcosphereMesh::generate_inverted(4);
+    // Using regular icosphere with outward-pointing normals for reversed lighting
+    let mut world_sphere = crate::rendering::IcosphereMesh::generate(4);
     world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
     let world_mesh: Mesh = world_sphere.into();
     
+    // World sphere with Fresnel edge lighting effect
+    // Outward normals catch light from opposite direction of cells
     commands.spawn((
         Mesh3d(meshes.add(world_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.2, 0.2, 0.3),
+            base_color: Color::srgba(0.2, 0.25, 0.35, 0.35), // Semi-transparent with subtle blue tint
+            emissive: LinearRgba::rgb(0.05, 0.08, 0.12), // Subtle emissive for base glow
+            metallic: 0.0,
+            perceptual_roughness: 0.2, // Very smooth for strong Fresnel effect
+            reflectance: 0.95, // Very high reflectance for pronounced edge brightening
             cull_mode: Some(bevy::render::render_resource::Face::Front), // Cull front faces to see from inside
-            double_sided: false,
-            unlit: true, // Disable lighting for consistent appearance
+            alpha_mode: AlphaMode::Blend,
             ..default()
         })),
-        Transform::from_translation(Vec3::ZERO),
+        Transform::default(),
+        crate::rendering::WorldSphere,
         crate::simulation::preview_sim::PreviewSceneEntity,
     ));
 }

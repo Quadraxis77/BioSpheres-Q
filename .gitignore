@@ -2,6 +2,9 @@
 /target
 Cargo.lock
 
+# Bevy documentation
+bevy-0.17.2/
+
 # IDE and editor files
 .idea/
 .vscode/
