@@ -323,13 +323,22 @@ fn render_genome_editor(
                             mode.child_b.mode_number -= 1;
                         }
                         
-                        // Fix mode_after_splits references
-                        if mode.mode_after_splits == selected as i32 {
+                        // Fix mode_a_after_splits references
+                        if mode.mode_a_after_splits == selected as i32 {
                             // Set to self-referential
-                            mode.mode_after_splits = idx as i32;
-                        } else if mode.mode_after_splits > selected as i32 {
+                            mode.mode_a_after_splits = idx as i32;
+                        } else if mode.mode_a_after_splits > selected as i32 {
                             // Decrement indices for modes after the removed one
-                            mode.mode_after_splits -= 1;
+                            mode.mode_a_after_splits -= 1;
+                        }
+                        
+                        // Fix mode_b_after_splits references
+                        if mode.mode_b_after_splits == selected as i32 {
+                            // Set to self-referential
+                            mode.mode_b_after_splits = idx as i32;
+                        } else if mode.mode_b_after_splits > selected as i32 {
+                            // Decrement indices for modes after the removed one
+                            mode.mode_b_after_splits -= 1;
                         }
                     }
                     
@@ -371,7 +380,8 @@ fn render_genome_editor(
                     let saved_default_name = mode.default_name.clone();
                     let saved_child_a_mode = mode.child_a.mode_number;
                     let saved_child_b_mode = mode.child_b.mode_number;
-                    let saved_mode_after_splits = mode.mode_after_splits;
+                    let saved_mode_a_after_splits = mode.mode_a_after_splits;
+                    let saved_mode_b_after_splits = mode.mode_b_after_splits;
                     
                     // Reset to default settings
                     *mode = ModeSettings::new_self_splitting(selected as i32, saved_default_name.clone());
@@ -380,7 +390,8 @@ fn render_genome_editor(
                     mode.name = saved_name;
                     mode.child_a.mode_number = saved_child_a_mode;
                     mode.child_b.mode_number = saved_child_b_mode;
-                    mode.mode_after_splits = saved_mode_after_splits;
+                    mode.mode_a_after_splits = saved_mode_a_after_splits;
+                    mode.mode_b_after_splits = saved_mode_b_after_splits;
                 }
             }
 
@@ -1001,13 +1012,13 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
 
     // Max splits
     ui.text("Max Splits:");
-    help_marker(ui, "Maximum number of times a cell can split. Both children inherit the parent's split count. Set to 'Infinite' for unlimited divisions.");
+    help_marker(ui, "Maximum number of times a cell can split. Both children inherit the parent's split count, unless they switch to a different mode (count resets to 0). Set to 'Infinite' for unlimited divisions.");
     max_splits_slider(ui, "##MaxSplits", &mut mode.max_splits, -1, 20, ui.content_region_avail()[0]);
 
     // Mode after splits (only show if max_splits is not infinite)
     if mode.max_splits >= 0 {
-        ui.text("Mode After Splits:");
-        help_marker(ui, "When a cell reaches max splits, both children transition to this mode instead of their normal child modes.");
+        ui.text("Mode A After Splits:");
+        help_marker(ui, "When a cell reaches max splits, Child A transitions to this mode instead of its normal child mode.");
         
         // Build display strings for mode dropdown
         let mode_display_names: Vec<String> = all_modes.iter()
@@ -1015,27 +1026,55 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
             .map(|(idx, m)| format!("[{}] {}", idx, m.name))
             .collect();
         
-        // Add "Stay in Current Mode" option
-        let mut all_options = vec!["Stay in Current Mode".to_string()];
-        all_options.extend(mode_display_names);
+        // Add "Use Normal Child Mode" option
+        let mut all_options = vec!["Use Normal Child Mode".to_string()];
+        all_options.extend(mode_display_names.clone());
         
-        // Current selection: -1 = "Stay in Current Mode", otherwise the mode index
-        let current_selection = if mode.mode_after_splits < 0 {
+        // Current selection: -1 = "Use Normal Child Mode", otherwise the mode index
+        let current_selection_a = if mode.mode_a_after_splits < 0 {
             0
         } else {
-            (mode.mode_after_splits + 1) as usize
+            (mode.mode_a_after_splits + 1) as usize
         };
         
-        let current_display = all_options.get(current_selection)
+        let current_display_a = all_options.get(current_selection_a)
             .map(|s| s.as_str())
-            .unwrap_or("Stay in Current Mode");
+            .unwrap_or("Use Normal Child Mode");
         
-        if let Some(_token) = ui.begin_combo("##ModeAfterSplits", current_display) {
+        if let Some(_token) = ui.begin_combo("##ModeAAfterSplits", current_display_a) {
             for (i, display_name) in all_options.iter().enumerate() {
-                let is_selected = i == current_selection;
+                let is_selected = i == current_selection_a;
                 if ui.selectable_config(display_name).selected(is_selected).build() {
-                    // Convert back: 0 = -1 (stay), otherwise index - 1
-                    mode.mode_after_splits = if i == 0 {
+                    // Convert back: 0 = -1 (use normal), otherwise index - 1
+                    mode.mode_a_after_splits = if i == 0 {
+                        -1
+                    } else {
+                        (i - 1) as i32
+                    };
+                }
+            }
+        }
+
+        ui.text("Mode B After Splits:");
+        help_marker(ui, "When a cell reaches max splits, Child B transitions to this mode instead of its normal child mode.");
+        
+        // Current selection: -1 = "Use Normal Child Mode", otherwise the mode index
+        let current_selection_b = if mode.mode_b_after_splits < 0 {
+            0
+        } else {
+            (mode.mode_b_after_splits + 1) as usize
+        };
+        
+        let current_display_b = all_options.get(current_selection_b)
+            .map(|s| s.as_str())
+            .unwrap_or("Use Normal Child Mode");
+        
+        if let Some(_token) = ui.begin_combo("##ModeBAfterSplits", current_display_b) {
+            for (i, display_name) in all_options.iter().enumerate() {
+                let is_selected = i == current_selection_b;
+                if ui.selectable_config(display_name).selected(is_selected).build() {
+                    // Convert back: 0 = -1 (use normal), otherwise index - 1
+                    mode.mode_b_after_splits = if i == 0 {
                         -1
                     } else {
                         (i - 1) as i32

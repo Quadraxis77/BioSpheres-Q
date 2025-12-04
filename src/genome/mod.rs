@@ -114,8 +114,9 @@ pub struct ModeSettings {
     pub max_adhesions: i32,
     pub min_adhesions: i32, // Minimum number of connections required before cell can split
     pub enable_parent_angle_snapping: bool,
-    pub max_splits: i32, // Maximum number of times a cell can split (1-20, or -1 for infinite)
-    pub mode_after_splits: i32, // Mode that both children transition to when max_splits is reached (-1 = stay in current mode)
+    pub max_splits: i32, // Maximum number of times a cell can split (1-20, or -1 for infinite). Split count resets to 0 when switching modes
+    pub mode_a_after_splits: i32, // Mode that Child A transitions to when max_splits is reached (-1 = use normal child_a mode)
+    pub mode_b_after_splits: i32, // Mode that Child B transitions to when max_splits is reached (-1 = use normal child_b mode)
     
     // Flagellocyte settings
     pub swim_force: f32, // Forward thrust force (0.0 to 1.0, for Flagellocyte cells)
@@ -149,7 +150,8 @@ impl ModeSettings {
             min_adhesions: 0, // No minimum by default
             enable_parent_angle_snapping: true,
             max_splits: -1, // Infinite by default
-            mode_after_splits: -1, // Stay in current mode by default
+            mode_a_after_splits: -1, // Use normal child_a mode by default
+            mode_b_after_splits: -1, // Use normal child_b mode by default
             swim_force: 0.5, // Default swim force for flagellocytes
             child_a: ChildSettings {
                 mode_number: mode_index,
@@ -184,7 +186,8 @@ impl Default for ModeSettings {
             min_adhesions: 0, // No minimum by default
             enable_parent_angle_snapping: true,
             max_splits: -1, // Infinite by default
-            mode_after_splits: -1, // Stay in current mode by default
+            mode_a_after_splits: -1, // Use normal child_a mode by default
+            mode_b_after_splits: -1, // Use normal child_b mode by default
             swim_force: 0.5, // Default swim force for flagellocytes
             child_a: ChildSettings::default(),
             child_b: ChildSettings::default(),

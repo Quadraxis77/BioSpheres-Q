@@ -1535,6 +1535,8 @@ pub fn division_step(
             child_b_radius: f32,
             child_a_split_interval: f32,
             child_b_split_interval: f32,
+            child_a_split_count: i32,
+            child_b_split_count: i32,
         }
         
         let mut division_data_list = Vec::new();
@@ -1591,16 +1593,29 @@ pub fn division_step(
             // Check if children will reach max_splits after this division
             let will_reach_max_splits = mode.max_splits >= 0 && (parent_split_count + 1) >= mode.max_splits;
             
-            // If max_splits is reached and mode_after_splits is set, use that mode for both children
-            let child_a_mode_idx = if will_reach_max_splits && mode.mode_after_splits >= 0 {
-                mode.mode_after_splits.max(0) as usize
+            // If max_splits is reached and mode_a_after_splits is set, use that mode for Child A
+            let child_a_mode_idx = if will_reach_max_splits && mode.mode_a_after_splits >= 0 {
+                mode.mode_a_after_splits.max(0) as usize
             } else {
                 mode.child_a.mode_number.max(0) as usize
             };
-            let child_b_mode_idx = if will_reach_max_splits && mode.mode_after_splits >= 0 {
-                mode.mode_after_splits.max(0) as usize
+            // If max_splits is reached and mode_b_after_splits is set, use that mode for Child B
+            let child_b_mode_idx = if will_reach_max_splits && mode.mode_b_after_splits >= 0 {
+                mode.mode_b_after_splits.max(0) as usize
             } else {
                 mode.child_b.mode_number.max(0) as usize
+            };
+            
+            // Determine split counts: reset to 0 if mode changes, otherwise inherit parent's count + 1
+            let child_a_split_count = if child_a_mode_idx != mode_index {
+                0
+            } else {
+                parent_split_count + 1
+            };
+            let child_b_split_count = if child_b_mode_idx != mode_index {
+                0
+            } else {
+                parent_split_count + 1
             };
             
             // Get child properties
@@ -1673,6 +1688,8 @@ pub fn division_step(
                 child_b_radius,
                 child_a_split_interval,
                 child_b_split_interval,
+                child_a_split_count,
+                child_b_split_count,
             });
             }
         }
@@ -1708,8 +1725,8 @@ pub fn division_step(
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
             state.birth_times[data.child_a_slot] = child_birth_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
-            // Both children inherit parent's split count + 1
-            state.split_counts[data.child_a_slot] = data.parent_split_count + 1;
+            // Split count: reset to 0 if mode changed, otherwise inherit parent's count + 1
+            state.split_counts[data.child_a_slot] = data.child_a_split_count;
 
                 // Adhesion indices will be initialized in inheritance function (matches C++)
             }
@@ -1740,8 +1757,8 @@ pub fn division_step(
                 state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
                 state.birth_times[data.child_b_slot] = child_birth_time;
                 state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
-                // Both children inherit parent's split count + 1
-                state.split_counts[data.child_b_slot] = data.parent_split_count + 1;
+                // Split count: reset to 0 if mode changed, otherwise inherit parent's count + 1
+                state.split_counts[data.child_b_slot] = data.child_b_split_count;
 
                 // Initialize adhesion indices for child B
                 state.adhesion_manager.init_cell_adhesion_indices(data.child_b_slot);
