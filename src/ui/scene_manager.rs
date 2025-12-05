@@ -461,6 +461,7 @@ fn spawn_cpu_cells_only(
         Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(color.x, color.y, color.z),
+            cull_mode: Some(bevy::render::render_resource::Face::Back),
             ..default()
         })),
         Transform::from_translation(Vec3::ZERO)
@@ -568,6 +569,7 @@ fn spawn_preview_cells_only(
         Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(color.x, color.y, color.z),
+            cull_mode: Some(bevy::render::render_resource::Face::Back),
             ..default()
         })),
         Transform::from_translation(Vec3::ZERO)

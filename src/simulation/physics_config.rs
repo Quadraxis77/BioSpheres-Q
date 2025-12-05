@@ -30,6 +30,9 @@ pub struct PhysicsConfig {
     
     /// Angular velocity damping coefficient
     pub angular_damping: f32,
+    
+    /// Disable collision detection (for performance testing or specific scenarios)
+    pub disable_collisions: bool,
 }
 
 impl Default for PhysicsConfig {
@@ -43,6 +46,7 @@ impl Default for PhysicsConfig {
             velocity_damping: 0.98,
             friction_coefficient: 0.3,
             angular_damping: 0.95,
+            disable_collisions: false,
         }
     }
 }

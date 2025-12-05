@@ -111,9 +111,9 @@ impl Default for MainSimState {
         let config = PhysicsConfig::default();
         let initial_state = InitialState::new(config, 4_096, 0);
         
-        // Override the spatial grid with a smaller one (16x16x16 instead of 64x64x64)
+        // Use 64x64x64 spatial grid for optimal performance with large cell counts
         let mut canonical_state = initial_state.to_canonical_state();
-        canonical_state.spatial_grid = crate::simulation::DeterministicSpatialGrid::new(16, 100.0, 50.0);
+        canonical_state.spatial_grid = crate::simulation::DeterministicSpatialGrid::new(64, 100.0, 50.0);
         
         let capacity = canonical_state.capacity;
         
@@ -220,6 +220,7 @@ fn get_or_create_material(
     material_cache.entry(key).or_insert_with(|| {
         materials.add(StandardMaterial {
             base_color: Color::srgb(color.x, color.y, color.z),
+            cull_mode: Some(bevy::render::render_resource::Face::Back),
             ..default()
         })
     }).clone()

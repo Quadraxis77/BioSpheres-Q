@@ -272,6 +272,7 @@ fn setup_preview_scene(
         Mesh3d(cell_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(color.x, color.y, color.z),
+            cull_mode: Some(bevy::render::render_resource::Face::Back),
             ..default()
         })),
         Transform::from_translation(Vec3::ZERO)
@@ -456,6 +457,7 @@ fn respawn_preview_cells_after_resimulation(
                     };
                     let mat = materials.add(StandardMaterial {
                         base_color: Color::srgb(color.x, color.y, color.z),
+                        cull_mode: Some(bevy::render::render_resource::Face::Back),
                         ..default()
                     });
                     material_cache[mode_index] = Some(mat.clone());
@@ -465,6 +467,7 @@ fn respawn_preview_cells_after_resimulation(
                 // Fallback for invalid mode index
                 materials.add(StandardMaterial {
                     base_color: Color::srgb(1.0, 1.0, 1.0),
+                    cull_mode: Some(bevy::render::render_resource::Face::Back),
                     ..default()
                 })
             };

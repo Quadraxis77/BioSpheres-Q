@@ -169,6 +169,7 @@ fn check_and_divide_cells(
             Mesh3d(meshes.add(Sphere::new(cell.radius).mesh().ico(5).unwrap())),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(child_a_color.x, child_a_color.y, child_a_color.z),
+                cull_mode: Some(bevy::render::render_resource::Face::Back),
                 ..default()
             })),
             Transform::from_translation(child_a_pos).with_rotation(child_a_orientation),
@@ -202,6 +203,7 @@ fn check_and_divide_cells(
             Mesh3d(meshes.add(Sphere::new(cell.radius).mesh().ico(5).unwrap())),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(child_b_color.x, child_b_color.y, child_b_color.z),
+                cull_mode: Some(bevy::render::render_resource::Face::Back),
                 ..default()
             })),
             Transform::from_translation(child_b_pos).with_rotation(child_b_orientation),

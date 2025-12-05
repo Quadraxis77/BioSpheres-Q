@@ -138,6 +138,7 @@ fn theme_editor_ui(
     mut global_ui_state: ResMut<super::GlobalUiState>,
     mut cpu_cell_capacity: ResMut<crate::ui::scene_manager::CpuCellCapacity>,
     simulation_state: Res<crate::simulation::SimulationState>,
+    mut physics_config: ResMut<crate::simulation::PhysicsConfig>,
 ) {
     let ui = imgui_context.ui();
 
@@ -281,7 +282,7 @@ fn theme_editor_ui(
             if simulation_state.mode == crate::simulation::SimulationMode::Cpu {
                 ui.text("CPU Cell Capacity (Next Reset)");
                 let mut capacity = cpu_cell_capacity.capacity as i32;
-                if ui.slider("##CpuCellCapacity", 100, 5000, &mut capacity) {
+                if ui.slider("##CpuCellCapacity", 100, 10000, &mut capacity) {
                     cpu_cell_capacity.capacity = capacity as usize;
                 }
                 if ui.is_item_hovered() {
@@ -293,6 +294,14 @@ fn theme_editor_ui(
                 
                 ui.separator();
             }
+            
+            // Disable Collisions checkbox
+            ui.checkbox("Disable Collisions", &mut physics_config.disable_collisions);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Disable all collision detection.\nCells will pass through each other.\nUseful for performance testing.");
+            }
+            
+            ui.separator();
 
             // Show lock status
             let status = if global_ui_state.windows_locked {

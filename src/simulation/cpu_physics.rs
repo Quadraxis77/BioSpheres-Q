@@ -108,7 +108,7 @@ impl CanonicalState {
             split_ready_frame: vec![-1; capacity],
             adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
             adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
-            spatial_grid: DeterministicSpatialGrid::new(16, 100.0, 50.0), // Reduced from 64 to 16
+            spatial_grid: DeterministicSpatialGrid::new(64, 100.0, 50.0), // 64x64x64 grid for better performance
             next_cell_id: 0,
         }
     }
@@ -443,6 +443,11 @@ pub fn detect_collisions_canonical_st(
                 // Check for overlap
                 let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                 if distance < combined_radius {
+                    // Skip collision if cells are connected by adhesion
+                    if are_cells_connected(state, idx_a, idx_b) {
+                        continue;
+                    }
+                    
                     let overlap = combined_radius - distance;
                     let normal = if distance > 0.0001 {
                         delta / distance
@@ -481,6 +486,11 @@ pub fn detect_collisions_canonical_st(
                     // Check for overlap
                     let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                     if distance < combined_radius {
+                        // Skip collision if cells are connected by adhesion
+                        if are_cells_connected(state, idx_a, idx_b) {
+                            continue;
+                        }
+                        
                         let overlap = combined_radius - distance;
                         let normal = if distance > 0.0001 {
                             delta / distance
@@ -543,6 +553,11 @@ pub fn detect_collisions_canonical(
                     // Check for overlap
                     let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                     if distance < combined_radius {
+                        // Skip collision if cells are connected by adhesion
+                        if are_cells_connected(state, idx_a, idx_b) {
+                            continue;
+                        }
+                        
                         let overlap = combined_radius - distance;
                         let normal = if distance > 0.0001 {
                             delta / distance
@@ -581,6 +596,11 @@ pub fn detect_collisions_canonical(
                         // Check for overlap
                         let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                         if distance < combined_radius {
+                            // Skip collision if cells are connected by adhesion
+                            if are_cells_connected(state, idx_a, idx_b) {
+                                continue;
+                            }
+                            
                             let overlap = combined_radius - distance;
                             let normal = if distance > 0.0001 {
                                 delta / distance
@@ -870,8 +890,12 @@ pub fn physics_step_st(
     // 3. Update spatial partitioning
     state.spatial_grid.rebuild(&state.positions, state.cell_count);
     
-    // 4. Detect collisions
-    let collisions = detect_collisions_canonical_st(state);
+    // 4. Detect collisions (skip if disabled)
+    let collisions = if config.disable_collisions {
+        Vec::new()
+    } else {
+        detect_collisions_canonical_st(state)
+    };
     
     // 5. Compute forces and torques
     compute_collision_forces_canonical_st(state, &collisions, config);
@@ -954,8 +978,12 @@ pub fn physics_step_st_with_genome(
     // 3. Update spatial partitioning
     state.spatial_grid.rebuild(&state.positions, state.cell_count);
     
-    // 4. Detect collisions
-    let collisions = detect_collisions_canonical_st(state);
+    // 4. Detect collisions (skip if disabled)
+    let collisions = if config.disable_collisions {
+        Vec::new()
+    } else {
+        detect_collisions_canonical_st(state)
+    };
     
     // 5. Compute forces and torques
     compute_collision_forces_canonical_st(state, &collisions, config);
@@ -1141,8 +1169,12 @@ pub fn physics_step(
     // 3. Update spatial partitioning
     state.spatial_grid.rebuild(&state.positions, state.cell_count);
     
-    // 4. Detect collisions
-    let collisions = detect_collisions_canonical(state);
+    // 4. Detect collisions (skip if disabled)
+    let collisions = if config.disable_collisions {
+        Vec::new()
+    } else {
+        detect_collisions_canonical(state)
+    };
     
     // 5. Compute forces and torques
     compute_collision_forces_canonical(state, &collisions, config);
@@ -1225,8 +1257,12 @@ pub fn physics_step_with_genome(
     // 3. Update spatial partitioning
     state.spatial_grid.rebuild(&state.positions, state.cell_count);
     
-    // 4. Detect collisions
-    let collisions = detect_collisions_canonical(state);
+    // 4. Detect collisions (skip if disabled)
+    let collisions = if config.disable_collisions {
+        Vec::new()
+    } else {
+        detect_collisions_canonical(state)
+    };
     
     // 5. Compute forces and torques
     compute_collision_forces_canonical(state, &collisions, config);
