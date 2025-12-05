@@ -101,10 +101,6 @@ fn handle_cell_click(
                     }
                 }
             }
-            SimulationMode::Gpu => {
-                // GPU mode doesn't use ECS entities for cells
-                inspector_state.inspected_cell_index = None;
-            }
         }
     }
 }
@@ -171,7 +167,6 @@ fn render_cell_inspector_window(
                     }
                 })
             }
-            SimulationMode::Gpu => None,
         }
     }).flatten().unzip();
     

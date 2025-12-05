@@ -5,7 +5,6 @@ pub mod cell_allocation;
 pub mod clock;
 pub mod cpu_sim;
 pub mod double_buffer;
-pub mod gpu_sim;
 pub mod initial_state;
 pub mod physics_config;
 pub mod preview_sim;
@@ -19,7 +18,6 @@ pub use cell_allocation::{Cell, Adhesion};
 pub use clock::SimulationClock;
 pub use cpu_sim::{CpuSimPlugin, CpuSimTimestepPlugin, CpuSceneState, CpuSceneEntity};
 pub use double_buffer::DoubleBufferedState;
-pub use gpu_sim::{GpuSimPlugin, GpuSceneState, GpuSceneEntity};
 pub use initial_state::{InitialState, InitialCell};
 pub use preview_sim::{PreviewSimPlugin, PreviewSceneState, PreviewSceneEntity};
 pub use adhesion_inheritance::{inherit_adhesions_on_division, inherit_adhesions_on_division_with_map};
@@ -58,7 +56,6 @@ impl Plugin for SimulationPlugin {
             )
             // Add mode-specific plugins
             .add_plugins(CpuSimPlugin)
-            .add_plugins(GpuSimPlugin)
             .add_plugins(PreviewSimPlugin)
             .init_resource::<PhysicsConfig>()
             .init_resource::<SimulationState>()
@@ -80,7 +77,6 @@ fn initialize_default_scene(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum SimulationMode {
     Cpu,
-    Gpu,
     #[default]
     Preview,
 }

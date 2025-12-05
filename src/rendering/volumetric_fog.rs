@@ -186,8 +186,8 @@ fn spawn_missing_fog_volumes(
                     fog_color: settings.fog_color,
                     ..default()
                 },
-                SphericalFogVolume { radius: 50.0 },
-                Transform::from_translation(Vec3::ZERO).with_scale(Vec3::splat(100.0)),
+                SphericalFogVolume { radius: 100.0 },
+                Transform::from_translation(Vec3::ZERO).with_scale(Vec3::splat(200.0)),
                 GlobalTransform::default(),
                 visibility,
             ));

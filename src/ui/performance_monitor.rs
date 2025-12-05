@@ -153,7 +153,6 @@ fn render_performance_window(
     sim_state: Option<Res<crate::simulation::SimulationState>>,
     main_sim_state: Option<Res<crate::simulation::cpu_sim::MainSimState>>,
     preview_sim_state: Option<Res<crate::simulation::preview_sim::PreviewSimState>>,
-    gpu_scene_data: Option<Res<crate::rendering::gpu_renderer::GpuSceneData>>,
     time: Res<Time<Fixed>>,
     global_ui_state: Res<super::GlobalUiState>,
 ) {
@@ -305,13 +304,6 @@ fn render_performance_window(
                             (preview_state.canonical_state.cell_count, preview_state.initial_state.max_cells)
                         } else {
                             (0, 256)
-                        }
-                    }
-                    crate::simulation::SimulationMode::Gpu => {
-                        if let Some(gpu_data) = gpu_scene_data.as_ref() {
-                            (gpu_data.cells.len(), gpu_data.max_cells)
-                        } else {
-                            (0, 100_000)
                         }
                     }
                     crate::simulation::SimulationMode::Cpu => {

@@ -1,6 +1,6 @@
 {
-  "windows_locked": false,
-  "ui_scale": 1.25,
+  "windows_locked": true,
+  "ui_scale": 1.5,
   "theme": {
     "current_theme_name": "Industrial",
     "is_custom_theme": false

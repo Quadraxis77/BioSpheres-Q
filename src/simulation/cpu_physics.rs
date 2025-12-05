@@ -108,7 +108,7 @@ impl CanonicalState {
             split_ready_frame: vec![-1; capacity],
             adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
             adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
-            spatial_grid: DeterministicSpatialGrid::new(64, 100.0, 50.0), // 64x64x64 grid for better performance
+            spatial_grid: DeterministicSpatialGrid::new(64, 200.0, 100.0), // 64x64x64 grid for better performance
             next_cell_id: 0,
         }
     }

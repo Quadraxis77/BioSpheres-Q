@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::{WindowMode, WindowResolution, MonitorSelection};
 use biospheres_bevy::*;
-use biospheres_bevy::rendering::GpuSceneImguiEdgePlugin;
 use biospheres_bevy::ui::{CellInspectorPlugin, GenomeEditorPlugin, SceneManagerPlugin, TimeScrubberPlugin};
 
 fn main() {
@@ -24,9 +23,6 @@ fn main() {
         .add_plugins(RenderingPlugin)
         .add_plugins(UiPlugin)
         .add_plugins(InputPlugin)
-        // This must come AFTER UiPlugin to ensure ImGui node exists
-        // It adds the render graph edge: GpuScene -> ImGui
-        .add_plugins(GpuSceneImguiEdgePlugin)
         // Optional UI plugins
         .add_plugins(CellInspectorPlugin)
         .add_plugins(GenomeEditorPlugin)

@@ -151,11 +151,8 @@ fn setup_preview_scene(
         PreviewSceneEntity,
     ));
 
-    // Add world boundary sphere (100 unit diameter = 50 unit radius)
-    // Using regular icosphere with outward-pointing normals for reversed lighting
-    let mut world_sphere = crate::rendering::IcosphereMesh::generate(4);
-    world_sphere.scale(50.0); // 50 unit radius = 100 unit diameter
-    let world_mesh: Mesh = world_sphere.into();
+    // Add world boundary sphere (200 unit diameter = 100 unit radius)
+    let world_mesh = Sphere::new(100.0).mesh().ico(7).unwrap();
     
     // World sphere with Fresnel edge lighting effect
     commands.spawn((

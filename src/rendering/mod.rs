@@ -11,29 +11,10 @@ pub mod volumetric_fog;
 #[derive(Component)]
 pub struct WorldSphere;
 
-// GPU rendering modules
-pub mod gpu_types;
-pub mod gpu_renderer;
-pub mod gpu_icosphere;
-pub mod gpu_camera;
-pub mod gpu_triple_buffer;
-pub mod gpu_shaders;
-pub mod gpu_compute;
-pub mod gpu_compute_pipeline;
-pub mod gpu_compute_dispatcher;
-
 pub use cells::CellRenderingPlugin;
 pub use debug::DebugRenderingPlugin;
 pub use adhesion_lines::{AdhesionLineRenderPlugin, AdhesionLineSettings, AdhesionLines};
 pub use volumetric_fog::{VolumetricFogPlugin, VolumetricFogSettings, SphericalFogVolume, SphericalDensityTexture};
-
-// GPU rendering exports
-pub use gpu_types::{CellInstanceData, WebGpuError};
-pub use gpu_renderer::{WebGpuRendererPlugin, GpuSceneData, GpuSceneImguiEdgePlugin};
-pub use gpu_icosphere::{IcosphereMesh, IcosphereMeshBuffers, IcosphereVertex};
-pub use gpu_camera::{GpuCamera, CameraUniform};
-pub use gpu_triple_buffer::{TripleBufferSystem, DEFAULT_MAX_INSTANCES};
-pub use gpu_shaders::{ShaderSystem, ShaderError};
 
 /// Main rendering plugin
 pub struct RenderingPlugin;
@@ -45,8 +26,6 @@ impl Plugin for RenderingPlugin {
             .add_plugins(DebugRenderingPlugin)
             .add_plugins(AdhesionLineRenderPlugin)
             .add_plugins(VolumetricFogPlugin)
-            // Add WebGPU renderer plugin for GPU scene
-            .add_plugins(WebGpuRendererPlugin)
             .init_resource::<RenderingConfig>()
             .init_resource::<AdhesionLineSettings>()
             .add_systems(Update, (

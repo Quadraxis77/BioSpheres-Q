@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_imgui::prelude::*;
-use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, GpuSceneState, CpuSceneEntity};
+use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, CpuSceneEntity};
 
 /// Event to trigger scene reset
 #[derive(Message)]
@@ -56,20 +56,16 @@ fn render_scene_manager_window(
     mut simulation_state: ResMut<SimulationState>,
     mut app_exit_events: MessageWriter<AppExit>,
     cpu_scene_state: Option<Res<State<CpuSceneState>>>,
-    gpu_scene_state: Option<Res<State<GpuSceneState>>>,
     preview_scene_state: Option<Res<State<PreviewSceneState>>>,
     next_cpu_scene_state: Option<ResMut<NextState<CpuSceneState>>>,
-    next_gpu_scene_state: Option<ResMut<NextState<GpuSceneState>>>,
     next_preview_scene_state: Option<ResMut<NextState<PreviewSceneState>>>,
     mut reset_scene_events: MessageWriter<ResetSceneEvent>,
     global_ui_state: Res<super::GlobalUiState>,
 ) {
     // Early return if states aren't initialized yet
     let Some(cpu_scene_state) = cpu_scene_state else { return };
-    let Some(gpu_scene_state) = gpu_scene_state else { return };
     let Some(preview_scene_state) = preview_scene_state else { return };
     let Some(mut next_cpu_scene_state) = next_cpu_scene_state else { return };
-    let Some(mut next_gpu_scene_state) = next_gpu_scene_state else { return };
     let Some(mut next_preview_scene_state) = next_preview_scene_state else { return };
 
     let ui = imgui_context.ui();
@@ -134,33 +130,21 @@ fn render_scene_manager_window(
                 selected_mode = SimulationMode::Cpu;
             }
             
-            if ui.selectable_config("GPU Scene")
-                .selected(selected_mode == SimulationMode::Gpu)
-                .build()
-            {
-                selected_mode = SimulationMode::Gpu;
-            }
-            if ui.is_item_hovered() {
-                ui.tooltip_text("Not yet implemented");
-            }
-            
             // Handle scene transition if mode changed
             if selected_mode != simulation_state.mode {
                 handle_scene_transition(
                     &mut simulation_state,
                     selected_mode,
                     &cpu_scene_state,
-                    &gpu_scene_state,
                     &preview_scene_state,
                     &mut next_cpu_scene_state,
-                    &mut next_gpu_scene_state,
                     &mut next_preview_scene_state,
                 );
             }
             
             ui.separator();
             
-            // Reset scene button (only for CPU and GPU scenes)
+            // Reset scene button (only for CPU scene)
             if simulation_state.mode != SimulationMode::Preview {
                 if ui.button("Reset Scene") {
                     reset_scene_events.write(ResetSceneEvent);
@@ -173,10 +157,10 @@ fn render_scene_manager_window(
             ui.text("Time Controls");
             ui.separator();
             
-            // Show pause/play toggle for CPU and GPU modes
+            // Show pause/play toggle for CPU mode
             // Show message for Preview mode
             match simulation_state.mode {
-                SimulationMode::Cpu | SimulationMode::Gpu => {
+                SimulationMode::Cpu => {
                     // Toggle pause/play button
                     let button_label = if simulation_state.paused { "Play" } else { "Pause" };
                     if ui.button(button_label) {
@@ -283,10 +267,8 @@ fn handle_scene_transition(
     simulation_state: &mut SimulationState,
     new_mode: SimulationMode,
     cpu_scene_state: &State<CpuSceneState>,
-    gpu_scene_state: &State<GpuSceneState>,
     preview_scene_state: &State<PreviewSceneState>,
     next_cpu_scene_state: &mut NextState<CpuSceneState>,
-    next_gpu_scene_state: &mut NextState<GpuSceneState>,
     next_preview_scene_state: &mut NextState<PreviewSceneState>,
 ) {
     
@@ -297,11 +279,6 @@ fn handle_scene_transition(
         SimulationMode::Cpu => {
             if **cpu_scene_state == CpuSceneState::Active {
                 next_cpu_scene_state.set(CpuSceneState::Inactive);
-            }
-        }
-        SimulationMode::Gpu => {
-            if **gpu_scene_state == GpuSceneState::Active {
-                next_gpu_scene_state.set(GpuSceneState::Inactive);
             }
         }
         SimulationMode::Preview => {
@@ -315,9 +292,6 @@ fn handle_scene_transition(
     match new_mode {
         SimulationMode::Cpu => {
             next_cpu_scene_state.set(CpuSceneState::Active);
-        }
-        SimulationMode::Gpu => {
-            next_gpu_scene_state.set(GpuSceneState::Active);
         }
         SimulationMode::Preview => {
             next_preview_scene_state.set(PreviewSceneState::Active);
@@ -338,7 +312,6 @@ fn handle_reset_scene_event(
     genome: Res<crate::genome::CurrentGenome>,
     config: Res<crate::cell::physics::PhysicsConfig>,
     cpu_cells: Query<Entity, (With<crate::cell::Cell>, With<CpuSceneEntity>)>,
-    gpu_cells: Query<Entity, (With<crate::cell::Cell>, With<crate::simulation::gpu_sim::GpuSceneEntity>)>,
     preview_cells: Query<Entity, (With<crate::cell::Cell>, With<crate::simulation::preview_sim::PreviewSceneEntity>)>,
     mut main_sim_state: Option<ResMut<crate::simulation::cpu_sim::MainSimState>>,
     mut preview_sim_state: Option<ResMut<crate::simulation::preview_sim::PreviewSimState>>,
@@ -357,15 +330,6 @@ fn handle_reset_scene_event(
                 if let Some(ref mut main_state) = main_sim_state {
                     spawn_cpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state, &cpu_cell_capacity);
                 }
-            }
-            SimulationMode::Gpu => {
-                // Despawn only GPU cells
-                for entity in gpu_cells.iter() {
-                    commands.entity(entity).despawn();
-                }
-                
-                // Respawn initial GPU cells
-                spawn_gpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome);
             }
             SimulationMode::Preview => {
                 // Despawn only Preview cells
@@ -473,16 +437,6 @@ fn spawn_cpu_cells_only(
     // Map cell ID to entity
     main_state.id_to_entity.insert(0, entity);
     main_state.entity_to_index.insert(entity, 0);
-}
-
-/// Placeholder for GPU cells spawn (implement when needed)
-fn spawn_gpu_cells_only(
-    _commands: &mut Commands,
-    _meshes: &mut ResMut<Assets<Mesh>>,
-    _materials: &mut ResMut<Assets<StandardMaterial>>,
-    _genome: &Res<crate::genome::CurrentGenome>,
-) {
-    // TODO: Implement GPU cells spawning
 }
 
 /// Spawn only Preview cells (for reset - doesn't spawn lights, fog, or world sphere)

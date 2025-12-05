@@ -38,8 +38,8 @@ pub struct PhysicsConfig {
 impl Default for PhysicsConfig {
     fn default() -> Self {
         Self {
-            world_bounds: Vec3::splat(100.0),
-            sphere_radius: 50.0,
+            world_bounds: Vec3::splat(200.0),
+            sphere_radius: 100.0,
             default_stiffness: 10.0,
             damping: 0.0,
             fixed_timestep: 1.0 / 64.0, // Match Bevy's default fixed timestep (64 Hz)
