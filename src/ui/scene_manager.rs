@@ -22,12 +22,27 @@ impl Default for SceneManagerState {
     }
 }
 
+/// Resource to store CPU scene cell capacity setting
+#[derive(Resource)]
+pub struct CpuCellCapacity {
+    pub capacity: usize,
+}
+
+impl Default for CpuCellCapacity {
+    fn default() -> Self {
+        Self {
+            capacity: 4096,
+        }
+    }
+}
+
 /// Scene Manager plugin for managing scene transitions and time controls
 pub struct SceneManagerPlugin;
 
 impl Plugin for SceneManagerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SceneManagerState>()
+            .init_resource::<CpuCellCapacity>()
             .add_message::<ResetSceneEvent>()
             .add_systems(Update, render_scene_manager_window)
             .add_systems(Update, handle_reset_scene_event);
@@ -327,6 +342,7 @@ fn handle_reset_scene_event(
     preview_cells: Query<Entity, (With<crate::cell::Cell>, With<crate::simulation::preview_sim::PreviewSceneEntity>)>,
     mut main_sim_state: Option<ResMut<crate::simulation::cpu_sim::MainSimState>>,
     mut preview_sim_state: Option<ResMut<crate::simulation::preview_sim::PreviewSimState>>,
+    cpu_cell_capacity: Res<CpuCellCapacity>,
 ) {
     for _ in reset_events.read() {
         // Only despawn and respawn cells, leaving lights, fog, and world sphere intact
@@ -339,7 +355,7 @@ fn handle_reset_scene_event(
                 
                 // Reset MainSimState and spawn initial cell
                 if let Some(ref mut main_state) = main_sim_state {
-                    spawn_cpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state);
+                    spawn_cpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state, &cpu_cell_capacity);
                 }
             }
             SimulationMode::Gpu => {
@@ -374,6 +390,7 @@ fn spawn_cpu_cells_only(
     genome: &Res<crate::genome::CurrentGenome>,
     config: &Res<crate::cell::physics::PhysicsConfig>,
     main_state: &mut crate::simulation::cpu_sim::MainSimState,
+    cpu_cell_capacity: &Res<CpuCellCapacity>,
 ) {
     use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
     use crate::simulation::{InitialState, InitialCell};
@@ -393,8 +410,8 @@ fn spawn_cpu_cells_only(
     let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
     let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.0) } else { 1.0 };
     
-    // Create initial state (4096 cells to match CPU simulation limit)
-    let mut initial_state = InitialState::new((**config).clone(), 4_096, 0);
+    // Create initial state with capacity from settings
+    let mut initial_state = InitialState::new((**config).clone(), cpu_cell_capacity.capacity, 0);
     initial_state.add_cell(InitialCell {
         id: 0,
         position: Vec3::ZERO,
@@ -415,6 +432,8 @@ fn spawn_cpu_cells_only(
     main_state.initial_state = initial_state;
     main_state.id_to_entity.clear();
     main_state.entity_to_index.clear();
+    // Resize index_to_entity to match new capacity
+    main_state.index_to_entity = vec![None; cpu_cell_capacity.capacity];
     
     // Spawn initial cell
     let entity = commands.spawn((

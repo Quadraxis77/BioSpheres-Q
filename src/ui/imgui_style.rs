@@ -45,6 +45,7 @@ pub fn apply_imgui_style_system(
     mut context: NonSendMut<ImguiContext>,
     mut theme_state: ResMut<ImguiThemeState>,
     global_ui_state: Res<crate::ui::GlobalUiState>,
+    mut last_scale: Local<Option<f32>>,
 ) {
     let ui = context.ui();
 
@@ -59,10 +60,16 @@ pub fn apply_imgui_style_system(
         theme_state.theme_changed = false;
     }
 
-    // Always update font scale (this is cheap and doesn't compound)
-    unsafe {
-        let io_ptr = ui.io() as *const imgui::Io as *mut imgui::Io;
-        (*io_ptr).font_global_scale = global_ui_state.ui_scale;
+    // Only update font scale when it actually changes
+    let scale_changed = last_scale.is_none() || 
+        (last_scale.unwrap() - global_ui_state.ui_scale).abs() > 0.001;
+    
+    if scale_changed {
+        unsafe {
+            let io_ptr = ui.io() as *const imgui::Io as *mut imgui::Io;
+            (*io_ptr).font_global_scale = global_ui_state.ui_scale;
+        }
+        *last_scale = Some(global_ui_state.ui_scale);
     }
 }
 

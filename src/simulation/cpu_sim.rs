@@ -511,6 +511,7 @@ fn setup_cpu_scene(
     genome: Res<crate::genome::CurrentGenome>,
     config: Res<PhysicsConfig>,
     mut main_state: ResMut<MainSimState>,
+    cpu_cell_capacity: Res<crate::ui::scene_manager::CpuCellCapacity>,
 ) {
     // Spawn 3D camera with volumetric fog
     commands.spawn((
@@ -545,8 +546,8 @@ fn setup_cpu_scene(
     
     let cell_radius = 1.0;
     
-    // Create initial state
-    let mut initial_state = InitialState::new(config.clone(), 4_096, 0);
+    // Create initial state with capacity from settings
+    let mut initial_state = InitialState::new(config.clone(), cpu_cell_capacity.capacity, 0);
     initial_state.add_cell(InitialCell {
         id: 0,
         position: Vec3::ZERO,
@@ -567,7 +568,8 @@ fn setup_cpu_scene(
     main_state.initial_state = initial_state;
     main_state.id_to_entity.clear();
     main_state.entity_to_index.clear();
-    main_state.index_to_entity.fill(None);
+    // Resize index_to_entity to match new capacity
+    main_state.index_to_entity = vec![None; cpu_cell_capacity.capacity];
     main_state.simulation_time = 0.0;
     
     // OPTIMIZATION: Create shared sphere mesh once (reused for all cells)

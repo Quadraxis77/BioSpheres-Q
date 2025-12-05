@@ -123,12 +123,14 @@ fn enable_window_clamping(
     }
     
     let ui = context.ui();
-    
-    // Check if any mouse button is being held (indicating potential drag)
     let io = ui.io();
-    let is_mouse_dragging = io.mouse_down[0]; // Left mouse button
     
-    // Early exit if no dragging is happening
+    // Check if left mouse button is being held AND the mouse is actually dragging
+    // This prevents the system from running during scrollbar interactions
+    let is_mouse_dragging = io.mouse_down[0] && 
+        (io.mouse_delta[0].abs() > 0.1 || io.mouse_delta[1].abs() > 0.1);
+    
+    // Early exit if no actual dragging is happening
     if !is_mouse_dragging {
         return;
     }

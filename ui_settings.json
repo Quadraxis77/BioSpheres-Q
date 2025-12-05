@@ -1,6 +1,6 @@
 {
   "windows_locked": false,
-  "ui_scale": 2.0,
+  "ui_scale": 1.25,
   "theme": {
     "current_theme_name": "Industrial",
     "is_custom_theme": false
@@ -10,7 +10,7 @@
     "show_cell_inspector": true,
     "show_genome_editor": true,
     "show_scene_manager": true,
-    "show_performance_monitor": false,
+    "show_performance_monitor": true,
     "show_rendering_controls": true,
     "show_time_scrubber": true,
     "show_theme_editor": false,

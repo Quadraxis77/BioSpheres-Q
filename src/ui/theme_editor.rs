@@ -136,6 +136,8 @@ fn theme_editor_ui(
     mut editor_state: ResMut<ThemeEditorState>,
     mut theme_state: ResMut<ImguiThemeState>,
     mut global_ui_state: ResMut<super::GlobalUiState>,
+    mut cpu_cell_capacity: ResMut<crate::ui::scene_manager::CpuCellCapacity>,
+    simulation_state: Res<crate::simulation::SimulationState>,
 ) {
     let ui = imgui_context.ui();
 
@@ -274,6 +276,23 @@ fn theme_editor_ui(
             ui.new_line();
 
             ui.separator();
+
+            // CPU Cell Capacity slider (only shown in CPU mode)
+            if simulation_state.mode == crate::simulation::SimulationMode::Cpu {
+                ui.text("CPU Cell Capacity (Next Reset)");
+                let mut capacity = cpu_cell_capacity.capacity as i32;
+                if ui.slider("##CpuCellCapacity", 100, 5000, &mut capacity) {
+                    cpu_cell_capacity.capacity = capacity as usize;
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Set maximum cells for CPU scene.\nRequires scene reset to take effect.\nUse Scene Manager to reset.");
+                }
+                
+                // Show hint if capacity was changed
+                ui.text_colored([1.0, 1.0, 0.0, 1.0], "⚠ Reset scene to apply");
+                
+                ui.separator();
+            }
 
             // Show lock status
             let status = if global_ui_state.windows_locked {

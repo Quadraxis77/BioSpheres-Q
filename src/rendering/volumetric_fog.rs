@@ -61,10 +61,6 @@ fn setup_spherical_density_texture(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
 ) {
-    info!("========================================");
-    info!("SETUP_SPHERICAL_DENSITY_TEXTURE CALLED");
-    info!("========================================");
-    
     // Create a 3D texture with uniform spherical density (no falloff)
     const SIZE: u32 = 256; // Resolution of the 3D texture
     let mut data = Vec::with_capacity((SIZE * SIZE * SIZE) as usize);
@@ -110,11 +106,7 @@ fn setup_spherical_density_texture(
     // Texture sampler is set to default (clamp to edge)
     
     let handle = images.add(image);
-    info!("=== CREATED SPHERICAL DENSITY TEXTURE ===");
-    info!("Texture size: {}x{}x{}, format: {:?}", SIZE, SIZE, SIZE, TextureFormat::R8Unorm);
-    info!("Texture handle: {:?}", handle);
     commands.insert_resource(SphericalDensityTexture(handle));
-    info!("SphericalDensityTexture resource inserted");
 }
 
 /// System to update volumetric fog settings on cameras and fog volumes
@@ -131,46 +123,32 @@ fn update_volumetric_fog_settings(
         return;
     }
     
-    // Log when enabled state changes
-    if last_enabled.is_none() || last_enabled.unwrap() != settings.enabled {
-        info!("Volumetric fog enabled changed to: {}", settings.enabled);
+    // Check if enabled state changed
+    let enabled_changed = last_enabled.is_none() || last_enabled.unwrap() != settings.enabled;
+    
+    if enabled_changed {
         *last_enabled = Some(settings.enabled);
-    }
-    
-    info!("Updating volumetric fog: enabled={}, density={}, absorption={}, scattering={}, ambient={}", 
-          settings.enabled, settings.density_factor, settings.absorption, settings.scattering, settings.ambient_intensity);
-    
-    // WORKAROUND: Add/remove VolumetricFog component from cameras based on enabled state
-    if settings.enabled {
-        // Add VolumetricFog to cameras that don't have it
-        for entity in cameras_without_fog.iter() {
-            info!("Adding VolumetricFog component to camera {:?}", entity);
-            commands.entity(entity).insert(BevyVolumetricFog {
-                ambient_intensity: settings.ambient_intensity,
-                step_count: settings.step_count,
-                ..default()
-            });
-        }
         
-        // Update existing VolumetricFog components
-        for (_entity, volumetric_fog) in cameras_with_fog.iter() {
-            // Need to use commands to update since we can't mutate here
-            commands.entity(_entity).insert(BevyVolumetricFog {
-                ambient_intensity: settings.ambient_intensity,
-                step_count: settings.step_count,
-                ..*volumetric_fog
-            });
-        }
-    } else {
-        // Remove VolumetricFog from all cameras to disable fog
-        for (entity, _) in cameras_with_fog.iter() {
-            info!("Removing VolumetricFog component from camera {:?}", entity);
-            commands.entity(entity).remove::<BevyVolumetricFog>();
+        // WORKAROUND: Add/remove VolumetricFog component from cameras based on enabled state
+        if settings.enabled {
+            // Add VolumetricFog to cameras that don't have it
+            for entity in cameras_without_fog.iter() {
+                commands.entity(entity).insert(BevyVolumetricFog {
+                    ambient_intensity: settings.ambient_intensity,
+                    step_count: settings.step_count,
+                    ..default()
+                });
+            }
+        } else {
+            // Remove VolumetricFog from all cameras to disable fog
+            for (entity, _) in cameras_with_fog.iter() {
+                commands.entity(entity).remove::<BevyVolumetricFog>();
+            }
         }
     }
     
-    // Update fog volume properties
-    // Also set density to 0 when disabled as additional safeguard
+    // Update fog volume properties (only when settings change, not every frame)
+    // Set density to 0 when disabled as additional safeguard
     for mut fog_volume in fog_volume_components.iter_mut() {
         fog_volume.density_factor = if settings.enabled { settings.density_factor } else { 0.0 };
         fog_volume.absorption = if settings.enabled { settings.absorption } else { 0.0 };
@@ -191,11 +169,6 @@ fn spawn_missing_fog_volumes(
     // Only spawn if we have the density texture and no fog volumes exist yet
     if let Some(density_texture) = density_texture {
         if existing_count == 0 {
-            info!("=== SPAWNING VOLUMETRIC FOG VOLUME ===");
-            info!("Density texture handle: {:?}", density_texture.0);
-            info!("Settings: density={}, absorption={}, scattering={}, enabled={}", 
-                  settings.density_factor, settings.absorption, settings.scattering, settings.enabled);
-            
             let visibility = if settings.enabled { 
                 Visibility::Inherited 
             } else { 
@@ -204,7 +177,7 @@ fn spawn_missing_fog_volumes(
             
             // Spawn fog volume without a mesh - it's a spatial volume effect
             // The density texture defines the 3D density distribution
-            let entity = commands.spawn((
+            commands.spawn((
                 FogVolume {
                     density_texture: Some(density_texture.0.clone()),
                     density_factor: settings.density_factor,
@@ -217,9 +190,7 @@ fn spawn_missing_fog_volumes(
                 Transform::from_translation(Vec3::ZERO).with_scale(Vec3::splat(100.0)),
                 GlobalTransform::default(),
                 visibility,
-            )).id();
-            
-            info!("Fog volume entity spawned: {:?}", entity);
+            ));
         }
     }
 }
