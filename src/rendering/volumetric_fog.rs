@@ -120,41 +120,61 @@ fn setup_spherical_density_texture(
 /// System to update volumetric fog settings on cameras and fog volumes
 fn update_volumetric_fog_settings(
     settings: Res<VolumetricFogSettings>,
-    mut cameras: Query<&mut BevyVolumetricFog>,
-    mut fog_volumes: Query<&mut Visibility, With<SphericalFogVolume>>,
+    mut commands: Commands,
+    cameras_with_fog: Query<(Entity, &BevyVolumetricFog), With<Camera3d>>,
+    cameras_without_fog: Query<Entity, (With<Camera3d>, Without<BevyVolumetricFog>)>,
     mut fog_volume_components: Query<&mut FogVolume, With<SphericalFogVolume>>,
-    mut last_logged: Local<bool>,
+    mut last_enabled: Local<Option<bool>>,
 ) {
+    // Only update if settings actually changed
     if !settings.is_changed() {
         return;
     }
     
-    if !*last_logged {
-        info!("Updating volumetric fog settings: enabled={}, density={}, absorption={}, scattering={}, ambient={}", 
-              settings.enabled, settings.density_factor, settings.absorption, settings.scattering, settings.ambient_intensity);
-        *last_logged = true;
+    // Log when enabled state changes
+    if last_enabled.is_none() || last_enabled.unwrap() != settings.enabled {
+        info!("Volumetric fog enabled changed to: {}", settings.enabled);
+        *last_enabled = Some(settings.enabled);
     }
     
-    // Update camera volumetric fog settings
-    for mut volumetric_fog in cameras.iter_mut() {
-        volumetric_fog.step_count = settings.step_count;
-        volumetric_fog.ambient_intensity = settings.ambient_intensity;
-    }
+    info!("Updating volumetric fog: enabled={}, density={}, absorption={}, scattering={}, ambient={}", 
+          settings.enabled, settings.density_factor, settings.absorption, settings.scattering, settings.ambient_intensity);
     
-    // Update fog volume visibility based on enabled flag
-    for mut visibility in fog_volumes.iter_mut() {
-        *visibility = if settings.enabled {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        };
+    // WORKAROUND: Add/remove VolumetricFog component from cameras based on enabled state
+    if settings.enabled {
+        // Add VolumetricFog to cameras that don't have it
+        for entity in cameras_without_fog.iter() {
+            info!("Adding VolumetricFog component to camera {:?}", entity);
+            commands.entity(entity).insert(BevyVolumetricFog {
+                ambient_intensity: settings.ambient_intensity,
+                step_count: settings.step_count,
+                ..default()
+            });
+        }
+        
+        // Update existing VolumetricFog components
+        for (_entity, volumetric_fog) in cameras_with_fog.iter() {
+            // Need to use commands to update since we can't mutate here
+            commands.entity(_entity).insert(BevyVolumetricFog {
+                ambient_intensity: settings.ambient_intensity,
+                step_count: settings.step_count,
+                ..*volumetric_fog
+            });
+        }
+    } else {
+        // Remove VolumetricFog from all cameras to disable fog
+        for (entity, _) in cameras_with_fog.iter() {
+            info!("Removing VolumetricFog component from camera {:?}", entity);
+            commands.entity(entity).remove::<BevyVolumetricFog>();
+        }
     }
     
     // Update fog volume properties
+    // Also set density to 0 when disabled as additional safeguard
     for mut fog_volume in fog_volume_components.iter_mut() {
-        fog_volume.density_factor = settings.density_factor;
-        fog_volume.absorption = settings.absorption;
-        fog_volume.scattering = settings.scattering;
+        fog_volume.density_factor = if settings.enabled { settings.density_factor } else { 0.0 };
+        fog_volume.absorption = if settings.enabled { settings.absorption } else { 0.0 };
+        fog_volume.scattering = if settings.enabled { settings.scattering } else { 0.0 };
         fog_volume.fog_color = settings.fog_color;
     }
 }

@@ -101,7 +101,11 @@ fn render_controls_ui(
             ui.separator();
             ui.text("Volumetric Fog:");
             
-            ui.checkbox("Enable Fog", &mut fog_settings.enabled);
+            let mut enabled = fog_settings.enabled;
+            if ui.checkbox("Enable Fog", &mut enabled) {
+                fog_settings.enabled = enabled;
+                info!("Fog enabled toggled to: {}", fog_settings.enabled);
+            }
             if ui.is_item_hovered() {
                 ui.tooltip_text("Toggle volumetric fog rendering");
             }
