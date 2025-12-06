@@ -223,6 +223,7 @@ impl Plugin for UiPlugin {
                 settings::load_fog_settings_on_startup,
                 settings::load_lighting_settings_on_startup,
                 settings::load_skybox_settings_on_startup,
+                settings::load_simulation_settings_on_startup,
             ))
             .add_systems(Update, (
                 apply_custom_theme_on_startup,

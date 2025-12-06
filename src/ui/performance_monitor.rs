@@ -155,6 +155,8 @@ fn render_performance_window(
     preview_sim_state: Option<Res<crate::simulation::preview_sim::PreviewSimState>>,
     time: Res<Time<Fixed>>,
     global_ui_state: Res<super::GlobalUiState>,
+    threading_config: Res<crate::simulation::SimulationThreadingConfig>,
+    gpu_physics: Res<crate::simulation::GpuPhysicsResource>,
 ) {
     if !perf_monitor.window_open {
         return;
@@ -334,13 +336,34 @@ fn render_performance_window(
             ui.text_colored(capacity_color, format!("Capacity: {:.1}%", capacity_percent));
 
             if let Some(sim) = sim_state {
-                ui.text(format!("Mode: {}",
-                    if sim.mode == crate::simulation::SimulationMode::Cpu {
-                        "CPU Simulation"
+                // Show simulation mode
+                let mode_name = match sim.mode {
+                    crate::simulation::SimulationMode::Cpu => "Main Simulation",
+                    crate::simulation::SimulationMode::Preview => "Preview (Editor)",
+                };
+                ui.text(format!("Scene: {}", mode_name));
+                
+                // Show physics backend status
+                let physics_backend = if sim.mode == crate::simulation::SimulationMode::Cpu {
+                    if threading_config.gpu_physics_enabled && gpu_physics.enabled {
+                        ("GPU Accelerated", [0.0, 1.0, 0.5, 1.0]) // Green for GPU
+                    } else if threading_config.cpu_multithreaded {
+                        ("CPU (Multi-threaded)", [0.5, 0.8, 1.0, 1.0]) // Light blue
                     } else {
-                        "GPU Compute Shaders"
+                        ("CPU (Single-threaded)", [1.0, 1.0, 1.0, 1.0]) // White
                     }
-                ));
+                } else {
+                    // Preview mode always uses single-threaded CPU
+                    ("CPU (Preview)", [0.7, 0.7, 0.7, 1.0]) // Gray
+                };
+                ui.text("Physics:");
+                ui.same_line();
+                ui.text_colored(physics_backend.1, physics_backend.0);
+                
+                // Show GPU availability indicator
+                if gpu_physics.context.is_some() {
+                    ui.text_colored([0.5, 0.5, 0.5, 1.0], "(GPU available)");
+                }
                 
                 ui.text(format!("Status: {}",
                     if sim.paused { "Paused" } else { "Running" }

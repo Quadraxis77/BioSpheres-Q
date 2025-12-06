@@ -26,6 +26,9 @@ pub struct UiSettings {
     /// Skybox settings
     #[serde(default)]
     pub skybox_settings: SkyboxSettings,
+    /// Simulation settings
+    #[serde(default)]
+    pub simulation_settings: SimulationSettings,
 }
 
 /// Window visibility settings
@@ -132,6 +135,33 @@ impl Default for SkyboxSettings {
     }
 }
 
+/// Simulation settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SimulationSettings {
+    /// Enable GPU-accelerated collision physics
+    pub gpu_physics_enabled: bool,
+    /// Enable CPU multithreading for physics
+    pub cpu_multithreaded: bool,
+    /// Cell capacity for CPU simulation
+    pub cpu_cell_capacity: usize,
+    /// Spatial grid density
+    pub grid_density: u32,
+    /// Disable collision detection
+    pub disable_collisions: bool,
+}
+
+impl Default for SimulationSettings {
+    fn default() -> Self {
+        Self {
+            gpu_physics_enabled: false,
+            cpu_multithreaded: false,
+            cpu_cell_capacity: 2000,
+            grid_density: 64,
+            disable_collisions: false,
+        }
+    }
+}
+
 /// Theme settings - includes both preset theme selection and custom theme data
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ThemeSettings {
@@ -207,6 +237,8 @@ impl Default for UiSettings {
             lighting_settings: LightingSettings::default(),
             // Default skybox settings
             skybox_settings: SkyboxSettings::default(),
+            // Default simulation settings
+            simulation_settings: SimulationSettings::default(),
         }
     }
 }
@@ -281,6 +313,7 @@ pub(crate) struct LastSavedSettings {
     pub(crate) bloom_settings: BloomSettings,
     pub(crate) lighting_settings: LightingSettings,
     pub(crate) skybox_settings: SkyboxSettings,
+    pub(crate) simulation_settings: SimulationSettings,
 }
 
 /// System to save UI settings when they change
@@ -293,6 +326,10 @@ pub fn save_ui_settings_on_change(
     rendering_config: Res<crate::rendering::RenderingConfig>,
     lighting_config: Res<crate::ui::lighting_settings::LightingConfig>,
     skybox_config: Res<crate::rendering::SkyboxConfig>,
+    threading_config: Res<crate::simulation::SimulationThreadingConfig>,
+    physics_config: Res<crate::simulation::PhysicsConfig>,
+    cpu_cell_capacity: Res<crate::ui::scene_manager::CpuCellCapacity>,
+    spatial_grid_config: Res<crate::simulation::SpatialGridConfig>,
     mut last_saved: Local<Option<LastSavedSettings>>,
 ) {
     // Get the current theme name from theme_editor_state
@@ -354,6 +391,13 @@ pub fn save_ui_settings_on_change(
                 brightness: skybox_config.brightness,
                 blue_tint: skybox_config.blue_tint,
             },
+            simulation_settings: SimulationSettings {
+                gpu_physics_enabled: threading_config.gpu_physics_enabled,
+                cpu_multithreaded: threading_config.cpu_multithreaded,
+                cpu_cell_capacity: cpu_cell_capacity.capacity,
+                grid_density: spatial_grid_config.grid_density,
+                disable_collisions: physics_config.disable_collisions,
+            },
         });
         return;
     }
@@ -410,6 +454,13 @@ pub fn save_ui_settings_on_change(
         || (last.skybox_settings.brightness - skybox_config.brightness).abs() > 0.001
         || (last.skybox_settings.blue_tint - skybox_config.blue_tint).abs() > 0.001;
 
+    // Check if simulation settings changed
+    let simulation_changed = last.simulation_settings.gpu_physics_enabled != threading_config.gpu_physics_enabled
+        || last.simulation_settings.cpu_multithreaded != threading_config.cpu_multithreaded
+        || last.simulation_settings.cpu_cell_capacity != cpu_cell_capacity.capacity
+        || last.simulation_settings.grid_density != spatial_grid_config.grid_density
+        || last.simulation_settings.disable_collisions != physics_config.disable_collisions;
+
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
         || (last.ui_scale - global_ui_state.ui_scale).abs() > 0.001
@@ -418,7 +469,8 @@ pub fn save_ui_settings_on_change(
         || fog_changed
         || bloom_changed
         || lighting_changed
-        || skybox_changed;
+        || skybox_changed
+        || simulation_changed;
 
     if changed {
         // Load existing settings to preserve custom themes library
@@ -475,6 +527,13 @@ pub fn save_ui_settings_on_change(
             brightness: skybox_config.brightness,
             blue_tint: skybox_config.blue_tint,
         };
+        settings.simulation_settings = SimulationSettings {
+            gpu_physics_enabled: threading_config.gpu_physics_enabled,
+            cpu_multithreaded: threading_config.cpu_multithreaded,
+            cpu_cell_capacity: cpu_cell_capacity.capacity,
+            grid_density: spatial_grid_config.grid_density,
+            disable_collisions: physics_config.disable_collisions,
+        };
 
         if let Err(e) = settings.save() {
             error!("Failed to save UI settings: {}", e);
@@ -529,6 +588,13 @@ pub fn save_ui_settings_on_change(
                 gamma: skybox_config.gamma,
                 brightness: skybox_config.brightness,
                 blue_tint: skybox_config.blue_tint,
+            },
+            simulation_settings: SimulationSettings {
+                gpu_physics_enabled: threading_config.gpu_physics_enabled,
+                cpu_multithreaded: threading_config.cpu_multithreaded,
+                cpu_cell_capacity: cpu_cell_capacity.capacity,
+                grid_density: spatial_grid_config.grid_density,
+                disable_collisions: physics_config.disable_collisions,
             },
         });
     }
@@ -587,4 +653,19 @@ pub fn load_skybox_settings_on_startup(
     skybox_config.gamma = saved_settings.skybox_settings.gamma;
     skybox_config.brightness = saved_settings.skybox_settings.brightness;
     skybox_config.blue_tint = saved_settings.skybox_settings.blue_tint;
+}
+
+/// System to load simulation settings from saved UI settings on startup
+pub fn load_simulation_settings_on_startup(
+    mut threading_config: ResMut<crate::simulation::SimulationThreadingConfig>,
+    mut physics_config: ResMut<crate::simulation::PhysicsConfig>,
+    mut cpu_cell_capacity: ResMut<crate::ui::scene_manager::CpuCellCapacity>,
+    mut spatial_grid_config: ResMut<crate::simulation::SpatialGridConfig>,
+) {
+    let saved_settings = UiSettings::load();
+    threading_config.gpu_physics_enabled = saved_settings.simulation_settings.gpu_physics_enabled;
+    threading_config.cpu_multithreaded = saved_settings.simulation_settings.cpu_multithreaded;
+    cpu_cell_capacity.capacity = saved_settings.simulation_settings.cpu_cell_capacity;
+    spatial_grid_config.grid_density = saved_settings.simulation_settings.grid_density;
+    physics_config.disable_collisions = saved_settings.simulation_settings.disable_collisions;
 }

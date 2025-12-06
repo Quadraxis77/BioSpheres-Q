@@ -162,6 +162,8 @@ fn run_main_simulation(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    threading_config: Res<crate::simulation::SimulationThreadingConfig>,
+    mut gpu_physics: ResMut<crate::simulation::GpuPhysicsResource>,
 ) {
     // Early return if no cells (scene not initialized yet)
     if main_state.canonical_state.cell_count == 0 {
@@ -170,12 +172,24 @@ fn run_main_simulation(
     
     // Run canonical physics step with genome-aware adhesion settings
     let current_time = main_state.simulation_time;
-    crate::simulation::cpu_physics::physics_step_with_genome(
-        &mut main_state.canonical_state,
-        &config,
-        &genome.genome,
-        current_time,
-    );
+    
+    // Choose physics implementation based on configuration
+    if threading_config.gpu_physics_enabled && gpu_physics.enabled {
+        crate::simulation::gpu_physics::physics_step_gpu_with_genome(
+            &mut main_state.canonical_state,
+            &config,
+            &genome.genome,
+            &mut gpu_physics,
+            current_time,
+        );
+    } else {
+        crate::simulation::cpu_physics::physics_step_with_genome(
+            &mut main_state.canonical_state,
+            &config,
+            &genome.genome,
+            current_time,
+        );
+    }
     
     // Advance simulation time by the base timestep (64 Hz)
     // The speed multiplier is already baked into the fixed timestep rate

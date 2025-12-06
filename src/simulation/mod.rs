@@ -5,6 +5,7 @@ pub mod cell_allocation;
 pub mod clock;
 pub mod cpu_sim;
 pub mod double_buffer;
+pub mod gpu_physics;
 pub mod initial_state;
 pub mod physics_config;
 pub mod preview_sim;
@@ -22,6 +23,7 @@ pub use initial_state::{InitialState, InitialCell};
 pub use preview_sim::{PreviewSimPlugin, PreviewSceneState, PreviewSceneEntity};
 pub use adhesion_inheritance::{inherit_adhesions_on_division, inherit_adhesions_on_division_with_map};
 pub use nutrient_system::{update_nutrient_growth, update_nutrient_growth_st, transport_nutrients, transport_nutrients_st};
+pub use gpu_physics::{GpuPhysicsPlugin, GpuPhysicsResource, compute_collision_forces_gpu, physics_step_gpu, physics_step_gpu_with_genome};
 
 /// Configuration for simulation threading
 #[derive(Resource, Clone, Copy, Debug)]
@@ -30,6 +32,8 @@ pub struct SimulationThreadingConfig {
     pub cpu_multithreaded: bool,
     /// Enable multithreading for preview simulation
     pub preview_multithreaded: bool,
+    /// Enable GPU-accelerated collision physics
+    pub gpu_physics_enabled: bool,
 }
 
 impl Default for SimulationThreadingConfig {
@@ -37,6 +41,7 @@ impl Default for SimulationThreadingConfig {
         Self {
             cpu_multithreaded: false,
             preview_multithreaded: false,
+            gpu_physics_enabled: false, // Disabled by default, can be enabled via UI
         }
     }
 }
@@ -57,6 +62,8 @@ impl Plugin for SimulationPlugin {
             // Add mode-specific plugins
             .add_plugins(CpuSimPlugin)
             .add_plugins(PreviewSimPlugin)
+            // Add GPU physics plugin
+            .add_plugins(GpuPhysicsPlugin)
             .init_resource::<PhysicsConfig>()
             .init_resource::<SpatialGridConfig>()
             .init_resource::<SimulationState>()

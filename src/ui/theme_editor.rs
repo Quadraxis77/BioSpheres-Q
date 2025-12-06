@@ -141,6 +141,8 @@ fn theme_editor_ui(
     mut physics_config: ResMut<crate::simulation::PhysicsConfig>,
     spatial_grid_config: Res<crate::simulation::SpatialGridConfig>,
     mut pending_grid_density: ResMut<crate::ui::scene_manager::PendingGridDensity>,
+    mut threading_config: ResMut<crate::simulation::SimulationThreadingConfig>,
+    gpu_physics: Res<crate::simulation::GpuPhysicsResource>,
 ) {
     let ui = imgui_context.ui();
 
@@ -325,6 +327,30 @@ fn theme_editor_ui(
             ui.checkbox("Disable Collisions", &mut physics_config.disable_collisions);
             if ui.is_item_hovered() {
                 ui.tooltip_text("Disable all collision detection.\nCells will pass through each other.\nUseful for performance testing.");
+            }
+            
+            ui.separator();
+            
+            // GPU Physics section
+            ui.text("Physics Acceleration");
+            
+            // GPU Physics toggle (only if GPU is available)
+            if gpu_physics.context.is_some() {
+                ui.checkbox("GPU Physics", &mut threading_config.gpu_physics_enabled);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Use GPU compute shaders for collision detection.\nCan significantly improve performance with many cells.");
+                }
+            } else {
+                ui.text_disabled("GPU Physics (unavailable)");
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("GPU physics is not available.\nNo compatible GPU adapter found.");
+                }
+            }
+            
+            // CPU Multithreading toggle
+            ui.checkbox("CPU Multithreading", &mut threading_config.cpu_multithreaded);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Use multiple CPU threads for physics.\nMay improve performance on multi-core systems.");
             }
             
             ui.separator();
