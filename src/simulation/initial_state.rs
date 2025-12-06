@@ -26,6 +26,9 @@ pub struct InitialState {
     
     /// Timestamp when this state was created (for debugging/logging)
     pub created_at: f64,
+    
+    /// Spatial grid density (NxNxN cells). Valid range: 16-128
+    pub grid_density: u32,
 }
 
 /// Initial state for a single cell
@@ -88,6 +91,19 @@ impl InitialState {
             initial_cells: Vec::new(),
             rng_seed,
             created_at: 0.0, // Will be set when actually created
+            grid_density: 64, // Default grid density
+        }
+    }
+    
+    /// Create a new initial state with custom grid density
+    pub fn with_grid_density(config: PhysicsConfig, max_cells: usize, rng_seed: u64, grid_density: u32) -> Self {
+        Self {
+            config,
+            max_cells,
+            initial_cells: Vec::new(),
+            rng_seed,
+            created_at: 0.0,
+            grid_density,
         }
     }
     
@@ -107,7 +123,7 @@ impl InitialState {
     /// # Returns
     /// A new CanonicalState initialized from this initial state
     pub fn to_canonical_state(&self) -> CanonicalState {
-        let mut state = CanonicalState::new(self.max_cells);
+        let mut state = CanonicalState::with_grid_density(self.max_cells, self.grid_density);
         
         // Add all initial cells to the canonical state
         for cell in &self.initial_cells {
@@ -139,7 +155,7 @@ impl InitialState {
 
 impl Default for InitialState {
     fn default() -> Self {
-        Self::new(PhysicsConfig::default(), 10_000, 0)
+        Self::with_grid_density(PhysicsConfig::default(), 10_000, 0, 64)
     }
 }
 

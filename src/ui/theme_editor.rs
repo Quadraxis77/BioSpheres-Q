@@ -139,6 +139,8 @@ fn theme_editor_ui(
     mut cpu_cell_capacity: ResMut<crate::ui::scene_manager::CpuCellCapacity>,
     simulation_state: Res<crate::simulation::SimulationState>,
     mut physics_config: ResMut<crate::simulation::PhysicsConfig>,
+    spatial_grid_config: Res<crate::simulation::SpatialGridConfig>,
+    mut pending_grid_density: ResMut<crate::ui::scene_manager::PendingGridDensity>,
 ) {
     let ui = imgui_context.ui();
 
@@ -289,7 +291,30 @@ fn theme_editor_ui(
                     ui.tooltip_text("Set maximum cells for CPU scene.\nRequires scene reset to take effect.\nUse Scene Manager to reset.");
                 }
                 
-                // Show hint if capacity was changed
+                ui.separator();
+                
+                // Spatial Grid Density slider
+                ui.text("Spatial Grid Density");
+                let current_density = spatial_grid_config.grid_density;
+                ui.text(format!("Active: {}³ cells", current_density));
+                
+                let mut density = pending_grid_density.density as i32;
+                if ui.slider("##GridDensity", 
+                    crate::simulation::SpatialGridConfig::MIN_DENSITY as i32, 
+                    crate::simulation::SpatialGridConfig::MAX_DENSITY as i32, 
+                    &mut density) 
+                {
+                    pending_grid_density.density = density as u32;
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Spatial grid resolution for collision detection.\n16³ = coarse (faster), 128³ = fine (more accurate).\nRequires scene reset to take effect.");
+                }
+                
+                // Show pending change indicator
+                if pending_grid_density.density != current_density {
+                    ui.text_colored([1.0, 0.8, 0.2, 1.0], format!("Pending: {}³", pending_grid_density.density));
+                }
+                
                 ui.text_colored([1.0, 1.0, 0.0, 1.0], "⚠ Reset scene to apply");
                 
                 ui.separator();

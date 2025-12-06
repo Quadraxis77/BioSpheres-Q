@@ -78,8 +78,13 @@ pub struct CanonicalState {
 }
 
 impl CanonicalState {
-    /// Create a new canonical state with the specified capacity
+    /// Create a new canonical state with the specified capacity and grid density
     pub fn new(capacity: usize) -> Self {
+        Self::with_grid_density(capacity, 64) // Default 64x64x64 grid
+    }
+    
+    /// Create a new canonical state with specified capacity and grid density
+    pub fn with_grid_density(capacity: usize, grid_density: u32) -> Self {
         // Calculate adhesion connection capacity (20 connections per cell)
         let adhesion_capacity = capacity * crate::cell::MAX_ADHESIONS_PER_CELL;
         
@@ -108,7 +113,7 @@ impl CanonicalState {
             split_ready_frame: vec![-1; capacity],
             adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
             adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
-            spatial_grid: DeterministicSpatialGrid::new(64, 200.0, 100.0), // 64x64x64 grid for better performance
+            spatial_grid: DeterministicSpatialGrid::new(grid_density, 200.0, 100.0),
             next_cell_id: 0,
         }
     }

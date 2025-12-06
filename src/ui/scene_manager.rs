@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_mod_imgui::prelude::*;
-use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, CpuSceneEntity};
+use crate::simulation::{SimulationState, SimulationMode, CpuSceneState, PreviewSceneState, CpuSceneEntity, SpatialGridConfig};
 
 /// Event to trigger scene reset
 #[derive(Message)]
@@ -36,6 +36,20 @@ impl Default for CpuCellCapacity {
     }
 }
 
+/// Resource to store pending grid density change (applied on scene reset)
+#[derive(Resource)]
+pub struct PendingGridDensity {
+    pub density: u32,
+}
+
+impl Default for PendingGridDensity {
+    fn default() -> Self {
+        Self {
+            density: 64, // Default 64x64x64 grid
+        }
+    }
+}
+
 /// Scene Manager plugin for managing scene transitions and time controls
 pub struct SceneManagerPlugin;
 
@@ -43,6 +57,7 @@ impl Plugin for SceneManagerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SceneManagerState>()
             .init_resource::<CpuCellCapacity>()
+            .init_resource::<PendingGridDensity>()
             .add_message::<ResetSceneEvent>()
             .add_systems(Update, render_scene_manager_window)
             .add_systems(Update, handle_reset_scene_event);
@@ -316,8 +331,14 @@ fn handle_reset_scene_event(
     mut main_sim_state: Option<ResMut<crate::simulation::cpu_sim::MainSimState>>,
     mut preview_sim_state: Option<ResMut<crate::simulation::preview_sim::PreviewSimState>>,
     cpu_cell_capacity: Res<CpuCellCapacity>,
+    pending_grid_density: Res<PendingGridDensity>,
+    mut spatial_grid_config: ResMut<SpatialGridConfig>,
 ) {
     for _ in reset_events.read() {
+        // Apply pending grid density change
+        spatial_grid_config.grid_density = pending_grid_density.density;
+        let grid_density = spatial_grid_config.clamped_density();
+        
         // Only despawn and respawn cells, leaving lights, fog, and world sphere intact
         match simulation_state.mode {
             SimulationMode::Cpu => {
@@ -328,7 +349,7 @@ fn handle_reset_scene_event(
                 
                 // Reset MainSimState and spawn initial cell
                 if let Some(ref mut main_state) = main_sim_state {
-                    spawn_cpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state, &cpu_cell_capacity);
+                    spawn_cpu_cells_only(&mut commands, &mut meshes, &mut materials, &genome, &config, main_state, &cpu_cell_capacity, grid_density);
                 }
             }
             SimulationMode::Preview => {
@@ -355,6 +376,7 @@ fn spawn_cpu_cells_only(
     config: &Res<crate::cell::physics::PhysicsConfig>,
     main_state: &mut crate::simulation::cpu_sim::MainSimState,
     cpu_cell_capacity: &Res<CpuCellCapacity>,
+    grid_density: u32,
 ) {
     use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
     use crate::simulation::{InitialState, InitialCell};
@@ -374,8 +396,8 @@ fn spawn_cpu_cells_only(
     let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
     let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.0) } else { 1.0 };
     
-    // Create initial state with capacity from settings
-    let mut initial_state = InitialState::new((**config).clone(), cpu_cell_capacity.capacity, 0);
+    // Create initial state with capacity and grid density from settings
+    let mut initial_state = InitialState::with_grid_density((**config).clone(), cpu_cell_capacity.capacity, 0, grid_density);
     initial_state.add_cell(InitialCell {
         id: 0,
         position: Vec3::ZERO,
@@ -388,7 +410,7 @@ fn spawn_cpu_cells_only(
         mode_index: initial_mode_index,
         birth_time: 0.0,
         split_interval,
-        stiffness: 10.0,
+        stiffness: 500.0,  // Match cpu_sim to prevent pass-through
     });
     
     // Initialize canonical state from initial state

@@ -1,5 +1,34 @@
 use bevy::prelude::*;
 
+/// Spatial grid configuration for collision detection
+/// 
+/// Controls the density of the spatial partitioning grid used for
+/// efficient collision detection. Higher density = more grid cells = 
+/// better performance with many cells but more memory usage.
+#[derive(Resource, Clone, Debug)]
+pub struct SpatialGridConfig {
+    /// Grid dimensions (NxNxN cells). Valid range: 16-128
+    pub grid_density: u32,
+}
+
+impl Default for SpatialGridConfig {
+    fn default() -> Self {
+        Self {
+            grid_density: 64, // Default 64x64x64 grid
+        }
+    }
+}
+
+impl SpatialGridConfig {
+    pub const MIN_DENSITY: u32 = 16;
+    pub const MAX_DENSITY: u32 = 128;
+    
+    /// Clamp grid density to valid range
+    pub fn clamped_density(&self) -> u32 {
+        self.grid_density.clamp(Self::MIN_DENSITY, Self::MAX_DENSITY)
+    }
+}
+
 /// Physics configuration for deterministic simulation
 /// 
 /// This configuration is shared by both CPU and GPU physics implementations.

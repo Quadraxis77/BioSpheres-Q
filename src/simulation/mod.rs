@@ -13,7 +13,7 @@ pub mod nutrient_system;
 pub mod synchronized_nutrients;
 
 pub use cpu_physics::{CanonicalState, DeterministicSpatialGrid, physics_step, deterministic_random};
-pub use physics_config::PhysicsConfig;
+pub use physics_config::{PhysicsConfig, SpatialGridConfig};
 pub use cell_allocation::{Cell, Adhesion};
 pub use clock::SimulationClock;
 pub use cpu_sim::{CpuSimPlugin, CpuSimTimestepPlugin, CpuSceneState, CpuSceneEntity};
@@ -58,6 +58,7 @@ impl Plugin for SimulationPlugin {
             .add_plugins(CpuSimPlugin)
             .add_plugins(PreviewSimPlugin)
             .init_resource::<PhysicsConfig>()
+            .init_resource::<SpatialGridConfig>()
             .init_resource::<SimulationState>()
             .init_resource::<SimulationConfig>()
             .init_resource::<SimulationThreadingConfig>()
