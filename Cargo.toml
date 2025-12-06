@@ -1,6 +1,6 @@
 [package]
 name = "biospheres-bevy"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 
 [lib]
@@ -43,6 +43,9 @@ version = "1.10"
 
 [dev-dependencies]
 proptest = "1.4"
+
+[build-dependencies]
+winres = "0.1"
 
 [profile.dev]
 opt-level = 1

@@ -56,10 +56,10 @@
     "blue_tint": 0.618
   },
   "simulation_settings": {
-    "gpu_physics_enabled": false,
-    "cpu_multithreaded": false,
-    "cpu_cell_capacity": 2007,
-    "grid_density": 32,
+    "gpu_physics_enabled": true,
+    "cpu_multithreaded": true,
+    "cpu_cell_capacity": 10000,
+    "grid_density": 64,
     "disable_collisions": false
   }
 }

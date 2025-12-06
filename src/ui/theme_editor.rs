@@ -365,7 +365,7 @@ fn theme_editor_ui(
         }
         
         // Add version text on the right side of the menu bar
-        let version_text = "Bio-Spheres (v.0.1.7)";
+        let version_text = "Bio-Spheres (v.0.1.8)";
         let text_width = ui.calc_text_size(version_text)[0];
         let window_width = ui.window_size()[0];
         let padding = 10.0;
