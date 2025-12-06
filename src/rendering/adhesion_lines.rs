@@ -77,7 +77,6 @@ fn render_adhesion_lines_gizmos(
                 return;
             }
         }
-        _ => return,
     };
     
     // Only render if there are active connections

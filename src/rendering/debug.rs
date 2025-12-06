@@ -289,7 +289,6 @@ fn update_anchor_gizmos(
                 return;
             }
         }
-        _ => return,
     };
 
     // Track which anchors exist (entity, adhesion_index, is_side_a)
@@ -318,7 +317,6 @@ fn update_anchor_gizmos(
                 }
             }
         }
-        _ => {}
     }
 
     // Create anchor spheres for each active adhesion
@@ -459,7 +457,6 @@ fn update_anchor_transforms(
                 return;
             }
         }
-        _ => return,
     };
 
     // Update each anchor's position

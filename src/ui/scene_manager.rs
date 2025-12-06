@@ -364,10 +364,10 @@ fn spawn_cpu_cells_only(
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
     
-    let (color, split_mass, split_interval, is_test_cell, max_cell_size) = if let Some(mode) = mode {
-        (mode.color, mode.split_mass, mode.split_interval, mode.cell_type == 0, mode.max_cell_size)
+    let (color, opacity, split_mass, split_interval, is_test_cell, max_cell_size) = if let Some(mode) = mode {
+        (mode.color, mode.opacity, mode.split_mass, mode.split_interval, mode.cell_type == 0, mode.max_cell_size)
     } else {
-        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0, true, 2.0)
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 1.0, 5.0, true, 2.0)
     };
     
     // For Test cells, start with half the split mass so they need to grow before splitting
@@ -424,8 +424,13 @@ fn spawn_cpu_cells_only(
         crate::cell::physics::Cytoskeleton::default(),
         Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(color.x, color.y, color.z),
+            base_color: Color::srgba(color.x, color.y, color.z, opacity),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
+            alpha_mode: if opacity < 0.99 {
+                bevy::prelude::AlphaMode::Blend
+            } else {
+                bevy::prelude::AlphaMode::Opaque
+            },
             ..default()
         })),
         Transform::from_translation(Vec3::ZERO)
@@ -456,10 +461,10 @@ fn spawn_preview_cells_only(
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
     
-    let (color, split_mass, split_interval, is_test_cell, max_cell_size) = if let Some(mode) = mode {
-        (mode.color, mode.split_mass, mode.split_interval, mode.cell_type == 0, mode.max_cell_size)
+    let (color, opacity, split_mass, split_interval, is_test_cell, max_cell_size) = if let Some(mode) = mode {
+        (mode.color, mode.opacity, mode.split_mass, mode.split_interval, mode.cell_type == 0, mode.max_cell_size)
     } else {
-        (Vec3::new(1.0, 1.0, 1.0), 1.0, 5.0, true, 2.0)
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 1.0, 5.0, true, 2.0)
     };
     
     // For Test cells, start with half the split mass so they need to grow before splitting
@@ -522,8 +527,13 @@ fn spawn_preview_cells_only(
         },
         Mesh3d(meshes.add(Sphere::new(cell_radius).mesh().ico(5).unwrap())),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(color.x, color.y, color.z),
+            base_color: Color::srgba(color.x, color.y, color.z, opacity),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
+            alpha_mode: if opacity < 0.99 {
+                bevy::prelude::AlphaMode::Blend
+            } else {
+                bevy::prelude::AlphaMode::Opaque
+            },
             ..default()
         })),
         Transform::from_translation(Vec3::ZERO)

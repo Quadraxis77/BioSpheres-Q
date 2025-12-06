@@ -1095,6 +1095,11 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     if ui.color_picker3("##ModeColor", &mut color) {
         mode.color = Vec3::new(color[0], color[1], color[2]);
     }
+    
+    // Opacity slider
+    ui.text("Opacity:");
+    help_marker(ui, "Cell transparency (0.0 = fully transparent, 1.0 = fully opaque).");
+    ui.slider("##ModeOpacity", 0.0, 1.0, &mut mode.opacity);
 }
 
 /// Draw child settings - returns true if mode number changed

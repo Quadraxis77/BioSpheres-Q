@@ -166,6 +166,8 @@ pub struct ImGuiNodeLabel;
 
 struct ImGuiNode;
 
+
+
 impl ImGuiNode {
     fn create_render_pass<'a>(
         command_encoder: &'a mut CommandEncoder,
@@ -216,11 +218,12 @@ impl Node for ImGuiNode {
         let command_encoder = render_context.command_encoder();
         let wgpu_device = render_device.wgpu_device();
         let mut renderer = context.renderer.write().unwrap();
-        if let Ok(mut rpass) = ImGuiNode::create_render_pass(command_encoder, world) {
+        if let Ok(rpass) = ImGuiNode::create_render_pass(command_encoder, world) {
             if let Some(draw_data) = context.draw.0.draw_data() {
-                renderer
-                    .render(draw_data, queue, wgpu_device, &mut rpass)
-                    .unwrap();
+                let mut rpass = rpass;
+                let _ = renderer.render(draw_data, queue, wgpu_device, &mut rpass);
+                // Explicitly drop the render pass before returning
+                drop(rpass);
             }
         }
         Ok(())
@@ -471,14 +474,14 @@ impl Plugin for ImguiPlugin {
 
             render_app.add_render_graph_node::<ImGuiNode>(Core3d, ImGuiNodeLabel);
 
+            // ImGui must run AFTER all main rendering is complete
+            // Add dependencies to ensure proper ordering with OIT
             render_app.add_render_graph_edges(Core3d, (Node3d::EndMainPass, ImGuiNodeLabel));
-
-            render_app.add_render_graph_edges(
-                Core3d,
-                (Node3d::EndMainPassPostProcessing, ImGuiNodeLabel),
-            );
-
+            render_app.add_render_graph_edges(Core3d, (Node3d::EndMainPassPostProcessing, ImGuiNodeLabel));
             render_app.add_render_graph_edges(Core3d, (Node3d::Upscaling, ImGuiNodeLabel));
+            
+            // Also add dependency on Tonemapping which runs after OIT
+            render_app.add_render_graph_edges(Core3d, (Node3d::Tonemapping, ImGuiNodeLabel));
 
             render_app.insert_resource(ImguiRenderContext {
                 renderer: RwLock::new(renderer),

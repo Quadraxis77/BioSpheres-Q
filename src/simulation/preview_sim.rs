@@ -127,6 +127,11 @@ fn setup_preview_scene(
             step_count: fog_settings.step_count,
             ..default()
         },
+        // OIT (Order-Independent Transparency) DISABLED - conflicts with bevy_mod_imgui
+        // bevy_mod_imgui renders directly to swapchain, causing command encoder conflicts with OIT
+        // To re-enable: refactor bevy_mod_imgui to render to intermediate texture first
+        // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
+        // Msaa::Off,
         PreviewSceneEntity,
     ));
 
@@ -165,6 +170,7 @@ fn setup_preview_scene(
             reflectance: 0.95,
             cull_mode: Some(bevy::render::render_resource::Face::Front),
             alpha_mode: AlphaMode::Blend,
+            depth_bias: 0.1, // Push world sphere back slightly in depth to ensure cells render in front
             ..default()
         })),
         Transform::default(),
@@ -225,10 +231,10 @@ fn setup_preview_scene(
     // Spawn ECS entity for the initial cell
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
-    let color = if let Some(mode) = mode {
-        mode.color
+    let (color, opacity) = if let Some(mode) = mode {
+        (mode.color, mode.opacity)
     } else {
-        Vec3::ONE
+        (Vec3::ONE, 1.0)
     };
     
     // Check if this is a flagellocyte
@@ -268,8 +274,13 @@ fn setup_preview_scene(
         },
         Mesh3d(cell_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(color.x, color.y, color.z),
+            base_color: Color::srgba(color.x, color.y, color.z, opacity),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
+            alpha_mode: if opacity < 0.99 {
+                bevy::prelude::AlphaMode::Blend
+            } else {
+                bevy::prelude::AlphaMode::Opaque
+            },
             ..default()
         })),
         Transform::from_translation(Vec3::ZERO)
@@ -447,14 +458,19 @@ fn respawn_preview_cells_after_resimulation(
                 if let Some(mat) = &material_cache[mode_index] {
                     mat.clone()
                 } else {
-                    let color = if let Some(mode) = mode {
-                        mode.color
+                    let (color, opacity) = if let Some(mode) = mode {
+                        (mode.color, mode.opacity)
                     } else {
-                        Vec3::ONE
+                        (Vec3::ONE, 1.0)
                     };
                     let mat = materials.add(StandardMaterial {
-                        base_color: Color::srgb(color.x, color.y, color.z),
+                        base_color: Color::srgba(color.x, color.y, color.z, opacity),
                         cull_mode: Some(bevy::render::render_resource::Face::Back),
+                        alpha_mode: if opacity < 0.99 {
+                            bevy::prelude::AlphaMode::Blend
+                        } else {
+                            bevy::prelude::AlphaMode::Opaque
+                        },
                         ..default()
                     });
                     material_cache[mode_index] = Some(mat.clone());
@@ -463,8 +479,9 @@ fn respawn_preview_cells_after_resimulation(
             } else {
                 // Fallback for invalid mode index
                 materials.add(StandardMaterial {
-                    base_color: Color::srgb(1.0, 1.0, 1.0),
+                    base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
                     cull_mode: Some(bevy::render::render_resource::Face::Back),
+                    alpha_mode: bevy::prelude::AlphaMode::Opaque,
                     ..default()
                 })
             };
