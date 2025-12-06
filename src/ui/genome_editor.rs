@@ -210,6 +210,12 @@ fn render_genome_editor(
                 graph_state.show_window = !graph_state.show_window;
             }
 
+            ui.same_line();
+            ui.checkbox("Mode Glow", &mut current_genome.show_mode_glow);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Highlight cells of the selected mode with a pulsing glow");
+            }
+
             ui.separator();
 
             // Initial mode dropdown

@@ -26,6 +26,8 @@ pub struct GenomeLibrary {
 pub struct CurrentGenome {
     pub genome: GenomeData,
     pub selected_mode_index: i32,
+    /// Whether to highlight cells of the selected mode with a pulsing glow
+    pub show_mode_glow: bool,
 }
 
 impl Default for CurrentGenome {
@@ -33,6 +35,7 @@ impl Default for CurrentGenome {
         Self {
             genome: GenomeData::default(),
             selected_mode_index: 0,
+            show_mode_glow: true,
         }
     }
 }

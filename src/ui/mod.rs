@@ -17,7 +17,7 @@ pub mod time_scrubber;
 pub mod rendering_controls;
 pub mod settings;
 
-pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState, CameraMode};
+pub use camera::{CameraPlugin, MainCamera, CameraConfig, CameraState, CameraMode, FocalPlaneSettings};
 pub use camera_settings::CameraSettingsPlugin;
 pub use cell_inspector::{CellInspectorPlugin, CellInspectorState};
 pub use debug_info::DebugInfoPlugin;

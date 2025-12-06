@@ -48,6 +48,8 @@ fn render_adhesion_lines_gizmos(
     main_state: Option<Res<crate::simulation::cpu_sim::MainSimState>>,
     preview_state: Option<Res<crate::simulation::preview_sim::PreviewSimState>>,
     sim_state: Res<crate::simulation::SimulationState>,
+    focal_plane: Res<crate::ui::camera::FocalPlaneSettings>,
+    camera_query: Query<(&Transform, &crate::ui::camera::MainCamera)>,
 ) {
     // Check if we should show lines (use RenderingConfig as primary control)
     if !rendering_config.show_adhesions {
@@ -84,6 +86,24 @@ fn render_adhesion_lines_gizmos(
         return;
     }
     
+    // Get focal plane info for visibility check
+    let focal_plane_check = if focal_plane.enabled {
+        if let Ok((camera_transform, cam)) = camera_query.single() {
+            if cam.mode == crate::ui::camera::CameraMode::FreeFly {
+                let camera_pos = camera_transform.translation;
+                let camera_forward = camera_transform.rotation * Vec3::NEG_Z;
+                let plane_center = camera_pos + camera_forward * focal_plane.distance;
+                Some((plane_center, camera_forward))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    
     // Process each active adhesion connection
     for i in 0..connections.active_count {
         if connections.is_active[i] == 0 {
@@ -98,9 +118,28 @@ fn render_adhesion_lines_gizmos(
             continue;
         }
         
-        // Get cell positions
+        // Get cell positions and radii
         let pos_a = state.positions[cell_a_idx];
         let pos_b = state.positions[cell_b_idx];
+        let radius_a = state.radii[cell_a_idx];
+        let radius_b = state.radii[cell_b_idx];
+        
+        // Check focal plane visibility - skip if both cells are hidden
+        if let Some((plane_center, camera_forward)) = focal_plane_check {
+            let to_cell_a = pos_a - plane_center;
+            let to_cell_b = pos_b - plane_center;
+            let dist_a = to_cell_a.dot(camera_forward);
+            let dist_b = to_cell_b.dot(camera_forward);
+            
+            // Cell is visible if any part is beyond the plane
+            let cell_a_visible = dist_a + radius_a > 0.0;
+            let cell_b_visible = dist_b + radius_b > 0.0;
+            
+            // Skip this adhesion line if both cells are hidden
+            if !cell_a_visible && !cell_b_visible {
+                continue;
+            }
+        }
         
         // Calculate midpoint
         let midpoint = (pos_a + pos_b) * 0.5;

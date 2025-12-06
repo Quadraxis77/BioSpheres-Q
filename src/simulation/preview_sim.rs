@@ -34,6 +34,7 @@ impl Plugin for PreviewSimPlugin {
                 (
                     sync_preview_visuals,
                     crate::rendering::sync_transforms,
+                    highlight_selected_mode_cells,
                 )
                     .chain()
                     .after(crate::input::CellDraggingSet)
@@ -601,4 +602,62 @@ fn spawn_preview_skybox(
         &skybox_config,
         PreviewSceneEntity,
     );
+}
+
+
+/// Highlight cells of the selected mode with a pulsing yellow emissive glow
+fn highlight_selected_mode_cells(
+    time: Res<Time>,
+    genome: Res<CurrentGenome>,
+    cells_query: Query<(&Cell, &MeshMaterial3d<StandardMaterial>), With<PreviewSceneEntity>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let selected_mode = genome.selected_mode_index as usize;
+    let glow_enabled = genome.show_mode_glow;
+    
+    // Calculate pulse intensity using sine wave (0.0 to 1.0 range)
+    // Pulse at ~1.5 Hz for a gentle effect
+    let pulse = (time.elapsed_secs() * 1.5 * std::f32::consts::PI).sin() * 0.5 + 0.5;
+    
+    // Yellow highlight color with subtle intensity
+    let highlight_intensity = 0.15 + pulse * 0.1; // Range: 0.15 to 0.25
+    let highlight_color = LinearRgba::rgb(
+        highlight_intensity * 1.0,  // Yellow-ish
+        highlight_intensity * 0.85,
+        highlight_intensity * 0.1,
+    );
+    
+    for (cell, material_handle) in cells_query.iter() {
+        if let Some(material) = materials.get_mut(&material_handle.0) {
+            if glow_enabled && cell.mode_index == selected_mode {
+                // Apply pulsing yellow highlight
+                let mode = genome.genome.modes.get(cell.mode_index);
+                let (color, base_emissive) = if let Some(mode) = mode {
+                    (mode.color, mode.emissive)
+                } else {
+                    (Vec3::ONE, 0.0)
+                };
+                
+                // Combine base emissive with highlight
+                material.emissive = LinearRgba::rgb(
+                    color.x * base_emissive + highlight_color.red,
+                    color.y * base_emissive + highlight_color.green,
+                    color.z * base_emissive + highlight_color.blue,
+                );
+            } else {
+                // Reset to normal emissive for non-selected modes (or when glow disabled)
+                let mode = genome.genome.modes.get(cell.mode_index);
+                let (color, emissive) = if let Some(mode) = mode {
+                    (mode.color, mode.emissive)
+                } else {
+                    (Vec3::ONE, 0.0)
+                };
+                material.emissive = LinearRgba::rgb(
+                    color.x * emissive,
+                    color.y * emissive,
+                    color.z * emissive,
+                );
+            }
+        }
+    }
 }

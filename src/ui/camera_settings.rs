@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_imgui::ImguiContext;
 use imgui;
-use crate::ui::camera::{CameraConfig, MainCamera};
+use crate::ui::camera::{CameraConfig, MainCamera, CameraMode, FocalPlaneSettings};
 
 /// Plugin for camera settings UI
 pub struct CameraSettingsPlugin;
@@ -16,6 +16,7 @@ impl Plugin for CameraSettingsPlugin {
 fn camera_settings_ui(
     mut imgui_context: NonSendMut<ImguiContext>,
     mut camera_config: ResMut<CameraConfig>,
+    mut focal_plane: ResMut<FocalPlaneSettings>,
     camera_query: Query<&MainCamera>,
     global_ui_state: Res<crate::ui::GlobalUiState>,
 ) {
@@ -119,9 +120,46 @@ fn camera_settings_ui(
             
             ui.separator();
             
+            // Focal plane settings (cross-section mode)
+            ui.text("Focal Plane (Cross-Section):");
+            
+            // Get current camera mode to show availability
+            let in_freefly = camera_query.single().map(|c| c.mode == CameraMode::FreeFly).unwrap_or(false);
+            
+            if !in_freefly {
+                ui.text_disabled("(Only available in Free-Fly mode)");
+            }
+            
+            // Enable checkbox - grayed out if not in free-fly mode
+            let mut enabled = focal_plane.enabled;
+            if ui.checkbox("Enable Focal Plane", &mut enabled) {
+                if in_freefly {
+                    focal_plane.enabled = enabled;
+                }
+            }
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Toggle with F key. Hides cells between camera and the plane.");
+            }
+            
+            // Only show settings if enabled
+            if focal_plane.enabled && in_freefly {
+                ui.slider("Distance", focal_plane.min_distance, focal_plane.max_distance, &mut focal_plane.distance);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Distance from camera to focal plane. Adjust with scroll wheel.");
+                }
+                
+                ui.slider("Scroll Speed", 0.5, 10.0, &mut focal_plane.scroll_speed);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("How fast the focal plane moves with scroll wheel.");
+                }
+            }
+            
+            ui.separator();
+            
             // Reset button
             if ui.button("Reset to Defaults") {
                 *camera_config = CameraConfig::default();
+                *focal_plane = FocalPlaneSettings::default();
             }
             if ui.is_item_hovered() {
                 ui.tooltip_text("Reset all camera settings to default values");
@@ -135,7 +173,8 @@ fn camera_settings_ui(
             ui.text_disabled("WASD - Move (Free-fly mode)");
             ui.text_disabled("Space/C - Up/Down (Free-fly mode)");
             ui.text_disabled("Q/E - Roll (Free-fly mode)");
-            ui.text_disabled("Scroll - Zoom (Orbit mode)");
+            ui.text_disabled("Scroll - Zoom (Orbit) / Focal dist (Free-fly)");
+            ui.text_disabled("F - Toggle focal plane (Free-fly)");
             ui.text_disabled("Double-click - Follow cell");
         });
 }

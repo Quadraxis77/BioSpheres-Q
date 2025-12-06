@@ -10,13 +10,66 @@ impl Plugin for CameraPlugin {
         app.init_resource::<CameraConfig>()
             .init_resource::<CameraState>()
             .init_resource::<ImGuiWantCapture>()
+            .init_resource::<FocalPlaneSettings>()
+            .init_resource::<ModeNotification>()
             .add_systems(Update, (
                 detect_double_click_and_snap,
                 camera_mouse_grab,
                 camera_update,
+                focal_plane_input,
+                update_focal_plane_visibility,
                 follow_entity_system,
                 update_camera_fov,
+                render_mode_notification,
             ).chain());
+    }
+}
+
+/// Resource for displaying centered fading notifications
+#[derive(Resource, Default)]
+pub struct ModeNotification {
+    /// The message to display
+    pub message: String,
+    /// Time remaining to display (seconds)
+    pub time_remaining: f32,
+    /// Total display duration for calculating fade
+    pub total_duration: f32,
+}
+
+impl ModeNotification {
+    /// Show a notification message
+    pub fn show(&mut self, message: impl Into<String>, duration: f32) {
+        self.message = message.into();
+        self.time_remaining = duration;
+        self.total_duration = duration;
+    }
+}
+
+/// Focal plane settings for cross-section viewing
+/// Hides cells between the camera and the plane, showing only what's beyond
+#[derive(Resource)]
+pub struct FocalPlaneSettings {
+    /// Whether the focal plane is enabled
+    pub enabled: bool,
+    /// Distance from camera to the focal plane
+    pub distance: f32,
+    /// Speed of distance adjustment with scroll wheel
+    pub scroll_speed: f32,
+    /// Minimum distance from camera
+    pub min_distance: f32,
+    /// Maximum distance from camera
+    pub max_distance: f32,
+}
+
+impl Default for FocalPlaneSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            distance: 20.0,
+            scroll_speed: 2.0,
+            min_distance: 1.0,
+            max_distance: 200.0,
+        }
     }
 }
 
@@ -135,6 +188,14 @@ fn camera_mouse_grab(
             cursor_options.grab_mode = CursorGrabMode::None;
             cursor_options.visible = true;
         }
+        
+        // Safety: if we're marked as dragging but the control button isn't pressed,
+        // reset the state. This handles mode switching while dragging.
+        if camera_state.is_dragging && !mouse_button.pressed(control_button) {
+            camera_state.is_dragging = false;
+            cursor_options.grab_mode = CursorGrabMode::None;
+            cursor_options.visible = true;
+        }
     }
 }
 
@@ -147,6 +208,7 @@ pub fn camera_update(
     config: Res<CameraConfig>,
     imgui_capture: Res<ImGuiWantCapture>,
     mut query: Query<(&mut Transform, &mut MainCamera)>,
+    mut notification: ResMut<ModeNotification>,
 ) {
     let dt = time.delta_secs();
 
@@ -169,6 +231,7 @@ pub fn camera_update(
                 cam.target_rotation = cam.rotation; // Sync target with current
                 cam.mode = CameraMode::FreeFly;
                 cam.followed_entity = None; // Stop following when switching to free fly
+                notification.show("Free-Fly Mode", 1.5);
             }
             CameraMode::FreeFly => {
                 // Switch to Orbit: set orbit center to world origin, calculate distance
@@ -179,6 +242,7 @@ pub fn camera_update(
                 cam.target_distance = new_distance;
                 cam.target_rotation = cam.rotation; // Sync target with current
                 cam.mode = CameraMode::Orbit;
+                notification.show("Orbit Mode", 1.5);
             }
         }
     }
@@ -468,4 +532,163 @@ fn update_camera_fov(
             perspective.fov = config.fov.to_radians();
         }
     }
+}
+
+/// System to handle focal plane input (F key toggle, scroll wheel for distance)
+fn focal_plane_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mouse_scroll: Res<AccumulatedMouseScroll>,
+    mut focal_plane: ResMut<FocalPlaneSettings>,
+    camera_query: Query<&MainCamera>,
+    imgui_capture: Res<ImGuiWantCapture>,
+    mut notification: ResMut<ModeNotification>,
+) {
+    let Ok(cam) = camera_query.single() else {
+        return;
+    };
+    
+    // Only allow focal plane in FreeFly mode
+    if cam.mode != CameraMode::FreeFly {
+        // Auto-disable when switching out of FreeFly mode
+        if focal_plane.enabled {
+            focal_plane.enabled = false;
+        }
+        return;
+    }
+    
+    // Toggle focal plane with F key (allow even when ImGui wants keyboard for this critical feature)
+    if keyboard.just_pressed(KeyCode::KeyF) && !imgui_capture.want_capture_keyboard {
+        focal_plane.enabled = !focal_plane.enabled;
+        if focal_plane.enabled {
+            notification.show("Focal Slice Enabled", 1.5);
+        } else {
+            notification.show("Focal Slice Disabled", 1.5);
+        }
+    }
+    
+    // Adjust distance with scroll wheel when focal plane is enabled
+    if focal_plane.enabled && !imgui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
+        focal_plane.distance += mouse_scroll.delta.y * focal_plane.scroll_speed;
+        focal_plane.distance = focal_plane.distance.clamp(focal_plane.min_distance, focal_plane.max_distance);
+    }
+}
+
+/// System to update cell visibility based on focal plane
+/// Hides cells that are on or behind the plane (between camera and plane)
+/// Shows cells that are beyond the plane (away from camera)
+fn update_focal_plane_visibility(
+    focal_plane: Res<FocalPlaneSettings>,
+    camera_query: Query<(&Transform, &MainCamera)>,
+    mut cell_query: Query<(&crate::cell::CellPosition, &crate::cell::Cell, &mut Visibility)>,
+) {
+    let Ok((camera_transform, cam)) = camera_query.single() else {
+        return;
+    };
+    
+    // If focal plane is disabled or not in FreeFly mode, make all cells visible
+    if !focal_plane.enabled || cam.mode != CameraMode::FreeFly {
+        for (_, _, mut visibility) in cell_query.iter_mut() {
+            if *visibility != Visibility::Inherited {
+                *visibility = Visibility::Inherited;
+            }
+        }
+        return;
+    }
+    
+    // Calculate the focal plane position and normal
+    let camera_pos = camera_transform.translation;
+    let camera_forward = camera_transform.rotation * Vec3::NEG_Z; // Camera looks down -Z
+    let plane_center = camera_pos + camera_forward * focal_plane.distance;
+    
+    for (cell_pos, cell, mut visibility) in cell_query.iter_mut() {
+        // Calculate signed distance from cell center to the plane
+        // Positive = in front of plane (away from camera), Negative = behind plane (toward camera)
+        let to_cell = cell_pos.position - plane_center;
+        let signed_distance = to_cell.dot(camera_forward);
+        
+        // Cell is visible if its nearest edge is beyond the plane (away from camera)
+        // Account for cell radius - cell is visible if any part is past the plane
+        let should_be_visible = signed_distance + cell.radius > 0.0;
+        
+        let new_visibility = if should_be_visible {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        
+        if *visibility != new_visibility {
+            *visibility = new_visibility;
+        }
+    }
+}
+
+/// System to render the mode notification as a centered fading overlay
+fn render_mode_notification(
+    time: Res<Time>,
+    mut notification: ResMut<ModeNotification>,
+    mut imgui_context: NonSendMut<bevy_mod_imgui::ImguiContext>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    // Update timer
+    if notification.time_remaining > 0.0 {
+        notification.time_remaining -= time.delta_secs();
+    }
+    
+    // Don't render if no message or time expired
+    if notification.time_remaining <= 0.0 || notification.message.is_empty() {
+        return;
+    }
+    
+    let ui = imgui_context.ui();
+    
+    // Get window size for centering
+    let Ok(window) = window_query.single() else {
+        return;
+    };
+    let window_width = window.width();
+    let window_height = window.height();
+    
+    // Calculate fade alpha (fade out in last 0.5 seconds)
+    let fade_start = 0.5;
+    let alpha = if notification.time_remaining < fade_start {
+        notification.time_remaining / fade_start
+    } else {
+        1.0
+    };
+    
+    // Calculate text size for centering
+    let text_size = ui.calc_text_size(&notification.message);
+    let padding = 20.0;
+    let box_width = text_size[0] + padding * 2.0;
+    let box_height = text_size[1] + padding * 2.0;
+    
+    // Center position
+    let pos_x = (window_width - box_width) / 2.0;
+    let pos_y = (window_height - box_height) / 2.0;
+    
+    // Style the window
+    let bg_color = [0.1, 0.1, 0.1, 0.8 * alpha];
+    let text_color = [1.0, 1.0, 1.0, alpha];
+    let border_color = [0.4, 0.4, 0.4, 0.6 * alpha];
+    
+    let _bg_style = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
+    let _text_style = ui.push_style_color(imgui::StyleColor::Text, text_color);
+    let _border_style = ui.push_style_color(imgui::StyleColor::Border, border_color);
+    let _rounding = ui.push_style_var(imgui::StyleVar::WindowRounding(8.0));
+    let _padding_style = ui.push_style_var(imgui::StyleVar::WindowPadding([padding, padding]));
+    
+    ui.window("##ModeNotification")
+        .position([pos_x, pos_y], imgui::Condition::Always)
+        .size([box_width, box_height], imgui::Condition::Always)
+        .flags(
+            imgui::WindowFlags::NO_TITLE_BAR
+                | imgui::WindowFlags::NO_RESIZE
+                | imgui::WindowFlags::NO_MOVE
+                | imgui::WindowFlags::NO_SCROLLBAR
+                | imgui::WindowFlags::NO_SAVED_SETTINGS
+                | imgui::WindowFlags::NO_INPUTS
+        )
+        .build(|| {
+            ui.text(&notification.message);
+        });
 }

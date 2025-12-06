@@ -34,14 +34,48 @@ pub struct SplitPlaneRing {
 fn render_orientation_gizmos(
     mut gizmos: Gizmos,
     config: Res<RenderingConfig>,
-    cells_query: Query<(&Cell, &CellPosition, &CellOrientation)>,
+    cells_query: Query<(&Cell, &CellPosition, &CellOrientation, &Visibility)>,
+    focal_plane: Res<crate::ui::camera::FocalPlaneSettings>,
+    camera_query: Query<(&Transform, &crate::ui::camera::MainCamera)>,
 ) {
     if !config.show_orientation_gizmos {
         return;
     }
 
+    // Get focal plane info for visibility check
+    let focal_plane_check = if focal_plane.enabled {
+        if let Ok((camera_transform, cam)) = camera_query.single() {
+            if cam.mode == crate::ui::camera::CameraMode::FreeFly {
+                let camera_pos = camera_transform.translation;
+                let camera_forward = camera_transform.rotation * Vec3::NEG_Z;
+                let plane_center = camera_pos + camera_forward * focal_plane.distance;
+                Some((plane_center, camera_forward))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     // Render orientation axes for each cell
-    for (cell, position, orientation) in cells_query.iter() {
+    for (cell, position, orientation, visibility) in cells_query.iter() {
+        // Skip hidden cells (respects focal plane visibility set by camera system)
+        if *visibility == Visibility::Hidden {
+            continue;
+        }
+        
+        // Double-check with focal plane (in case visibility hasn't updated yet)
+        if let Some((plane_center, camera_forward)) = focal_plane_check {
+            let to_cell = position.position - plane_center;
+            let signed_distance = to_cell.dot(camera_forward);
+            if signed_distance + cell.radius <= 0.0 {
+                continue;
+            }
+        }
+        
         let gizmo_length = cell.radius * 1.8;
         
         // Create three axis lines: forward (blue), right (green), up (red)
@@ -128,6 +162,7 @@ fn update_split_plane_gizmos(
                 ..default()
             })),
             Transform::from_translation(position.position).with_rotation(orientation.rotation),
+            Visibility::default(),
             SplitPlaneRing { cell_entity },
         ));
 
@@ -143,6 +178,7 @@ fn update_split_plane_gizmos(
                 ..default()
             })),
             Transform::from_translation(position.position).with_rotation(orientation.rotation),
+            Visibility::default(),
             SplitPlaneRing { cell_entity },
         ));
     }
@@ -160,20 +196,30 @@ fn update_split_plane_gizmos(
 /// Update split plane ring transforms to follow their parent cells
 fn update_split_plane_transforms(
     config: Res<RenderingConfig>,
-    cells_query: Query<(Entity, &CellPosition, &CellOrientation)>,
-    mut ring_query: Query<(&SplitPlaneRing, &mut Transform)>,
+    cells_query: Query<(Entity, &CellPosition, &CellOrientation, &Visibility), Without<SplitPlaneRing>>,
+    mut ring_query: Query<(&SplitPlaneRing, &mut Transform, &mut Visibility), Without<Cell>>,
 ) {
     if !config.show_split_plane_gizmos {
         return;
     }
 
     // Update each ring's transform to match its parent cell
-    for (ring, mut transform) in ring_query.iter_mut() {
+    for (ring, mut transform, mut ring_visibility) in ring_query.iter_mut() {
         // Find the parent cell and update position and rotation
-        if let Ok((_, position, orientation)) = cells_query.get(ring.cell_entity) {
+        if let Ok((_, position, orientation, cell_visibility)) = cells_query.get(ring.cell_entity) {
             // Update position and rotation to follow the cell
             transform.translation = position.position;
             transform.rotation = orientation.rotation;
+            
+            // Match parent cell's visibility (for focal plane)
+            let new_visibility = if *cell_visibility == Visibility::Hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+            if *ring_visibility != new_visibility {
+                *ring_visibility = new_visibility;
+            }
         }
     }
 }
@@ -367,6 +413,7 @@ fn update_anchor_gizmos(
                         ..default()
                     })),
                     Transform::from_translation(anchor_pos_a),
+                    Visibility::default(),
                     AnchorGizmo {
                         cell_entity: entity_a,
                         adhesion_index: i,
@@ -404,6 +451,7 @@ fn update_anchor_gizmos(
                         ..default()
                     })),
                     Transform::from_translation(anchor_pos_b),
+                    Visibility::default(),
                     AnchorGizmo {
                         cell_entity: entity_b,
                         adhesion_index: i,
@@ -435,7 +483,8 @@ fn update_anchor_transforms(
     main_state: Option<Res<crate::simulation::cpu_sim::MainSimState>>,
     preview_state: Option<Res<crate::simulation::preview_sim::PreviewSimState>>,
     sim_state: Res<crate::simulation::SimulationState>,
-    mut anchor_query: Query<(&AnchorGizmo, &mut Transform)>,
+    cells_query: Query<&Visibility, (With<Cell>, Without<AnchorGizmo>)>,
+    mut anchor_query: Query<(&AnchorGizmo, &mut Transform, &mut Visibility), Without<Cell>>,
 ) {
     if !config.show_orientation_gizmos {
         return;
@@ -460,7 +509,7 @@ fn update_anchor_transforms(
     };
 
     // Update each anchor's position
-    for (anchor, mut transform) in anchor_query.iter_mut() {
+    for (anchor, mut transform, mut anchor_visibility) in anchor_query.iter_mut() {
         let i = anchor.adhesion_index;
         
         if i >= connections.active_count || connections.is_active[i] == 0 {
@@ -472,6 +521,18 @@ fn update_anchor_transforms(
 
         if cell_a_idx >= state.cell_count || cell_b_idx >= state.cell_count {
             continue;
+        }
+
+        // Check parent cell visibility and update anchor visibility
+        if let Ok(cell_visibility) = cells_query.get(anchor.cell_entity) {
+            let new_visibility = if *cell_visibility == Visibility::Hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+            if *anchor_visibility != new_visibility {
+                *anchor_visibility = new_visibility;
+            }
         }
 
         // Use the is_side_a flag to determine which anchor direction to use
