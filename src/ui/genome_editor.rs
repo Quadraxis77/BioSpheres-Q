@@ -365,7 +365,7 @@ fn render_genome_editor(
                 let selected = current_genome.selected_mode_index as usize;
                 let initial_mode = current_genome.genome.initial_mode as usize;
                 if selected == initial_mode {
-                    ui.tooltip_text("Cannot remove Mode 0 (initial mode)");
+                    ui.tooltip_text("Cannot remove a mode marked as initial");
                 }
             }
 
@@ -426,7 +426,20 @@ fn render_genome_editor(
                             [color.x, color.y, color.z, 1.0]
                         );
 
-                        // Determine text color based on brightness
+                        // Radio button for initial mode selection (before text color push)
+                        let is_initial = initial_mode == i as i32;
+                        if ui.radio_button_bool(&format!("##initial_{}", i), is_initial) {
+                            current_genome.genome.initial_mode = i as i32;
+                        }
+                        
+                        // Tooltip must be checked immediately after the widget
+                        if ui.is_item_hovered() {
+                            ui.tooltip_text("Make this mode initial");
+                        }
+                        
+                        ui.same_line();
+                        
+                        // Determine text color based on brightness (for button text only)
                         let brightness = color.x * 0.299 + color.y * 0.587 + color.z * 0.114;
                         let text_color = if brightness > 0.5 {
                             [0.0, 0.0, 0.0, 1.0]
@@ -434,17 +447,6 @@ fn render_genome_editor(
                             [1.0, 1.0, 1.0, 1.0]
                         };
                         let _text_style = ui.push_style_color(StyleColor::Text, text_color);
-
-                        // Radio button for initial mode selection
-                        let is_initial = initial_mode == i as i32;
-                        if ui.radio_button_bool(&format!("##initial_{}", i), is_initial) {
-                            current_genome.genome.initial_mode = i as i32;
-                        }
-                        if ui.is_item_hovered() {
-                            ui.tooltip_text("Set as initial cell mode");
-                        }
-                        
-                        ui.same_line();
                         
                         // Mode button (slightly narrower to make room for radio button)
                         let available_width = ui.content_region_avail()[0];

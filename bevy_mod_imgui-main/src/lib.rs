@@ -699,6 +699,11 @@ fn imgui_new_frame_system(
         }
 
         for (key_index, key) in IMGUI_TO_BEVY_KEYS.iter().enumerate() {
+            // Skip Tab key (index 0) - it's used for camera mode switching and shouldn't affect imgui menus
+            if key_index == 0 {
+                io.keys_down[key_index] = false;
+                continue;
+            }
             io.keys_down[key_index] = keyboard.pressed(*key);
         }
 

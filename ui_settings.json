@@ -27,5 +27,12 @@
       0.42720738,
       0.5950617
     ]
+  },
+  "bloom_settings": {
+    "enabled": false,
+    "intensity": 0.3,
+    "low_frequency_boost": 0.5,
+    "high_pass_frequency": 0.8,
+    "composite_mode": "EnergyConserving"
   }
 }

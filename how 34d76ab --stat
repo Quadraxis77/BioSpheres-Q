@@ -1,0 +1,20 @@
+[33m34d76ab[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m implemented stiffer cell colission
+[33m786fa2e[m implemented emissives and bloom
+[33md4acaa5[m Implemented transparency
+[33mf9c3ec4[m Fixed ui scaling
+[33me665012[m Removed the gpu scene and implemented a 2x world sphere
+[33mc21848e[m[33m ([m[1;33mtag: [m[1;33mv.0.1.6[m[33m)[m Created collision enable/disable
+[33m60e8000[m Hopefully fixed menu flickering.
+[33m962c504[m Added fog toggle and ui scaling
+[33m2ae3fe9[m updated max splits to reset count after switching modes
+[33m5884f68[m made max splits apply to both children
+[33m065e5f5[m[33m ([m[1;33mtag: [m[1;33mv.0.1.5[m[33m)[m fixed first time run settings
+[33mfca461a[m updated volumetric fog settings
+[33m022e613[m Fixed volumetric fog disappearing.. again
+[33mb204183[m Fixed volumetric fog disappearing
+[33mea61c72[m improved reset scene logic
+[33m723d7b9[m Added Volumetric Fog
+[33mc3bf087[m fixed reset scene
+[33mc79170c[m fixed mode selection switching when a new mode is created
+[33m4b59c39[m Added split ratio to flagellocytes
+[33m75ca502[m Fixed nutrient deferral. (thanks to h)

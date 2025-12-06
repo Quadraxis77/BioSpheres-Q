@@ -588,7 +588,7 @@ fn setup_cpu_scene(
         mode_index: initial_mode_index,
         birth_time: 0.0,
         split_interval,
-        stiffness: 10.0,
+        stiffness: 500.0,  // Match preview scene to prevent pass-through
     });
     
     // Initialize canonical state from initial state
