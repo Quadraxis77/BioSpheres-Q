@@ -18,6 +18,7 @@ bevy = { version = "0.17", features = [
 ] }
 bevy_mesh = "0.17"
 bevy_asset = "0.17"
+bevy_embedded_assets = "0.14"
 bevy_mod_imgui = { path = "./bevy_mod_imgui-main" }
 imgui = "0.12.0"
 imnodes = "0.5.0"
