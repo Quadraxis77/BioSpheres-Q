@@ -231,10 +231,10 @@ fn setup_preview_scene(
     // Spawn ECS entity for the initial cell
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
-    let (color, opacity) = if let Some(mode) = mode {
-        (mode.color, mode.opacity)
+    let (color, opacity, emissive) = if let Some(mode) = mode {
+        (mode.color, mode.opacity, mode.emissive)
     } else {
-        (Vec3::ONE, 1.0)
+        (Vec3::ONE, 1.0, 0.0)
     };
     
     // Check if this is a flagellocyte
@@ -275,6 +275,7 @@ fn setup_preview_scene(
         Mesh3d(cell_mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgba(color.x, color.y, color.z, opacity),
+            emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             alpha_mode: if opacity < 0.99 {
                 bevy::prelude::AlphaMode::Blend
@@ -458,13 +459,14 @@ fn respawn_preview_cells_after_resimulation(
                 if let Some(mat) = &material_cache[mode_index] {
                     mat.clone()
                 } else {
-                    let (color, opacity) = if let Some(mode) = mode {
-                        (mode.color, mode.opacity)
+                    let (color, opacity, emissive) = if let Some(mode) = mode {
+                        (mode.color, mode.opacity, mode.emissive)
                     } else {
-                        (Vec3::ONE, 1.0)
+                        (Vec3::ONE, 1.0, 0.0)
                     };
                     let mat = materials.add(StandardMaterial {
                         base_color: Color::srgba(color.x, color.y, color.z, opacity),
+                        emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
                         cull_mode: Some(bevy::render::render_resource::Face::Back),
                         alpha_mode: if opacity < 0.99 {
                             bevy::prelude::AlphaMode::Blend

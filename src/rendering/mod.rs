@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::pbr::wireframe::{Wireframe, WireframePlugin};
+use bevy::post_process::bloom::{Bloom, BloomCompositeMode as BevyBloomCompositeMode};
 
 pub mod cells;
 pub mod debug;
@@ -32,6 +33,7 @@ impl Plugin for RenderingPlugin {
                 update_gizmos_for_mode,
                 update_wireframe_mode,
                 update_world_sphere_material,
+                update_bloom_settings,
             ));
     }
 }
@@ -98,6 +100,20 @@ pub struct RenderingConfig {
     pub world_sphere_opacity: f32,
     pub world_sphere_color: Vec3,
     pub world_sphere_emissive: f32,
+    // Bloom settings (emissive-only)
+    pub bloom_enabled: bool,
+    pub bloom_intensity: f32,
+    pub bloom_low_frequency_boost: f32,
+    pub bloom_high_pass_frequency: f32,
+    pub bloom_composite_mode: BloomCompositeMode,
+}
+
+/// Bloom composite mode for UI selection
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum BloomCompositeMode {
+    #[default]
+    Additive,
+    EnergyConserving,
 }
 
 impl Default for RenderingConfig {
@@ -112,6 +128,12 @@ impl Default for RenderingConfig {
             world_sphere_opacity: 0.35,
             world_sphere_color: Vec3::new(0.2, 0.25, 0.35),
             world_sphere_emissive: 0.08,
+            // Bloom defaults - tuned for emissive-only glow
+            bloom_enabled: true,
+            bloom_intensity: 0.3,
+            bloom_low_frequency_boost: 0.5,
+            bloom_high_pass_frequency: 0.8,
+            bloom_composite_mode: BloomCompositeMode::EnergyConserving,
         }
     }
 }
@@ -155,6 +177,48 @@ fn update_world_sphere_material(
                 rendering_config.world_sphere_emissive * 1.25,
                 rendering_config.world_sphere_emissive * 1.5,
             );
+        }
+    }
+}
+
+
+/// System to update bloom settings on all cameras
+fn update_bloom_settings(
+    mut commands: Commands,
+    rendering_config: Res<RenderingConfig>,
+    cameras_with_bloom: Query<(Entity, &Bloom), With<Camera3d>>,
+    cameras_without_bloom: Query<Entity, (With<Camera3d>, Without<Bloom>)>,
+) {
+    if !rendering_config.is_changed() {
+        return;
+    }
+    
+    if rendering_config.bloom_enabled {
+        // Create bloom settings
+        let bloom = Bloom {
+            intensity: rendering_config.bloom_intensity,
+            low_frequency_boost: rendering_config.bloom_low_frequency_boost,
+            high_pass_frequency: rendering_config.bloom_high_pass_frequency,
+            composite_mode: match rendering_config.bloom_composite_mode {
+                BloomCompositeMode::Additive => BevyBloomCompositeMode::Additive,
+                BloomCompositeMode::EnergyConserving => BevyBloomCompositeMode::EnergyConserving,
+            },
+            ..default()
+        };
+        
+        // Add bloom to cameras that don't have it
+        for entity in cameras_without_bloom.iter() {
+            commands.entity(entity).insert(bloom.clone());
+        }
+        
+        // Update existing bloom components
+        for (entity, _) in cameras_with_bloom.iter() {
+            commands.entity(entity).insert(bloom.clone());
+        }
+    } else {
+        // Remove bloom from all cameras
+        for (entity, _) in cameras_with_bloom.iter() {
+            commands.entity(entity).remove::<Bloom>();
         }
     }
 }

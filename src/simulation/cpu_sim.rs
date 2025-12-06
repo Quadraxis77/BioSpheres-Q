@@ -97,9 +97,9 @@ pub struct MainSimState {
     pub sphere_mesh: Handle<Mesh>,
     
     /// OPTIMIZATION: Material cache by color
-    /// Creating materials is expensive - cache and reuse by color and opacity
-    /// Key is (r, g, b, a) as u8 values for fast lookup
-    pub material_cache: HashMap<(u8, u8, u8, u8), Handle<StandardMaterial>>,
+    /// Creating materials is expensive - cache and reuse by color, opacity, and emissive
+    /// Key is (r, g, b, a, emissive) as u8 values for fast lookup
+    pub material_cache: HashMap<(u8, u8, u8, u8, u8), Handle<StandardMaterial>>,
     
     /// Simulation time (advances based on speed multiplier)
     pub simulation_time: f32,
@@ -198,30 +198,33 @@ fn run_main_simulation(
     );
 }
 
-/// Convert color and opacity to cache key
+/// Convert color, opacity, and emissive to cache key
 #[inline]
-fn color_opacity_to_key(color: Vec3, opacity: f32) -> (u8, u8, u8, u8) {
+fn material_cache_key(color: Vec3, opacity: f32, emissive: f32) -> (u8, u8, u8, u8, u8) {
     (
         (color.x * 255.0) as u8,
         (color.y * 255.0) as u8,
         (color.z * 255.0) as u8,
         (opacity * 255.0) as u8,
+        (emissive.clamp(0.0, 10.0) * 25.0) as u8, // Scale emissive to 0-250 range for 0-10 values
     )
 }
 
-/// Get or create a cached material for a given color and opacity
+/// Get or create a cached material for a given color, opacity, and emissive
 /// OPTIMIZATION: Reuses materials to enable GPU instancing
 fn get_or_create_material(
     color: Vec3,
     opacity: f32,
-    material_cache: &mut HashMap<(u8, u8, u8, u8), Handle<StandardMaterial>>,
+    emissive: f32,
+    material_cache: &mut HashMap<(u8, u8, u8, u8, u8), Handle<StandardMaterial>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) -> Handle<StandardMaterial> {
-    let key = color_opacity_to_key(color, opacity);
+    let key = material_cache_key(color, opacity, emissive);
     
     material_cache.entry(key).or_insert_with(|| {
         materials.add(StandardMaterial {
             base_color: Color::srgba(color.x, color.y, color.z, opacity),
+            emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             alpha_mode: if opacity < 0.99 {
                 // Use Blend mode with OIT (Order-Independent Transparency) enabled on camera
@@ -292,7 +295,7 @@ fn handle_divisions(
     
     // Batch spawn child entities for better performance
     // Pre-allocate materials to avoid repeated lookups
-    let mut materials_needed: std::collections::HashMap<(u8, u8, u8, u8), Handle<StandardMaterial>> = std::collections::HashMap::new();
+    let mut materials_needed: std::collections::HashMap<(u8, u8, u8, u8, u8), Handle<StandardMaterial>> = std::collections::HashMap::new();
     
     for event in &division_events {
         let child_a_idx = event.child_a_idx;
@@ -306,17 +309,21 @@ fn handle_divisions(
         
         let child_a_color = child_a_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         let child_a_opacity = child_a_mode.map(|m| m.opacity).unwrap_or(1.0);
+        let child_a_emissive = child_a_mode.map(|m| m.emissive).unwrap_or(0.0);
         let child_b_color = child_b_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         let child_b_opacity = child_b_mode.map(|m| m.opacity).unwrap_or(1.0);
+        let child_b_emissive = child_b_mode.map(|m| m.emissive).unwrap_or(0.0);
         
         // Pre-fetch materials
-        if !materials_needed.contains_key(&color_opacity_to_key(child_a_color, child_a_opacity)) {
-            let mat = get_or_create_material(child_a_color, child_a_opacity, &mut main_state.material_cache, materials);
-            materials_needed.insert(color_opacity_to_key(child_a_color, child_a_opacity), mat);
+        let key_a = material_cache_key(child_a_color, child_a_opacity, child_a_emissive);
+        if !materials_needed.contains_key(&key_a) {
+            let mat = get_or_create_material(child_a_color, child_a_opacity, child_a_emissive, &mut main_state.material_cache, materials);
+            materials_needed.insert(key_a, mat);
         }
-        if !materials_needed.contains_key(&color_opacity_to_key(child_b_color, child_b_opacity)) {
-            let mat = get_or_create_material(child_b_color, child_b_opacity, &mut main_state.material_cache, materials);
-            materials_needed.insert(color_opacity_to_key(child_b_color, child_b_opacity), mat);
+        let key_b = material_cache_key(child_b_color, child_b_opacity, child_b_emissive);
+        if !materials_needed.contains_key(&key_b) {
+            let mat = get_or_create_material(child_b_color, child_b_opacity, child_b_emissive, &mut main_state.material_cache, materials);
+            materials_needed.insert(key_b, mat);
         }
     }
     
@@ -360,11 +367,13 @@ fn handle_divisions(
         
         let child_a_color = child_a_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         let child_a_opacity = child_a_mode.map(|m| m.opacity).unwrap_or(1.0);
+        let child_a_emissive = child_a_mode.map(|m| m.emissive).unwrap_or(0.0);
         let child_b_color = child_b_mode.map(|m| m.color).unwrap_or(Vec3::ONE);
         let child_b_opacity = child_b_mode.map(|m| m.opacity).unwrap_or(1.0);
+        let child_b_emissive = child_b_mode.map(|m| m.emissive).unwrap_or(0.0);
         
-        let material_a = materials_needed[&color_opacity_to_key(child_a_color, child_a_opacity)].clone();
-        let material_b = materials_needed[&color_opacity_to_key(child_b_color, child_b_opacity)].clone();
+        let material_a = materials_needed[&material_cache_key(child_a_color, child_a_opacity, child_a_emissive)].clone();
+        let material_b = materials_needed[&material_cache_key(child_b_color, child_b_opacity, child_b_emissive)].clone();
         
         // Check if cells are flagellocytes and create appropriate meshes
         let is_flagellocyte_a = child_a_mode.map(|m| m.cell_type == 1).unwrap_or(false);
@@ -557,10 +566,10 @@ fn setup_cpu_scene(
     let mode = genome.genome.modes.get(initial_mode_index)
         .or_else(|| genome.genome.modes.first());
     
-    let (color, opacity, split_mass, split_interval) = if let Some(mode) = mode {
-        (mode.color, mode.opacity, mode.split_mass, mode.split_interval)
+    let (color, opacity, emissive, split_mass, split_interval) = if let Some(mode) = mode {
+        (mode.color, mode.opacity, mode.emissive, mode.split_mass, mode.split_interval)
     } else {
-        (Vec3::new(1.0, 1.0, 1.0), 1.0, 1.0, 5.0)
+        (Vec3::new(1.0, 1.0, 1.0), 1.0, 0.0, 1.0, 5.0)
     };
     
     let cell_radius = 1.0;
@@ -600,7 +609,7 @@ fn setup_cpu_scene(
     main_state.material_cache.clear();
     
     // Get or create cached material for initial cell
-    let initial_material = get_or_create_material(color, opacity, &mut main_state.material_cache, &mut materials);
+    let initial_material = get_or_create_material(color, opacity, emissive, &mut main_state.material_cache, &mut materials);
     
     // Check if initial cell is flagellocyte
     let initial_mode = genome.genome.modes.get(initial_mode_index);

@@ -17,15 +17,15 @@
     "show_camera_settings": false
   },
   "fog_settings": {
-    "enabled": false,
-    "density_factor": 0.056,
-    "absorption": 0.023,
-    "scattering": 0.172,
+    "enabled": true,
+    "density_factor": 0.084,
+    "absorption": 0.084,
+    "scattering": 0.121,
     "ambient_intensity": 0.0,
     "fog_color": [
-      0.37210405,
-      0.38575435,
-      0.6007463
+      0.06807703,
+      0.42720738,
+      0.5950617
     ]
   }
 }

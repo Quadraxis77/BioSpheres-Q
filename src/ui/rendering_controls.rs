@@ -146,6 +146,51 @@ fn render_controls_ui(
                 ui.tooltip_text("Color of the volumetric fog");
             }
             
+            // Bloom Settings
+            ui.separator();
+            ui.text("Bloom (Emissive Glow):");
+            
+            ui.checkbox("Enable Bloom", &mut rendering_config.bloom_enabled);
+            if ui.is_item_hovered() {
+                ui.tooltip_text("Enable bloom effect for emissive materials");
+            }
+            
+            if rendering_config.bloom_enabled {
+                ui.text("Intensity:");
+                ui.slider("##bloom_intensity", 0.0, 1.0, &mut rendering_config.bloom_intensity);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Overall bloom intensity");
+                }
+                
+                ui.text("Low Freq Boost:");
+                ui.slider("##bloom_low_freq", 0.0, 1.0, &mut rendering_config.bloom_low_frequency_boost);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Boost for soft, wide glow (low frequency)");
+                }
+                
+                ui.text("High Pass:");
+                ui.slider("##bloom_high_pass", 0.0, 1.0, &mut rendering_config.bloom_high_pass_frequency);
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Threshold for bloom - higher values = only brightest emissives bloom");
+                }
+                
+                // Composite mode selector
+                ui.text("Composite Mode:");
+                let is_additive = rendering_config.bloom_composite_mode == crate::rendering::BloomCompositeMode::Additive;
+                if ui.radio_button_bool("Additive", is_additive) {
+                    rendering_config.bloom_composite_mode = crate::rendering::BloomCompositeMode::Additive;
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Adds bloom on top - brighter but can wash out");
+                }
+                if ui.radio_button_bool("Energy Conserving", !is_additive) {
+                    rendering_config.bloom_composite_mode = crate::rendering::BloomCompositeMode::EnergyConserving;
+                }
+                if ui.is_item_hovered() {
+                    ui.tooltip_text("Preserves overall brightness - more natural look");
+                }
+            }
+            
             // Theme selector
             ui.separator();
             ui.text("UI Theme:");

@@ -98,6 +98,8 @@ pub struct ModeSettings {
     pub default_name: String, // Original/default name to revert to when user clears the name
     pub color: Vec3,
     pub opacity: f32, // Cell transparency (0.0 = fully transparent, 1.0 = fully opaque)
+    #[serde(default)]
+    pub emissive: f32, // Emissive glow intensity (0.0 = no glow, 1.0+ = bright glow)
 
     // Cell type
     pub cell_type: i32,
@@ -138,6 +140,7 @@ impl ModeSettings {
             name,
             color: Vec3::new(1.0, 1.0, 1.0),
             opacity: 1.0, // Default: fully opaque
+            emissive: 0.0, // Default: no glow
             cell_type: 0,
             parent_make_adhesion: false,
             split_mass: 1.5,
@@ -175,6 +178,7 @@ impl Default for ModeSettings {
             default_name: "Untitled Mode".to_string(),
             color: Vec3::new(1.0, 1.0, 1.0),
             opacity: 1.0, // Default: fully opaque
+            emissive: 0.0, // Default: no glow
             cell_type: 0,
             parent_make_adhesion: false,
             split_mass: 1.5,

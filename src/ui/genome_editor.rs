@@ -1100,6 +1100,11 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     ui.text("Opacity:");
     help_marker(ui, "Cell transparency (0.0 = fully transparent, 1.0 = fully opaque).");
     ui.slider("##ModeOpacity", 0.0, 1.0, &mut mode.opacity);
+    
+    // Emissive slider
+    ui.text("Emissive:");
+    help_marker(ui, "Glow intensity (0.0 = no glow, higher values = brighter glow). Uses the mode color for the glow.");
+    ui.slider("##ModeEmissive", 0.0, 5.0, &mut mode.emissive);
 }
 
 /// Draw child settings - returns true if mode number changed

@@ -122,16 +122,16 @@ fn check_and_divide_cells(
         let child_a_mode = genome.genome.modes.get(child_a_mode_idx);
         let child_b_mode = genome.genome.modes.get(child_b_mode_idx);
         
-        let (child_a_color, child_a_opacity, child_a_split_interval, child_a_split_mass) = if let Some(m) = child_a_mode {
-            (m.color, m.opacity, m.split_interval, m.split_mass)
+        let (child_a_color, child_a_opacity, child_a_emissive, child_a_split_interval, child_a_split_mass) = if let Some(m) = child_a_mode {
+            (m.color, m.opacity, m.emissive, m.split_interval, m.split_mass)
         } else {
-            (Vec3::ONE, 1.0, 5.0, 1.0)
+            (Vec3::ONE, 1.0, 0.0, 5.0, 1.0)
         };
         
-        let (child_b_color, child_b_opacity, child_b_split_interval, child_b_split_mass) = if let Some(m) = child_b_mode {
-            (m.color, m.opacity, m.split_interval, m.split_mass)
+        let (child_b_color, child_b_opacity, child_b_emissive, child_b_split_interval, child_b_split_mass) = if let Some(m) = child_b_mode {
+            (m.color, m.opacity, m.emissive, m.split_interval, m.split_mass)
         } else {
-            (Vec3::ONE, 1.0, 5.0, 1.0)
+            (Vec3::ONE, 1.0, 0.0, 5.0, 1.0)
         };
         
 
@@ -169,6 +169,7 @@ fn check_and_divide_cells(
             Mesh3d(meshes.add(Sphere::new(cell.radius).mesh().ico(5).unwrap())),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgba(child_a_color.x, child_a_color.y, child_a_color.z, child_a_opacity),
+                emissive: LinearRgba::rgb(child_a_color.x * child_a_emissive, child_a_color.y * child_a_emissive, child_a_color.z * child_a_emissive),
                 cull_mode: Some(bevy::render::render_resource::Face::Back),
                 alpha_mode: if child_a_opacity < 0.99 {
                     bevy::prelude::AlphaMode::Blend
@@ -208,6 +209,7 @@ fn check_and_divide_cells(
             Mesh3d(meshes.add(Sphere::new(cell.radius).mesh().ico(5).unwrap())),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgba(child_b_color.x, child_b_color.y, child_b_color.z, child_b_opacity),
+                emissive: LinearRgba::rgb(child_b_color.x * child_b_emissive, child_b_color.y * child_b_emissive, child_b_color.z * child_b_emissive),
                 cull_mode: Some(bevy::render::render_resource::Face::Back),
                 alpha_mode: if child_b_opacity < 0.99 {
                     bevy::prelude::AlphaMode::Blend
