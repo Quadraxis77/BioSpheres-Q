@@ -536,7 +536,7 @@ fn setup_cpu_scene(
     mut main_state: ResMut<MainSimState>,
     cpu_cell_capacity: Res<crate::ui::scene_manager::CpuCellCapacity>,
 ) {
-    // Spawn 3D camera with volumetric fog
+    // Spawn 3D camera with volumetric fog and boundary crossing effect
     commands.spawn((
         Camera3d::default(),
         MainCamera{
@@ -553,6 +553,8 @@ fn setup_cpu_scene(
             step_count: fog_settings.step_count,
             ..default()
         },
+        // Boundary crossing post-processing effect
+        crate::rendering::BoundaryCrossingSettings::default(),
         // OIT (Order-Independent Transparency) DISABLED - conflicts with bevy_mod_imgui
         // bevy_mod_imgui renders directly to swapchain, causing command encoder conflicts with OIT
         // To re-enable: refactor bevy_mod_imgui to render to intermediate texture first

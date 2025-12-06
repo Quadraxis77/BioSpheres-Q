@@ -110,7 +110,7 @@ fn setup_preview_scene(
     genome: Res<CurrentGenome>,
     config: Res<PhysicsConfig>,
 ) {
-    // Spawn camera with volumetric fog
+    // Spawn camera with volumetric fog and boundary crossing effect
     commands.spawn((
         Camera3d::default(),
         MainCamera{
@@ -127,6 +127,8 @@ fn setup_preview_scene(
             step_count: fog_settings.step_count,
             ..default()
         },
+        // Boundary crossing post-processing effect
+        crate::rendering::BoundaryCrossingSettings::default(),
         // OIT (Order-Independent Transparency) DISABLED - conflicts with bevy_mod_imgui
         // bevy_mod_imgui renders directly to swapchain, causing command encoder conflicts with OIT
         // To re-enable: refactor bevy_mod_imgui to render to intermediate texture first

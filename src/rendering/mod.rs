@@ -7,6 +7,7 @@ pub mod debug;
 pub mod adhesion_lines;
 pub mod flagellocyte_mesh;
 pub mod volumetric_fog;
+pub mod boundary_crossing;
 
 /// Marker component for the world sphere entity
 #[derive(Component)]
@@ -16,6 +17,7 @@ pub use cells::CellRenderingPlugin;
 pub use debug::DebugRenderingPlugin;
 pub use adhesion_lines::{AdhesionLineRenderPlugin, AdhesionLineSettings, AdhesionLines};
 pub use volumetric_fog::{VolumetricFogPlugin, VolumetricFogSettings, SphericalFogVolume, SphericalDensityTexture};
+pub use boundary_crossing::{BoundaryCrossingPlugin, BoundaryCrossingSettings, BoundaryCrossingState};
 
 /// Main rendering plugin
 pub struct RenderingPlugin;
@@ -27,6 +29,7 @@ impl Plugin for RenderingPlugin {
             .add_plugins(DebugRenderingPlugin)
             .add_plugins(AdhesionLineRenderPlugin)
             .add_plugins(VolumetricFogPlugin)
+            .add_plugins(BoundaryCrossingPlugin)
             .init_resource::<RenderingConfig>()
             .init_resource::<AdhesionLineSettings>()
             .add_systems(Startup, crate::ui::settings::load_bloom_settings_on_startup)
