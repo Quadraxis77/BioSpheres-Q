@@ -193,7 +193,7 @@ fn setup_preview_scene(
     };
     
     let cell_radius = 1.0;
-    let stiffness = 10.0;
+    let stiffness = 500.0;  // Increased from 10.0 to prevent pass-through
     
     // Create initial state with preview-specific capacity limit (256 cells)
     // Preview simulation is optimized for low cell counts with real-time genome updates

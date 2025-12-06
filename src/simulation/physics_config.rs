@@ -40,8 +40,8 @@ impl Default for PhysicsConfig {
         Self {
             world_bounds: Vec3::splat(200.0),
             sphere_radius: 100.0,
-            default_stiffness: 10.0,
-            damping: 0.0,
+            default_stiffness: 500.0,  // Increased from 10.0 to prevent pass-through
+            damping: 50.0,  // Increased from 0.0 to add velocity-based resistance
             fixed_timestep: 1.0 / 64.0, // Match Bevy's default fixed timestep (64 Hz)
             velocity_damping: 0.98,
             friction_coefficient: 0.3,

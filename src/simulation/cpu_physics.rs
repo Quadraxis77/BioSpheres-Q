@@ -443,8 +443,8 @@ pub fn detect_collisions_canonical_st(
                 // Check for overlap
                 let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                 if distance < combined_radius {
-                    // Skip collision if cells are connected by adhesion
-                    if are_cells_connected(state, idx_a, idx_b) {
+                    // Skip collision if cells are in the same organism
+                    if are_cells_in_same_organism(state, idx_a, idx_b) {
                         continue;
                     }
                     
@@ -486,8 +486,8 @@ pub fn detect_collisions_canonical_st(
                     // Check for overlap
                     let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                     if distance < combined_radius {
-                        // Skip collision if cells are connected by adhesion
-                        if are_cells_connected(state, idx_a, idx_b) {
+                        // Skip collision if cells are in the same organism
+                        if are_cells_in_same_organism(state, idx_a, idx_b) {
                             continue;
                         }
                         
@@ -553,8 +553,8 @@ pub fn detect_collisions_canonical(
                     // Check for overlap
                     let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                     if distance < combined_radius {
-                        // Skip collision if cells are connected by adhesion
-                        if are_cells_connected(state, idx_a, idx_b) {
+                        // Skip collision if cells are in the same organism
+                        if are_cells_in_same_organism(state, idx_a, idx_b) {
                             continue;
                         }
                         
@@ -596,8 +596,8 @@ pub fn detect_collisions_canonical(
                         // Check for overlap
                         let combined_radius = state.radii[idx_a] + state.radii[idx_b];
                         if distance < combined_radius {
-                            // Skip collision if cells are connected by adhesion
-                            if are_cells_connected(state, idx_a, idx_b) {
+                            // Skip collision if cells are in the same organism
+                            if are_cells_in_same_organism(state, idx_a, idx_b) {
                                 continue;
                             }
                             
@@ -630,10 +630,18 @@ pub fn detect_collisions_canonical(
     collision_pairs
 }
 
-/// Check if two cells are connected via an active adhesion connection
-/// Optimized version using adhesion manager's cell-local lookup
+/// Check if two cells are in the same organism (connected component via adhesions)
+/// This allows different organisms to collide while cells within the same organism
+/// rely on adhesion forces for their interactions
 #[inline]
-fn are_cells_connected(state: &CanonicalState, cell_a: usize, cell_b: usize) -> bool {
+fn are_cells_in_same_organism(state: &CanonicalState, cell_a: usize, cell_b: usize) -> bool {
+    state.adhesion_manager.are_cells_in_same_organism(&state.adhesion_connections, cell_a, cell_b)
+}
+
+/// Check if two cells are directly connected via an active adhesion connection
+/// Used for rolling friction skip (only skip for directly connected cells)
+#[inline]
+fn are_cells_directly_connected(state: &CanonicalState, cell_a: usize, cell_b: usize) -> bool {
     state.adhesion_manager.are_cells_connected(&state.adhesion_connections, cell_a, cell_b)
 }
 
@@ -681,9 +689,8 @@ pub fn compute_collision_forces_canonical_st(
         // Total force magnitude
         let total_force_magnitude = spring_force_magnitude + damping_force_magnitude;
         
-        // Skip collision forces for cells connected via adhesions (adhesion forces handle their interaction)
-        let cells_are_connected = are_cells_connected(state, idx_a, idx_b);
-        if cells_are_connected {
+        // Skip collision forces for cells in the same organism (adhesion forces handle their interaction)
+        if are_cells_in_same_organism(state, idx_a, idx_b) {
             continue;
         }
         
@@ -699,11 +706,11 @@ pub fn compute_collision_forces_canonical_st(
         // === Rolling Friction Torque ===
         // Apply torque based on tangential velocity at contact point
         // This creates rolling without violating momentum conservation
-        // SKIP rolling friction for cells connected via adhesions (would interfere with orientation control)
+        // SKIP rolling friction for directly connected cells (would interfere with orientation control)
         
-        let cells_are_connected = are_cells_connected(state, idx_a, idx_b);
+        let cells_are_directly_connected = are_cells_directly_connected(state, idx_a, idx_b);
         
-        if config.friction_coefficient > 0.0 && pair.overlap > 0.0 && !cells_are_connected {
+        if config.friction_coefficient > 0.0 && pair.overlap > 0.0 && !cells_are_directly_connected {
             // Contact point offsets from cell centers
             let contact_offset_a = pair.normal * state.radii[idx_a];
             let contact_offset_b = -pair.normal * state.radii[idx_b];
@@ -796,9 +803,8 @@ pub fn compute_collision_forces_canonical(
             // Total force magnitude
             let total_force_magnitude = spring_force_magnitude + damping_force_magnitude;
             
-            // Skip collision forces for cells connected via adhesions (adhesion forces handle their interaction)
-            let cells_are_connected = are_cells_connected(state, idx_a, idx_b);
-            if cells_are_connected {
+            // Skip collision forces for cells in the same organism (adhesion forces handle their interaction)
+            if are_cells_in_same_organism(state, idx_a, idx_b) {
                 return vec![];
             }
             
@@ -813,7 +819,7 @@ pub fn compute_collision_forces_canonical(
             let mut torque_b = Vec3::ZERO;
             
             // Apply torque based on tangential velocity at contact point
-            // SKIP rolling friction for cells connected via adhesions (would interfere with orientation control)
+            // Rolling friction is applied for all colliding cells (including different organisms)
             
             if config.friction_coefficient > 0.0 && pair.overlap > 0.0 {
                 // Contact point offsets from cell centers

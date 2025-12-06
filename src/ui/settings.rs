@@ -17,6 +17,9 @@ pub struct UiSettings {
     /// Volumetric fog settings
     #[serde(default)]
     pub fog_settings: FogSettings,
+    /// Bloom settings
+    #[serde(default)]
+    pub bloom_settings: BloomSettings,
 }
 
 /// Window visibility settings
@@ -57,6 +60,28 @@ impl Default for FogSettings {
             scattering: 0.172,
             ambient_intensity: 0.0,
             fog_color: [0.37210405, 0.38575435, 0.6007463],
+        }
+    }
+}
+
+/// Bloom settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct BloomSettings {
+    pub enabled: bool,
+    pub intensity: f32,
+    pub low_frequency_boost: f32,
+    pub high_pass_frequency: f32,
+    pub composite_mode: String, // "Additive" or "EnergyConserving"
+}
+
+impl Default for BloomSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            intensity: 0.3,
+            low_frequency_boost: 0.5,
+            high_pass_frequency: 0.8,
+            composite_mode: "EnergyConserving".to_string(),
         }
     }
 }
@@ -130,6 +155,8 @@ impl Default for UiSettings {
             window_visibility: WindowVisibilitySettings::default(),
             // Default fog settings
             fog_settings: FogSettings::default(),
+            // Default bloom settings
+            bloom_settings: BloomSettings::default(),
         }
     }
 }
@@ -200,6 +227,7 @@ pub(crate) struct LastSavedSettings {
     pub(crate) theme_is_custom: bool,
     pub(crate) window_visibility: WindowVisibilitySettings,
     pub(crate) fog_settings: FogSettings,
+    pub(crate) bloom_settings: BloomSettings,
 }
 
 /// System to save UI settings when they change
@@ -209,6 +237,7 @@ pub fn save_ui_settings_on_change(
     theme_state: Res<crate::ui::imgui_style::ImguiThemeState>,
     theme_editor_state: Res<crate::ui::theme_editor::ThemeEditorState>,
     fog_settings: Res<crate::rendering::VolumetricFogSettings>,
+    rendering_config: Res<crate::rendering::RenderingConfig>,
     mut last_saved: Local<Option<LastSavedSettings>>,
 ) {
     // Get the current theme name from theme_editor_state
@@ -248,6 +277,16 @@ pub fn save_ui_settings_on_change(
                     fog_settings.fog_color.to_srgba().blue,
                 ],
             },
+            bloom_settings: BloomSettings {
+                enabled: rendering_config.bloom_enabled,
+                intensity: rendering_config.bloom_intensity,
+                low_frequency_boost: rendering_config.bloom_low_frequency_boost,
+                high_pass_frequency: rendering_config.bloom_high_pass_frequency,
+                composite_mode: match rendering_config.bloom_composite_mode {
+                    crate::rendering::BloomCompositeMode::Additive => "Additive".to_string(),
+                    crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving".to_string(),
+                },
+            },
         });
         return;
     }
@@ -277,12 +316,24 @@ pub fn save_ui_settings_on_change(
         || (last.fog_settings.fog_color[1] - fog_settings.fog_color.to_srgba().green).abs() > 0.001
         || (last.fog_settings.fog_color[2] - fog_settings.fog_color.to_srgba().blue).abs() > 0.001;
 
+    // Check if bloom settings changed
+    let current_bloom_mode = match rendering_config.bloom_composite_mode {
+        crate::rendering::BloomCompositeMode::Additive => "Additive",
+        crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving",
+    };
+    let bloom_changed = last.bloom_settings.enabled != rendering_config.bloom_enabled
+        || (last.bloom_settings.intensity - rendering_config.bloom_intensity).abs() > 0.001
+        || (last.bloom_settings.low_frequency_boost - rendering_config.bloom_low_frequency_boost).abs() > 0.001
+        || (last.bloom_settings.high_pass_frequency - rendering_config.bloom_high_pass_frequency).abs() > 0.001
+        || last.bloom_settings.composite_mode != current_bloom_mode;
+
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
         || (last.ui_scale - global_ui_state.ui_scale).abs() > 0.001
         || theme_changed
         || visibility_changed
-        || fog_changed;
+        || fog_changed
+        || bloom_changed;
 
     if changed {
         // Load existing settings to preserve custom themes library
@@ -317,6 +368,16 @@ pub fn save_ui_settings_on_change(
                 fog_settings.fog_color.to_srgba().blue,
             ],
         };
+        settings.bloom_settings = BloomSettings {
+            enabled: rendering_config.bloom_enabled,
+            intensity: rendering_config.bloom_intensity,
+            low_frequency_boost: rendering_config.bloom_low_frequency_boost,
+            high_pass_frequency: rendering_config.bloom_high_pass_frequency,
+            composite_mode: match rendering_config.bloom_composite_mode {
+                crate::rendering::BloomCompositeMode::Additive => "Additive".to_string(),
+                crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving".to_string(),
+            },
+        };
 
         if let Err(e) = settings.save() {
             error!("Failed to save UI settings: {}", e);
@@ -350,6 +411,16 @@ pub fn save_ui_settings_on_change(
                     fog_settings.fog_color.to_srgba().blue,
                 ],
             },
+            bloom_settings: BloomSettings {
+                enabled: rendering_config.bloom_enabled,
+                intensity: rendering_config.bloom_intensity,
+                low_frequency_boost: rendering_config.bloom_low_frequency_boost,
+                high_pass_frequency: rendering_config.bloom_high_pass_frequency,
+                composite_mode: match rendering_config.bloom_composite_mode {
+                    crate::rendering::BloomCompositeMode::Additive => "Additive".to_string(),
+                    crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving".to_string(),
+                },
+            },
         });
     }
 }
@@ -370,4 +441,19 @@ pub fn load_fog_settings_on_startup(
         saved_settings.fog_settings.fog_color[1],
         saved_settings.fog_settings.fog_color[2],
     );
+}
+
+/// System to load bloom settings from saved UI settings on startup
+pub fn load_bloom_settings_on_startup(
+    mut rendering_config: ResMut<crate::rendering::RenderingConfig>,
+) {
+    let saved_settings = UiSettings::load();
+    rendering_config.bloom_enabled = saved_settings.bloom_settings.enabled;
+    rendering_config.bloom_intensity = saved_settings.bloom_settings.intensity;
+    rendering_config.bloom_low_frequency_boost = saved_settings.bloom_settings.low_frequency_boost;
+    rendering_config.bloom_high_pass_frequency = saved_settings.bloom_settings.high_pass_frequency;
+    rendering_config.bloom_composite_mode = match saved_settings.bloom_settings.composite_mode.as_str() {
+        "Additive" => crate::rendering::BloomCompositeMode::Additive,
+        _ => crate::rendering::BloomCompositeMode::EnergyConserving,
+    };
 }

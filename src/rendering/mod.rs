@@ -29,6 +29,7 @@ impl Plugin for RenderingPlugin {
             .add_plugins(VolumetricFogPlugin)
             .init_resource::<RenderingConfig>()
             .init_resource::<AdhesionLineSettings>()
+            .add_systems(Startup, crate::ui::settings::load_bloom_settings_on_startup)
             .add_systems(Update, (
                 update_gizmos_for_mode,
                 update_wireframe_mode,

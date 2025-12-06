@@ -400,6 +400,7 @@ fn render_genome_editor(
                 .map(|m| (m.name.clone(), m.color))
                 .collect();
             let mut new_selected_index = current_genome.selected_mode_index;
+            let initial_mode = current_genome.genome.initial_mode;
 
             ui.child_window("ModeList")
                 .size([200.0, 0.0])
@@ -434,7 +435,20 @@ fn render_genome_editor(
                         };
                         let _text_style = ui.push_style_color(StyleColor::Text, text_color);
 
-                        if ui.button_with_size(name, [-1.0, 0.0]) {
+                        // Radio button for initial mode selection
+                        let is_initial = initial_mode == i as i32;
+                        if ui.radio_button_bool(&format!("##initial_{}", i), is_initial) {
+                            current_genome.genome.initial_mode = i as i32;
+                        }
+                        if ui.is_item_hovered() {
+                            ui.tooltip_text("Set as initial cell mode");
+                        }
+                        
+                        ui.same_line();
+                        
+                        // Mode button (slightly narrower to make room for radio button)
+                        let available_width = ui.content_region_avail()[0];
+                        if ui.button_with_size(name, [available_width, 0.0]) {
                             new_selected_index = i as i32;
                         }
 

@@ -471,7 +471,7 @@ fn spawn_preview_cells_only(
     // For Test cells, start with half the split mass so they need to grow before splitting
     let initial_mass = if is_test_cell { split_mass * 0.5 } else { split_mass };
     let cell_radius = if is_test_cell { initial_mass.min(max_cell_size).clamp(0.5, 2.0) } else { 1.0 };
-    let stiffness = 10.0;
+    let stiffness = 500.0;  // Increased from 10.0 to prevent pass-through
     
     // Create initial state
     let mut initial_state = InitialState::new((**config).clone(), 100_000, 0);
