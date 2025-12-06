@@ -23,6 +23,7 @@ pub use cell_inspector::{CellInspectorPlugin, CellInspectorState};
 pub use debug_info::DebugInfoPlugin;
 pub use imgui_panel::{ImguiPanelPlugin, ImguiPanelState};
 pub use imgui_style::{ImguiTheme, ImguiThemeState};
+pub use imgui_widgets::range_slider;
 pub use genome_editor::GenomeEditorPlugin;
 pub use lighting_settings::{LightingSettingsPlugin, LightingConfig};
 pub use performance_monitor::PerformanceMonitorPlugin;

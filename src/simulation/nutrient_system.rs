@@ -166,8 +166,11 @@ pub fn transport_nutrients_st(
     genome: &crate::genome::GenomeData,
     dt: f32,
 ) {
-    // Calculate mass changes for each cell (accumulate transfers)
-    let mut mass_deltas = vec![0.0f32; state.cell_count];
+    // Use pre-allocated buffer and clear only the portion we need
+    // This avoids allocation every frame
+    for i in 0..state.cell_count {
+        state.mass_deltas_buffer[i] = 0.0;
+    }
     
     // Process each active adhesion connection
     let adhesion_capacity = state.adhesion_connections.is_active.len();
@@ -259,22 +262,23 @@ pub fn transport_nutrients_st(
         };
         
         // Accumulate deltas
-        mass_deltas[cell_a_idx] -= actual_transfer;
-        mass_deltas[cell_b_idx] += actual_transfer;
+        state.mass_deltas_buffer[cell_a_idx] -= actual_transfer;
+        state.mass_deltas_buffer[cell_b_idx] += actual_transfer;
     }
     
     // Apply mass changes and update radii
     // Track cells that die (mass < 0.5 minimum threshold)
     const MIN_CELL_MASS: f32 = 0.5;
-    let mut cells_to_remove = Vec::new();
+    // Use pre-allocated buffer for cells to remove
+    state.cells_to_remove_buffer.clear();
     
     for i in 0..state.cell_count {
-        if mass_deltas[i].abs() > 0.0001 {
-            state.masses[i] += mass_deltas[i];
+        if state.mass_deltas_buffer[i].abs() > 0.0001 {
+            state.masses[i] += state.mass_deltas_buffer[i];
             
             // Check if cell has died (below minimum mass threshold)
             if state.masses[i] < MIN_CELL_MASS {
-                cells_to_remove.push(i);
+                state.cells_to_remove_buffer.push(i);
                 continue;
             }
             
@@ -293,7 +297,9 @@ pub fn transport_nutrients_st(
     }
     
     // Remove dead cells (in reverse order to maintain indices)
-    for &cell_idx in cells_to_remove.iter().rev() {
+    // Iterate in reverse without cloning the buffer
+    for i in (0..state.cells_to_remove_buffer.len()).rev() {
+        let cell_idx = state.cells_to_remove_buffer[i];
         remove_dead_cell(state, cell_idx);
     }
 }

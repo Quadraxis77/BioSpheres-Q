@@ -70,6 +70,9 @@ pub struct InitialCell {
     /// Time interval until cell division
     pub split_interval: f32,
     
+    /// Mass threshold for cell division (may be randomized from range)
+    pub split_mass: f32,
+    
     /// Cytoskeleton stiffness (affects collision response)
     pub stiffness: f32,
 }
@@ -138,6 +141,7 @@ impl InitialState {
                 cell.mode_index,
                 cell.birth_time,
                 cell.split_interval,
+                cell.split_mass,
                 cell.stiffness,
                 cell.rotation, // genome_orientation = rotation initially
                 0, // Initial cells start with split_count = 0

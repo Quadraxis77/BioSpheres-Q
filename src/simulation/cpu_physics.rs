@@ -61,6 +61,7 @@ pub struct CanonicalState {
     // === Division Timers (SoA) ===
     pub birth_times: Vec<f32>,
     pub split_intervals: Vec<f32>,
+    pub split_masses: Vec<f32>, // Per-cell split mass threshold (may be randomized from range)
     pub split_counts: Vec<i32>, // Number of times this cell has split
     pub split_ready_frame: Vec<i32>, // Frame when cell first became ready to split (-1 = not ready)
     
@@ -75,6 +76,28 @@ pub struct CanonicalState {
     
     /// Next cell ID to assign (monotonically increasing)
     pub next_cell_id: u32,
+    
+    // === Pre-allocated Scratch Buffers (avoid per-frame allocations) ===
+    /// Pre-allocated collision pairs buffer (reused each frame)
+    pub collision_pairs_buffer: Vec<CanonicalCollisionPair>,
+    /// Pre-allocated mass deltas buffer for nutrient transport
+    pub mass_deltas_buffer: Vec<f32>,
+    /// Pre-allocated cells to remove buffer
+    pub cells_to_remove_buffer: Vec<usize>,
+    /// Cached adhesion settings from genome (rebuilt when genome changes)
+    pub cached_adhesion_settings: Vec<crate::cell::AdhesionSettings>,
+    /// Hash of genome modes to detect changes
+    pub genome_modes_hash: u64,
+    
+    // === Division scratch buffers ===
+    /// Pre-allocated buffer for tracking which cells have already split this tick
+    pub already_split_buffer: Vec<bool>,
+    /// Pre-allocated buffer for cells ready to divide
+    pub divisions_to_process_buffer: Vec<usize>,
+    /// Pre-allocated buffer for filtered divisions
+    pub filtered_divisions_buffer: Vec<usize>,
+    /// Pre-allocated buffer for division events
+    pub division_events_buffer: Vec<DivisionEvent>,
 }
 
 impl CanonicalState {
@@ -87,6 +110,9 @@ impl CanonicalState {
     pub fn with_grid_density(capacity: usize, grid_density: u32) -> Self {
         // Calculate adhesion connection capacity (20 connections per cell)
         let adhesion_capacity = capacity * crate::cell::MAX_ADHESIONS_PER_CELL;
+        
+        // Pre-allocate collision buffer for worst case (every cell collides with ~10 others)
+        let collision_buffer_capacity = capacity * 10;
         
         Self {
             cell_count: 0,
@@ -109,13 +135,56 @@ impl CanonicalState {
             stiffnesses: vec![10.0; capacity],
             birth_times: vec![0.0; capacity],
             split_intervals: vec![10.0; capacity],
+            split_masses: vec![1.5; capacity],
             split_counts: vec![0; capacity],
             split_ready_frame: vec![-1; capacity],
             adhesion_connections: crate::cell::AdhesionConnections::new(adhesion_capacity),
             adhesion_manager: crate::cell::AdhesionConnectionManager::new(capacity),
             spatial_grid: DeterministicSpatialGrid::new(grid_density, 200.0, 100.0),
             next_cell_id: 0,
+            // Pre-allocated scratch buffers
+            collision_pairs_buffer: Vec::with_capacity(collision_buffer_capacity),
+            mass_deltas_buffer: vec![0.0; capacity],
+            cells_to_remove_buffer: Vec::with_capacity(256),
+            cached_adhesion_settings: Vec::with_capacity(32), // Typical genome has <32 modes
+            genome_modes_hash: 0,
+            // Division scratch buffers
+            already_split_buffer: vec![false; capacity],
+            divisions_to_process_buffer: Vec::with_capacity(256),
+            filtered_divisions_buffer: Vec::with_capacity(256),
+            division_events_buffer: Vec::with_capacity(256),
         }
+    }
+    
+    /// Update cached adhesion settings from genome if needed
+    /// Returns true if cache was updated
+    pub fn update_adhesion_settings_cache(&mut self, genome: &crate::genome::GenomeData) -> bool {
+        // Simple hash based on mode count and first mode's stiffness
+        // This catches most genome changes without expensive full comparison
+        let new_hash = (genome.modes.len() as u64) << 32 
+            | (genome.modes.first().map(|m| (m.adhesion_settings.linear_spring_stiffness * 1000.0) as u64).unwrap_or(0));
+        
+        if new_hash != self.genome_modes_hash || self.cached_adhesion_settings.len() != genome.modes.len() {
+            self.cached_adhesion_settings.clear();
+            for mode in &genome.modes {
+                self.cached_adhesion_settings.push(crate::cell::AdhesionSettings {
+                    can_break: mode.adhesion_settings.can_break,
+                    break_force: mode.adhesion_settings.break_force,
+                    rest_length: mode.adhesion_settings.rest_length,
+                    linear_spring_stiffness: mode.adhesion_settings.linear_spring_stiffness,
+                    linear_spring_damping: mode.adhesion_settings.linear_spring_damping,
+                    orientation_spring_stiffness: mode.adhesion_settings.orientation_spring_stiffness,
+                    orientation_spring_damping: mode.adhesion_settings.orientation_spring_damping,
+                    max_angular_deviation: mode.adhesion_settings.max_angular_deviation,
+                    twist_constraint_stiffness: mode.adhesion_settings.twist_constraint_stiffness,
+                    twist_constraint_damping: mode.adhesion_settings.twist_constraint_damping,
+                    enable_twist_constraint: mode.adhesion_settings.enable_twist_constraint,
+                });
+            }
+            self.genome_modes_hash = new_hash;
+            return true;
+        }
+        false
     }
     
     /// Add a new cell to the canonical state
@@ -132,6 +201,7 @@ impl CanonicalState {
         mode_index: usize,
         birth_time: f32,
         split_interval: f32,
+        split_mass: f32,
         stiffness: f32,
         genome_orientation: Quat,
         split_count: i32,
@@ -159,6 +229,7 @@ impl CanonicalState {
         self.stiffnesses[idx] = stiffness;
         self.birth_times[idx] = birth_time;
         self.split_intervals[idx] = split_interval;
+        self.split_masses[idx] = split_mass;
         self.split_counts[idx] = split_count;
         self.split_ready_frame[idx] = -1; // Not ready to split yet
         
@@ -237,40 +308,24 @@ impl DeterministicSpatialGrid {
     }
     
     /// Precompute which grid cells are within the spherical boundary
+    /// 
+    /// Note: We include ALL grid cells without culling at the sphere boundary.
+    /// This ensures collision detection works correctly for cells near the edges,
+    /// as neighbor lookups need access to adjacent grid cells even if they're
+    /// slightly outside the sphere radius.
     fn precompute_active_cells(
         grid_dimensions: UVec3,
-        cell_size: f32,
-        sphere_radius: f32,
+        _cell_size: f32,
+        _sphere_radius: f32,
     ) -> Vec<IVec3> {
         let mut active_cells = Vec::new();
 
+        // Include all grid cells - no sphere-based culling
+        // This prevents issues with collision detection at sphere boundaries
         for x in 0..grid_dimensions.x as i32 {
             for y in 0..grid_dimensions.y as i32 {
                 for z in 0..grid_dimensions.z as i32 {
-                    let grid_coord = IVec3::new(x, y, z);
-
-                    // Calculate the center of this grid cell in world space
-                    let grid_pos = Vec3::new(x as f32, y as f32, z as f32);
-                    let world_pos = (grid_pos * cell_size) + Vec3::splat(cell_size / 2.0)
-                        - Vec3::splat(grid_dimensions.x as f32 * cell_size / 2.0);
-
-                    // Calculate the AABB bounds for this grid cell
-                    let half_cell = cell_size / 2.0;
-                    let min_bound = world_pos - Vec3::splat(half_cell);
-                    let max_bound = world_pos + Vec3::splat(half_cell);
-
-                    // Find the closest point on the grid cell (AABB) to the sphere center (origin)
-                    // Clamp the sphere center (0,0,0) to the AABB bounds
-                    let closest_point = Vec3::new(
-                        0.0_f32.clamp(min_bound.x, max_bound.x),
-                        0.0_f32.clamp(min_bound.y, max_bound.y),
-                        0.0_f32.clamp(min_bound.z, max_bound.z),
-                    );
-
-                    // Check if the closest point on the cell is within the sphere
-                    if closest_point.length() <= sphere_radius {
-                        active_cells.push(grid_coord);
-                    }
+                    active_cells.push(IVec3::new(x, y, z));
                 }
             }
         }
@@ -1124,15 +1179,11 @@ fn calculate_cells_attempting_split(
             true
         };
         
-        // Check mass threshold
-        let can_split_by_mass = if let Some(m) = mode {
-            state.masses[i] >= m.split_mass
-        } else {
-            true
-        };
+        // Check mass threshold (using per-cell split_mass which may be randomized)
+        let can_split_by_mass = state.masses[i] >= state.split_masses[i];
         
         let is_ready_to_split = can_split_by_count && can_split_by_adhesions && can_split_by_mass 
-            && state.split_intervals[i] <= 25.0 && cell_age >= state.split_intervals[i];
+            && state.split_intervals[i] <= 59.0 && cell_age >= state.split_intervals[i];
         
         if is_ready_to_split {
             // If this is the first frame the cell is ready, record it
@@ -1280,24 +1331,10 @@ pub fn physics_step_with_genome(
     
     // 5.5. Compute adhesion forces with genome settings
     if state.adhesion_connections.active_count > 0 {
-        // Extract adhesion settings from genome modes
-        let mode_settings: Vec<crate::cell::AdhesionSettings> = genome.modes.iter()
-            .map(|mode| crate::cell::AdhesionSettings {
-                can_break: mode.adhesion_settings.can_break,
-                break_force: mode.adhesion_settings.break_force,
-                rest_length: mode.adhesion_settings.rest_length,
-                linear_spring_stiffness: mode.adhesion_settings.linear_spring_stiffness,
-                linear_spring_damping: mode.adhesion_settings.linear_spring_damping,
-                orientation_spring_stiffness: mode.adhesion_settings.orientation_spring_stiffness,
-                orientation_spring_damping: mode.adhesion_settings.orientation_spring_damping,
-                max_angular_deviation: mode.adhesion_settings.max_angular_deviation,
-                twist_constraint_stiffness: mode.adhesion_settings.twist_constraint_stiffness,
-                twist_constraint_damping: mode.adhesion_settings.twist_constraint_damping,
-                enable_twist_constraint: mode.adhesion_settings.enable_twist_constraint,
-            })
-            .collect();
+        // Update cached adhesion settings if genome changed (avoids allocation every frame)
+        state.update_adhesion_settings_cache(genome);
         
-        // Use parallel version for multithreaded physics
+        // Use parallel version for multithreaded physics with cached settings
         crate::cell::compute_adhesion_forces_parallel(
             &state.adhesion_connections,
             &state.positions[..state.cell_count],
@@ -1305,7 +1342,7 @@ pub fn physics_step_with_genome(
             &state.rotations[..state.cell_count],
             &state.angular_velocities[..state.cell_count],
             &state.masses[..state.cell_count],
-            &mode_settings,
+            &state.cached_adhesion_settings,
             &mut state.forces[..state.cell_count],
             &mut state.torques[..state.cell_count],
         );
@@ -1449,18 +1486,23 @@ pub fn division_step(
     // we perform multiple passes within this tick. Each pass handles splits
     // that don't conflict with each other, then we move to the next pass.
     // This prevents nutrient diffusion from invalidating split conditions.
-    let mut all_division_events = Vec::new();
-    let mut already_split = vec![false; state.capacity]; // Track which cells have split
+    
+    // Use pre-allocated buffers to avoid per-frame allocations
+    state.division_events_buffer.clear();
+    // Clear only the portion of already_split we need (avoid touching entire capacity)
+    for i in 0..state.cell_count {
+        state.already_split_buffer[i] = false;
+    }
     
     // Maximum number of passes to prevent infinite loops
     const MAX_PASSES: usize = 10;
     
     for _pass in 0..MAX_PASSES {
         // Find cells ready to divide in this pass
-        let mut divisions_to_process = Vec::new();
+        state.divisions_to_process_buffer.clear();
         for i in 0..state.cell_count {
             // Skip cells that already split in a previous pass
-            if already_split[i] {
+            if state.already_split_buffer[i] {
                 continue;
             }
             
@@ -1483,33 +1525,30 @@ pub fn division_step(
                 true
             };
             
-            // Check mass threshold - cells must have enough mass to split
-            let can_split_by_mass = if let Some(m) = mode {
-                state.masses[i] >= m.split_mass
-            } else {
-                true
-            };
+            // Check mass threshold - cells must have enough mass to split (using per-cell split_mass)
+            let can_split_by_mass = state.masses[i] >= state.split_masses[i];
             
             // Check time threshold - cells must be old enough to split
             let can_split_by_time = cell_age >= state.split_intervals[i];
             
             // Cell can split if ALL conditions are met
-            if can_split_by_count && can_split_by_adhesions && can_split_by_mass && can_split_by_time && state.split_intervals[i] <= 25.0 {
-                divisions_to_process.push(i);
+            if can_split_by_count && can_split_by_adhesions && can_split_by_mass && can_split_by_time && state.split_intervals[i] <= 59.0 {
+                state.divisions_to_process_buffer.push(i);
             }
         }
         
         // If no cells ready to split, we're done
-        if divisions_to_process.is_empty() {
+        if state.divisions_to_process_buffer.is_empty() {
             break;
         }
         
         // CRITICAL: Prevent simultaneous splits of adhered cells
         // Use priority-based system where lower cell index has higher priority
         // This ensures clean adhesion inheritance without race conditions
-        let mut filtered_divisions = Vec::new();
+        state.filtered_divisions_buffer.clear();
         
-        for &cell_idx in &divisions_to_process {
+        for i in 0..state.divisions_to_process_buffer.len() {
+            let cell_idx = state.divisions_to_process_buffer[i];
             let mut should_defer = false;
             
             for adhesion_idx in &state.adhesion_manager.cell_adhesion_indices[cell_idx] {
@@ -1530,21 +1569,19 @@ pub fn division_step(
                 
                 // Check if other cell is ALSO in the divisions_to_process list
                 // (meaning it's fully ready to divide this pass)
-                if divisions_to_process.contains(&other_idx) && other_idx < cell_idx {
+                if state.divisions_to_process_buffer.contains(&other_idx) && other_idx < cell_idx {
                     should_defer = true;
                     break;
                 }
             }
             
             if !should_defer {
-                filtered_divisions.push(cell_idx);
+                state.filtered_divisions_buffer.push(cell_idx);
             }
         }
         
-        let divisions_to_process = filtered_divisions;
-        
         // If no divisions can proceed in this pass, we're done
-        if divisions_to_process.is_empty() {
+        if state.filtered_divisions_buffer.is_empty() {
             break;
         }
 
@@ -1576,12 +1613,14 @@ pub fn division_step(
             child_b_genome_orientation: bevy::prelude::Quat,
             child_a_mode_idx: usize,
             child_b_mode_idx: usize,
-            child_a_split_mass: f32,
-            child_b_split_mass: f32,
+            child_a_mass: f32,           // Actual mass value (from splitting parent)
+            child_b_mass: f32,           // Actual mass value (from splitting parent)
             child_a_radius: f32,
             child_b_radius: f32,
-            child_a_split_interval: f32,
+            child_a_split_interval: f32, // Split interval threshold (may be randomized)
             child_b_split_interval: f32,
+            child_a_split_mass_threshold: f32, // Split mass threshold (may be randomized)
+            child_b_split_mass_threshold: f32,
             child_a_split_count: i32,
             child_b_split_count: i32,
         }
@@ -1594,14 +1633,15 @@ pub fn division_step(
         let mut next_available_slot = state.cell_count;
 
         // Process each division and collect data
-        for &parent_idx in &divisions_to_process {
+        for i in 0..state.filtered_divisions_buffer.len() {
+            let parent_idx = state.filtered_divisions_buffer[i];
             // Check if we have space for 1 more cell (child B)
             if next_available_slot >= state.capacity {
                 break;
             }
 
             // Mark this cell as having split in this pass
-            already_split[parent_idx] = true;
+            state.already_split_buffer[parent_idx] = true;
 
             // Child A reuses parent index, Child B gets new slot (matches C++ behavior)
             let child_a_slot = parent_idx;
@@ -1672,32 +1712,50 @@ pub fn division_step(
             // Split parent's mass according to split_ratio (same for all cell types)
             // split_ratio determines what fraction goes to Child A (0.0 to 1.0)
             let split_ratio = mode.split_ratio.clamp(0.0, 1.0);
-            let child_a_split_mass = parent_mass * split_ratio;
-            let child_b_split_mass = parent_mass * (1.0 - split_ratio);
+            let child_a_mass = parent_mass * split_ratio;
+            let child_b_mass = parent_mass * (1.0 - split_ratio);
             
             // Calculate child radii based on their masses
             let child_a_radius = if let Some(m) = child_a_mode {
-                child_a_split_mass.min(m.max_cell_size).clamp(0.5, 2.0)
+                child_a_mass.min(m.max_cell_size).clamp(0.5, 2.0)
             } else {
-                child_a_split_mass.clamp(0.5, 2.0)
+                child_a_mass.clamp(0.5, 2.0)
             };
             
             let child_b_radius = if let Some(m) = child_b_mode {
-                child_b_split_mass.min(m.max_cell_size).clamp(0.5, 2.0)
+                child_b_mass.min(m.max_cell_size).clamp(0.5, 2.0)
             } else {
-                child_b_split_mass.clamp(0.5, 2.0)
+                child_b_mass.clamp(0.5, 2.0)
             };
             
+            // Get split intervals (potentially randomized from range)
+            // Use parent cell_id + tick for deterministic randomness
+            let parent_cell_id = state.cell_ids[parent_idx];
+            let tick = (current_time * 60.0) as u64; // Approximate tick from time
+            
             let child_a_split_interval = if let Some(m) = child_a_mode {
-                m.split_interval
+                m.get_split_interval(parent_cell_id, tick, _rng_seed)
             } else {
                 5.0
             };
             
             let child_b_split_interval = if let Some(m) = child_b_mode {
-                m.split_interval
+                m.get_split_interval(parent_cell_id + 1, tick, _rng_seed)
             } else {
                 5.0
+            };
+            
+            // Get split mass thresholds (potentially randomized from range)
+            let child_a_split_mass_threshold = if let Some(m) = child_a_mode {
+                m.get_split_mass(parent_cell_id, tick, _rng_seed)
+            } else {
+                1.5
+            };
+            
+            let child_b_split_mass_threshold = if let Some(m) = child_b_mode {
+                m.get_split_mass(parent_cell_id + 1, tick, _rng_seed)
+            } else {
+                1.5
             };
             
             // CRITICAL: Use parent's GENOME orientation for child genome orientations
@@ -1729,12 +1787,14 @@ pub fn division_step(
                 child_b_genome_orientation,
                 child_a_mode_idx,
                 child_b_mode_idx,
-                child_a_split_mass,
-                child_b_split_mass,
+                child_a_mass,
+                child_b_mass,
                 child_a_radius,
                 child_b_radius,
                 child_a_split_interval,
                 child_b_split_interval,
+                child_a_split_mass_threshold,
+                child_b_split_mass_threshold,
                 child_a_split_count,
                 child_b_split_count,
             });
@@ -1754,7 +1814,7 @@ pub fn division_step(
             state.positions[data.child_a_slot] = data.child_a_pos;
             state.prev_positions[data.child_a_slot] = data.child_a_pos;
             state.velocities[data.child_a_slot] = data.parent_velocity;
-            state.masses[data.child_a_slot] = data.child_a_split_mass;
+            state.masses[data.child_a_slot] = data.child_a_mass;
             state.radii[data.child_a_slot] = data.child_a_radius;
             state.genome_ids[data.child_a_slot] = data.parent_genome_id;
             state.mode_indices[data.child_a_slot] = data.child_a_mode_idx;
@@ -1772,6 +1832,7 @@ pub fn division_step(
             state.stiffnesses[data.child_a_slot] = data.parent_stiffness;
             state.birth_times[data.child_a_slot] = child_birth_time;
             state.split_intervals[data.child_a_slot] = data.child_a_split_interval;
+            state.split_masses[data.child_a_slot] = data.child_a_split_mass_threshold;
             // Split count: reset to 0 if mode changed, otherwise inherit parent's count + 1
             state.split_counts[data.child_a_slot] = data.child_a_split_count;
 
@@ -1786,7 +1847,7 @@ pub fn division_step(
                 state.positions[data.child_b_slot] = data.child_b_pos;
                 state.prev_positions[data.child_b_slot] = data.child_b_pos;
                 state.velocities[data.child_b_slot] = data.parent_velocity;
-                state.masses[data.child_b_slot] = data.child_b_split_mass;
+                state.masses[data.child_b_slot] = data.child_b_mass;
                 state.radii[data.child_b_slot] = data.child_b_radius;
                 state.genome_ids[data.child_b_slot] = data.parent_genome_id;
                 state.mode_indices[data.child_b_slot] = data.child_b_mode_idx;
@@ -1804,6 +1865,7 @@ pub fn division_step(
                 state.stiffnesses[data.child_b_slot] = data.parent_stiffness;
                 state.birth_times[data.child_b_slot] = child_birth_time;
                 state.split_intervals[data.child_b_slot] = data.child_b_split_interval;
+                state.split_masses[data.child_b_slot] = data.child_b_split_mass_threshold;
                 // Split count: reset to 0 if mode changed, otherwise inherit parent's count + 1
                 state.split_counts[data.child_b_slot] = data.child_b_split_count;
 
@@ -1914,8 +1976,8 @@ pub fn division_step(
         // - Child B is at a new index (adhesions were created with correct index)
         // - Non-dividing cells keep their indices
         
-        // Add this pass's events to the total
-        all_division_events.extend(pass_division_events);
+        // Add this pass's events to the pre-allocated buffer
+        state.division_events_buffer.extend(pass_division_events);
         
         // Check if we're at capacity - if so, stop processing passes
         if state.cell_count >= max_cells {
@@ -1923,7 +1985,9 @@ pub fn division_step(
         }
     } // End of multi-pass loop
     
-    all_division_events
+    // Return a clone of the events (caller needs ownership)
+    // This is unavoidable since the caller needs to iterate while we may modify state
+    state.division_events_buffer.clone()
 }
 
 // ============================================================================

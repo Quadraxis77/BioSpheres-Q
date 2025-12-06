@@ -201,7 +201,8 @@ fn setup_preview_scene(
         .or_else(|| genome.genome.modes.first());
     
     let (split_mass, split_interval) = if let Some(mode) = mode {
-        (mode.split_mass, mode.split_interval)
+        // Use get_split_mass/get_split_interval for potentially randomized values
+        (mode.get_split_mass(0, 0, 0), mode.get_split_interval(0, 0, 0))
     } else {
         (1.0, 5.0)
     };
@@ -229,6 +230,7 @@ fn setup_preview_scene(
         mode_index: initial_mode_index,
         birth_time: 0.0,
         split_interval,
+        split_mass,
         stiffness,
     });
     
@@ -344,7 +346,10 @@ fn run_preview_resimulation(
             .or_else(|| genome.genome.modes.first());
 
         if let Some(mode) = mode {
-            initial_cell.split_interval = mode.split_interval;
+            // Use get_split_interval/get_split_mass for potentially randomized values
+            // These are called with fixed parameters (0,0,0) so they return consistent values
+            initial_cell.split_interval = mode.get_split_interval(0, 0, 0);
+            initial_cell.split_mass = mode.get_split_mass(0, 0, 0);
             initial_cell.mode_index = initial_mode_index;
             initial_cell.rotation = genome.genome.initial_orientation;
         }

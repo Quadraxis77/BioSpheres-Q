@@ -225,7 +225,7 @@ fn render_cell_inspector_window(
             // Mass with visual bar
             // Range: 0.5 (depleted/minimum) to split_mass * 2.0 (upper range)
             const MIN_CELL_MASS: f32 = 0.5;
-            let split_mass = mode.map(|m| m.split_mass).unwrap_or(2.0);
+            let split_mass = data.split_mass; // Use per-cell split_mass threshold
             let max_display_mass = split_mass * 2.0;
             let mass_ratio = ((data.mass - MIN_CELL_MASS) / (max_display_mass - MIN_CELL_MASS)).clamp(0.0, 1.0);
             let bar_width = 16;
@@ -450,6 +450,7 @@ struct CellData {
     stiffness: f32,
     birth_time: f32,
     split_interval: f32,
+    split_mass: f32,
     split_count: i32,
     force: Vec3,
     acceleration: Vec3,
@@ -476,6 +477,7 @@ fn extract_cell_data(
         stiffness: state.stiffnesses[index],
         birth_time: state.birth_times[index],
         split_interval: state.split_intervals[index],
+        split_mass: state.split_masses[index],
         split_count: state.split_counts[index],
         force: state.forces[index],
         acceleration: state.accelerations[index],

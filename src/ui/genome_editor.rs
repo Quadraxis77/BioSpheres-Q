@@ -605,13 +605,14 @@ fn slider_with_input_f32(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f
     changed
 }
 
-/// Special slider for split interval that shows "Never" for values > 25 seconds
+/// Special slider for split interval that shows "Never" for values > 59 seconds
+#[allow(dead_code)]
 fn split_interval_slider(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f32, width: f32) -> bool {
     let mut changed = false;
 
-    // Draw slider with custom format that shows "Never" for values > 25
+    // Draw slider with custom format that shows "Never" for values > 59
     ui.set_next_item_width(width - 80.0);
-    let format = if *value > 25.0 {
+    let format = if *value > 59.0 {
         "Never"
     } else {
         "%.1f"
@@ -628,8 +629,8 @@ fn split_interval_slider(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f
     ui.set_next_item_width(70.0);
     let input_label = format!("##input{}", label);
 
-    // Show "Never" if > 25 seconds, otherwise show the numeric value
-    let mut text_buffer = if *value > 25.0 {
+    // Show "Never" if > 59 seconds, otherwise show the numeric value
+    let mut text_buffer = if *value > 59.0 {
         "Never".to_string()
     } else {
         format!("{:.2}", value)
@@ -641,7 +642,7 @@ fn split_interval_slider(ui: &Ui, label: &str, value: &mut f32, min: f32, max: f
     {
         // Allow user to type "Never" or "never" to set to max value
         if text_buffer.to_lowercase() == "never" {
-            *value = 30.0; // Set to max value (which is > 25, so it will display as "Never")
+            *value = 60.0; // Set to max value (which is > 59, so it will display as "Never")
             changed = true;
         } else if let Ok(new_value) = text_buffer.parse::<f32>() {
             *value = new_value.clamp(min, max);
@@ -860,16 +861,65 @@ fn draw_parent_settings(ui: &Ui, mode: &mut ModeSettings, all_modes: &[ModeSetti
     help_marker(ui, "When enabled, the parent cell creates an adhesion connection between the two child cells after division.");
 
     ui.spacing();
+    ui.separator();
     
-    // Split mass threshold
+    // Split mass threshold (range slider)
     ui.text("Split Mass:");
-    help_marker(ui, "Minimum mass required for cell division. Both this AND the split interval must be satisfied for a split to occur.");
-    slider_with_input_f32(ui, "##SplitMass", &mut mode.split_mass, 1.5, 5.0, ui.content_region_avail()[0]);
+    help_marker(ui, "Mass required for cell division. Drag the top handles to set a random range, or bring them together for a fixed value. The bottom handle moves the whole range.");
+    
+    // Convert Option<f32> to actual min value for the slider
+    let mut split_mass_min = mode.split_mass_min.unwrap_or(mode.split_mass);
+    let mut split_mass_max = mode.split_mass;
+    
+    if imgui_widgets::range_slider(
+        ui,
+        "Split Mass",
+        &mut split_mass_min,
+        &mut split_mass_max,
+        0.5,
+        10.0,
+        "{:.2}",
+    ) {
+        // Update the mode values
+        mode.split_mass = split_mass_max;
+        mode.split_mass_min = if (split_mass_max - split_mass_min).abs() < 0.01 {
+            None // No range, single value
+        } else {
+            Some(split_mass_min)
+        };
+    }
 
-    // Split interval
+    ui.separator();
+
+    // Split interval (range slider)
     ui.text("Split Interval:");
-    help_marker(ui, "Time in seconds between cell divisions. Both this AND the split mass must be satisfied for a split to occur. Set to 'Never' (>25s) to prevent splitting.");
-    split_interval_slider(ui, "##SplitInterval", &mut mode.split_interval, 1.0, 30.0, ui.content_region_avail()[0]);
+    help_marker(ui, "Time in seconds between cell divisions. Drag the top handles to set a random range, or bring them together for a fixed value. Values >59s display as 'Never'.");
+    
+    // Convert Option<f32> to actual min value for the slider
+    let mut split_interval_min = mode.split_interval_min.unwrap_or(mode.split_interval);
+    let mut split_interval_max = mode.split_interval;
+    
+    if imgui_widgets::range_slider_ex(
+        ui,
+        "Split Interval",
+        &mut split_interval_min,
+        &mut split_interval_max,
+        1.0,
+        60.0,
+        "{:.1}s",
+        Some(59.0), // Show "Never" for values > 59
+    ) {
+        // Update the mode values
+        mode.split_interval = split_interval_max;
+        mode.split_interval_min = if (split_interval_max - split_interval_min).abs() < 0.01 {
+            None // No range, single value
+        } else {
+            Some(split_interval_min)
+        };
+    }
+
+    ui.separator();
+    ui.spacing();
 
     // Split ratio (all cell types)
     ui.text("Split Ratio:");
@@ -1724,7 +1774,7 @@ fn draw_genome_node(
             // Node body - show key settings
             ui.spacing();
             ui.text(&format!("Type: {}", get_cell_type_name(mode.cell_type)));
-            if mode.split_interval > 25.0 {
+            if mode.split_interval > 59.0 {
                 ui.text("Split: Never");
             } else {
                 ui.text(&format!("Split: {:.1}s", mode.split_interval));

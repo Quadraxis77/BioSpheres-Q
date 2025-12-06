@@ -570,7 +570,10 @@ fn setup_cpu_scene(
         .or_else(|| genome.genome.modes.first());
     
     let (color, opacity, emissive, split_mass, split_interval) = if let Some(mode) = mode {
-        (mode.color, mode.opacity, mode.emissive, mode.split_mass, mode.split_interval)
+        // Use get_split_mass/get_split_interval for potentially randomized values
+        let sm = mode.get_split_mass(0, 0, 0);
+        let si = mode.get_split_interval(0, 0, 0);
+        (mode.color, mode.opacity, mode.emissive, sm, si)
     } else {
         (Vec3::new(1.0, 1.0, 1.0), 1.0, 0.0, 1.0, 5.0)
     };
@@ -591,6 +594,7 @@ fn setup_cpu_scene(
         mode_index: initial_mode_index,
         birth_time: 0.0,
         split_interval,
+        split_mass,
         stiffness: 500.0,  // Match preview scene to prevent pass-through
     });
     

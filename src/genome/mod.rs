@@ -107,7 +107,11 @@ pub struct ModeSettings {
     // Parent settings
     pub parent_make_adhesion: bool,
     pub split_mass: f32,
+    #[serde(default)]
+    pub split_mass_min: Option<f32>, // If Some, split_mass is the max and this is the min for random range
     pub split_interval: f32,
+    #[serde(default)]
+    pub split_interval_min: Option<f32>, // If Some, split_interval is the max and this is the min for random range
     pub nutrient_gain_rate: f32, // Mass gained per second (for Test cells)
     pub max_cell_size: f32, // Maximum visual size (1.0 to 2.0 units)
     pub split_ratio: f32, // Ratio of parent mass going to Child A (0.0 to 1.0, default 0.5 for 50/50 split)
@@ -144,7 +148,9 @@ impl ModeSettings {
             cell_type: 0,
             parent_make_adhesion: false,
             split_mass: 1.5,
+            split_mass_min: None,
             split_interval: 5.0,
+            split_interval_min: None,
             nutrient_gain_rate: 0.2, // Default: gain 0.2 mass per second
             max_cell_size: 2.0, // Default: max size of 2.0 units
             split_ratio: 0.5, // Default: 50/50 split
@@ -169,6 +175,38 @@ impl ModeSettings {
             adhesion_settings: AdhesionSettings::default(),
         }
     }
+
+    /// Get the effective split mass for a cell, using deterministic randomness if a range is set
+    /// 
+    /// # Arguments
+    /// * `cell_id` - Unique cell identifier
+    /// * `tick` - Current simulation tick
+    /// * `seed` - Global random seed
+    pub fn get_split_mass(&self, cell_id: u32, tick: u64, seed: u64) -> f32 {
+        match self.split_mass_min {
+            Some(min) => {
+                let t = crate::simulation::deterministic_random(cell_id, tick, seed, 0);
+                min + t * (self.split_mass - min)
+            }
+            None => self.split_mass,
+        }
+    }
+
+    /// Get the effective split interval for a cell, using deterministic randomness if a range is set
+    /// 
+    /// # Arguments
+    /// * `cell_id` - Unique cell identifier
+    /// * `tick` - Current simulation tick
+    /// * `seed` - Global random seed
+    pub fn get_split_interval(&self, cell_id: u32, tick: u64, seed: u64) -> f32 {
+        match self.split_interval_min {
+            Some(min) => {
+                let t = crate::simulation::deterministic_random(cell_id, tick, seed, 1);
+                min + t * (self.split_interval - min)
+            }
+            None => self.split_interval,
+        }
+    }
 }
 
 impl Default for ModeSettings {
@@ -182,7 +220,9 @@ impl Default for ModeSettings {
             cell_type: 0,
             parent_make_adhesion: false,
             split_mass: 1.5,
+            split_mass_min: None,
             split_interval: 5.0,
+            split_interval_min: None,
             nutrient_gain_rate: 0.2, // Default: gain 0.2 mass per second
             max_cell_size: 2.0, // Default: max size of 2.0 units
             split_ratio: 0.5, // Default: 50/50 split

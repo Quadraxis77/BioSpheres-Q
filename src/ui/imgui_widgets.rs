@@ -1,8 +1,405 @@
 use bevy::prelude::*;
-use imgui::{self, Ui, StyleColor, InputTextFlags};
+use imgui::{self, Ui, StyleColor, InputTextFlags, MouseButton};
 use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::cell::RefCell;
+
+/// State for tracking which handle is being dragged
+#[derive(Default, Clone, Copy, PartialEq)]
+enum DragTarget {
+    #[default]
+    None,
+    Min,
+    Max,
+}
+
+/// State management for range sliders
+#[derive(Default)]
+struct RangeSliderState {
+    dragging_center: bool,
+    drag_start_min: f32,
+    drag_start_max: f32,
+    drag_target: DragTarget,
+}
+
+thread_local! {
+    static RANGE_SLIDER_STATES: RefCell<HashMap<String, RangeSliderState>> = RefCell::new(HashMap::new());
+}
+
+/// A range slider widget with min/max sliders and a center handle that moves both together.
+/// When min == max, it acts as a single non-random value.
+/// Returns true if either value changed.
+pub fn range_slider(
+    ui: &Ui,
+    label: &str,
+    min_val: &mut f32,
+    max_val: &mut f32,
+    range_min: f32,
+    range_max: f32,
+    format: &str,
+) -> bool {
+    range_slider_ex(ui, label, min_val, max_val, range_min, range_max, format, None)
+}
+
+/// A range slider widget with optional "never" threshold.
+/// When a value exceeds never_threshold, it displays "Never" instead of the number.
+pub fn range_slider_ex(
+    ui: &Ui,
+    label: &str,
+    min_val: &mut f32,
+    max_val: &mut f32,
+    range_min: f32,
+    range_max: f32,
+    _format: &str,
+    never_threshold: Option<f32>,
+) -> bool {
+    let widget_id = format!("range_slider_{}", label);
+    let mut changed = false;
+
+    // Ensure min <= max
+    if *min_val > *max_val {
+        std::mem::swap(min_val, max_val);
+        changed = true;
+    }
+
+    let cursor_pos = ui.cursor_screen_pos();
+    let available_width = ui.content_region_avail()[0];
+    let slider_width = (available_width - 20.0).max(100.0);
+    let value_label_height = 16.0; // Space for value labels above sliders
+    let slider_height = 20.0;
+    let center_slider_height = 16.0;
+    let vertical_gap = 8.0;
+    let line_gap = 4.0;
+
+    let draw_list = ui.get_window_draw_list();
+
+    // Colors
+    let col_frame = ui.style_color(StyleColor::FrameBg);
+    let col_grab = ui.style_color(StyleColor::SliderGrab);
+    let col_grab_active = ui.style_color(StyleColor::SliderGrabActive);
+    let col_text = ui.style_color(StyleColor::Text);
+    let col_line = [col_grab[0], col_grab[1], col_grab[2], 0.6];
+
+    // Calculate positions
+    let left_margin = 10.0;
+    let slider_left = cursor_pos[0] + left_margin;
+    let slider_right = slider_left + slider_width;
+
+    // Helper to convert value to x position
+    let value_to_x = |v: f32| -> f32 {
+        let t = (v - range_min) / (range_max - range_min);
+        slider_left + t * slider_width
+    };
+
+    // Helper to convert x position to value
+    let x_to_value = |x: f32| -> f32 {
+        let t = ((x - slider_left) / slider_width).clamp(0.0, 1.0);
+        range_min + t * (range_max - range_min)
+    };
+
+    let min_x_base = value_to_x(*min_val);
+    let max_x_base = value_to_x(*max_val);
+
+    // Top row: Min and Max sliders (with space for labels above)
+    let labels_y = cursor_pos[1];
+    let top_y = labels_y + value_label_height;
+    let grab_width = 12.0;
+    let grab_half = grab_width / 2.0;
+
+    // Offset handles when they're close together so they don't overlap
+    // Min handle shifts left, max handle shifts right
+    let handle_gap = 2.0; // Minimum gap between handles
+    let overlap_threshold = grab_width + handle_gap;
+    let (min_x, max_x) = if (max_x_base - min_x_base) < overlap_threshold {
+        // Handles would overlap - offset them from center
+        let center = (min_x_base + max_x_base) / 2.0;
+        let half_offset = (overlap_threshold / 2.0).min(center - slider_left).min(slider_right - center);
+        (center - half_offset, center + half_offset)
+    } else {
+        (min_x_base, max_x_base)
+    };
+
+    // Format value text - show "Never" if above threshold, otherwise just the number
+    let format_value = |v: f32| -> String {
+        if let Some(threshold) = never_threshold {
+            if v > threshold {
+                return "Never".to_string();
+            }
+        }
+        format!("{:.2}", v)
+    };
+
+    // Draw value labels above the handles
+    let min_text = format_value(*min_val);
+    let max_text = format_value(*max_val);
+
+    // Calculate text positions (centered above handles, but avoid overlap)
+    let text_size_approx = 40.0; // Approximate width of value text
+    let min_label_x = (min_x - text_size_approx / 2.0).max(slider_left);
+    let max_label_x = if (*max_val - *min_val).abs() < 0.01 {
+        // Single value - don't show max label
+        max_x + 1000.0 // Off screen
+    } else {
+        // Ensure max label doesn't overlap with min label
+        (max_x - text_size_approx / 2.0).max(min_label_x + text_size_approx + 5.0)
+    };
+
+    // Draw min value label using cursor positioning
+    ui.set_cursor_screen_pos([min_label_x, labels_y]);
+    ui.text_colored(col_text, &min_text);
+
+    // Draw max value label (only if different from min)
+    if (*max_val - *min_val).abs() >= 0.01 {
+        ui.set_cursor_screen_pos([max_label_x.min(slider_right - text_size_approx), labels_y]);
+        ui.text_colored(col_text, &max_text);
+    }
+
+    // Draw the track for top sliders
+    let track_y = top_y + slider_height / 2.0;
+    draw_list
+        .add_line(
+            [slider_left, track_y],
+            [slider_right, track_y],
+            u32_from_rgba(col_frame),
+        )
+        .thickness(4.0)
+        .build();
+
+    // Draw highlighted range on track (use base positions for actual value range)
+    if (max_x_base - min_x_base).abs() > 1.0 {
+        draw_list
+            .add_line([min_x_base, track_y], [max_x_base, track_y], u32_from_rgba(col_grab))
+            .thickness(4.0)
+            .build();
+    }
+
+    // Center slider position (below the top sliders)
+    let center_y = top_y + slider_height + vertical_gap + line_gap * 2.0;
+    let center_val = (*min_val + *max_val) / 2.0;
+    let center_x = value_to_x(center_val);
+
+    // Draw connecting lines from min/max grabs (visual positions) to center grab
+    let line_start_y = top_y + slider_height;
+    let line_end_y = center_y;
+
+    draw_list
+        .add_line(
+            [min_x, line_start_y],
+            [center_x, line_end_y],
+            u32_from_rgba(col_line),
+        )
+        .thickness(2.0)
+        .build();
+
+    draw_list
+        .add_line(
+            [max_x, line_start_y],
+            [center_x, line_end_y],
+            u32_from_rgba(col_line),
+        )
+        .thickness(2.0)
+        .build();
+
+    // Draw center slider track
+    let center_track_y = center_y + center_slider_height / 2.0;
+    draw_list
+        .add_line(
+            [slider_left, center_track_y],
+            [slider_right, center_track_y],
+            u32_from_rgba(col_frame),
+        )
+        .thickness(3.0)
+        .build();
+
+    // Mouse interaction
+    let mouse_pos = ui.io().mouse_pos;
+
+    RANGE_SLIDER_STATES.with(|states| {
+        let mut states_mut = states.borrow_mut();
+        let state = states_mut.entry(widget_id.clone()).or_default();
+
+        // Check hover states
+        let min_grab_rect = (
+            [min_x - grab_half, top_y],
+            [min_x + grab_half, top_y + slider_height],
+        );
+        let max_grab_rect = (
+            [max_x - grab_half, top_y],
+            [max_x + grab_half, top_y + slider_height],
+        );
+        let center_grab_rect = (
+            [center_x - grab_half, center_y],
+            [center_x + grab_half, center_y + center_slider_height],
+        );
+
+        let in_rect = |pos: [f32; 2], rect: ([f32; 2], [f32; 2])| -> bool {
+            pos[0] >= rect.0[0] && pos[0] <= rect.1[0] && pos[1] >= rect.0[1] && pos[1] <= rect.1[1]
+        };
+
+        let hovering_min = in_rect(mouse_pos, min_grab_rect);
+        let hovering_max = in_rect(mouse_pos, max_grab_rect);
+        let hovering_center = in_rect(mouse_pos, center_grab_rect);
+
+        // Draw min grab
+        let min_color = if hovering_min {
+            col_grab_active
+        } else {
+            col_grab
+        };
+        draw_list
+            .add_rect(
+                [min_x - grab_half, top_y + 2.0],
+                [min_x + grab_half, top_y + slider_height - 2.0],
+                u32_from_rgba(min_color),
+            )
+            .filled(true)
+            .rounding(3.0)
+            .build();
+
+        // Draw max grab
+        let max_color = if hovering_max {
+            col_grab_active
+        } else {
+            col_grab
+        };
+        draw_list
+            .add_rect(
+                [max_x - grab_half, top_y + 2.0],
+                [max_x + grab_half, top_y + slider_height - 2.0],
+                u32_from_rgba(max_color),
+            )
+            .filled(true)
+            .rounding(3.0)
+            .build();
+
+        // Draw center grab (diamond shape for distinction)
+        let center_color = if hovering_center || state.dragging_center {
+            col_grab_active
+        } else {
+            col_grab
+        };
+        let diamond_size = center_slider_height / 2.0 - 2.0;
+        let diamond_center = [center_x, center_y + center_slider_height / 2.0];
+
+        // Draw filled diamond using triangles
+        let diamond_top = [diamond_center[0], diamond_center[1] - diamond_size];
+        let diamond_right = [diamond_center[0] + diamond_size, diamond_center[1]];
+        let diamond_bottom = [diamond_center[0], diamond_center[1] + diamond_size];
+        let diamond_left = [diamond_center[0] - diamond_size, diamond_center[1]];
+
+        draw_list
+            .add_triangle(diamond_top, diamond_right, diamond_center, u32_from_rgba(center_color))
+            .filled(true)
+            .build();
+        draw_list
+            .add_triangle(diamond_right, diamond_bottom, diamond_center, u32_from_rgba(center_color))
+            .filled(true)
+            .build();
+        draw_list
+            .add_triangle(diamond_bottom, diamond_left, diamond_center, u32_from_rgba(center_color))
+            .filled(true)
+            .build();
+        draw_list
+            .add_triangle(diamond_left, diamond_top, diamond_center, u32_from_rgba(center_color))
+            .filled(true)
+            .build();
+
+        // Invisible buttons for interaction
+        // Top slider interaction area
+        ui.set_cursor_screen_pos([slider_left - grab_half, top_y]);
+        let top_button_id = format!("##top_{}", label);
+        ui.invisible_button(&top_button_id, [slider_width + grab_width, slider_height]);
+
+        let top_active = ui.is_item_active();
+        let top_clicked = ui.is_item_activated();
+
+        if top_active && ui.is_mouse_dragging(MouseButton::Left) && !state.dragging_center {
+            // On first click, determine which handle to drag based on proximity
+            if top_clicked || state.drag_target == DragTarget::None {
+                let dist_to_min = (mouse_pos[0] - min_x).abs();
+                let dist_to_max = (mouse_pos[0] - max_x).abs();
+                state.drag_target = if dist_to_min <= dist_to_max {
+                    DragTarget::Min
+                } else {
+                    DragTarget::Max
+                };
+            }
+
+            let drag_x = mouse_pos[0];
+            let new_value = x_to_value(drag_x);
+
+            match state.drag_target {
+                DragTarget::Min => {
+                    // Dragging min - clamp to not exceed max
+                    let new_min = new_value.clamp(range_min, *max_val);
+                    if (new_min - *min_val).abs() > 0.001 {
+                        *min_val = new_min;
+                        changed = true;
+                    }
+                }
+                DragTarget::Max => {
+                    // Dragging max - clamp to not go below min
+                    let new_max = new_value.clamp(*min_val, range_max);
+                    if (new_max - *max_val).abs() > 0.001 {
+                        *max_val = new_max;
+                        changed = true;
+                    }
+                }
+                DragTarget::None => {}
+            }
+        } else if !top_active {
+            // Reset drag target when not dragging
+            state.drag_target = DragTarget::None;
+        }
+
+        // Center slider interaction
+        ui.set_cursor_screen_pos([slider_left - grab_half, center_y]);
+        let center_button_id = format!("##center_{}", label);
+        ui.invisible_button(
+            &center_button_id,
+            [slider_width + grab_width, center_slider_height],
+        );
+
+        // Double-click on center diamond to collapse range to single value
+        if ui.is_item_hovered() && ui.is_mouse_double_clicked(MouseButton::Left) {
+            let center_val = (*min_val + *max_val) / 2.0;
+            *min_val = center_val;
+            *max_val = center_val;
+            changed = true;
+        } else if ui.is_item_active() && ui.is_mouse_dragging(MouseButton::Left) {
+            if !state.dragging_center {
+                // Start dragging - store initial values
+                state.dragging_center = true;
+                state.drag_start_min = *min_val;
+                state.drag_start_max = *max_val;
+            }
+
+            let drag_delta = ui.io().mouse_delta[0];
+            if drag_delta.abs() > 0.1 {
+                let value_delta = drag_delta / slider_width * (range_max - range_min);
+                let range_size = *max_val - *min_val;
+
+                let new_min = (*min_val + value_delta).clamp(range_min, range_max - range_size);
+                let new_max = new_min + range_size;
+
+                if (new_min - *min_val).abs() > 0.001 {
+                    *min_val = new_min;
+                    *max_val = new_max;
+                    changed = true;
+                }
+            }
+        } else {
+            state.dragging_center = false;
+        }
+    });
+
+    // Reserve space for the widget
+    let total_height = center_y + center_slider_height - cursor_pos[1] + 4.0;
+    ui.set_cursor_screen_pos([cursor_pos[0], cursor_pos[1] + total_height]);
+    ui.dummy([available_width, 0.0]);
+
+    changed
+}
 
 /// State management for circular sliders
 #[derive(Default)]
