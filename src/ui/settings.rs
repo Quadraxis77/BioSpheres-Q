@@ -65,12 +65,12 @@ pub struct FogSettings {
 impl Default for FogSettings {
     fn default() -> Self {
         Self {
-            enabled: true,
-            density_factor: 0.056,
-            absorption: 0.023,
-            scattering: 0.172,
+            enabled: false,
+            density_factor: 0.084,
+            absorption: 0.084,
+            scattering: 0.121,
             ambient_intensity: 0.0,
-            fog_color: [0.37210405, 0.38575435, 0.6007463],
+            fog_color: [0.068, 0.427, 0.595],
         }
     }
 }
@@ -88,7 +88,7 @@ pub struct BloomSettings {
 impl Default for BloomSettings {
     fn default() -> Self {
         Self {
-            enabled: false, // Disabled by default - conflicts with boundary crossing effect
+            enabled: true,
             intensity: 0.3,
             low_frequency_boost: 0.5,
             high_pass_frequency: 0.8,
@@ -109,10 +109,10 @@ pub struct LightingSettings {
 impl Default for LightingSettings {
     fn default() -> Self {
         Self {
-            directional_illuminance: 10000.0,
-            directional_color: [1.0, 1.0, 1.0],
-            directional_rotation: [-28.6, 28.6, 0.0],
-            ambient_brightness: 500.0,
+            directional_illuminance: 11135.0,
+            directional_color: [0.934, 0.934, 0.934],
+            directional_rotation: [55.1, -103.5, 0.0],
+            ambient_brightness: 1327.0,
         }
     }
 }
@@ -128,9 +128,9 @@ pub struct SkyboxSettings {
 impl Default for SkyboxSettings {
     fn default() -> Self {
         Self {
-            gamma: 3.0,
-            brightness: 0.8,
-            blue_tint: 0.0,
+            gamma: 5.178,
+            brightness: 1.327,
+            blue_tint: 0.618,
         }
     }
 }
@@ -156,7 +156,7 @@ impl Default for SimulationSettings {
             gpu_physics_enabled: false,
             cpu_multithreaded: false,
             cpu_cell_capacity: 2000,
-            grid_density: 64,
+            grid_density: 32,
             disable_collisions: false,
         }
     }
@@ -219,15 +219,15 @@ pub struct CustomThemeShapesSerde {
 impl Default for UiSettings {
     fn default() -> Self {
         Self {
-            // Default to unlocked on first startup
-            windows_locked: false,
-            // Default UI scale of 1.0 (100%)
-            ui_scale: 1.0,
-            // Default to Modern Dark theme
+            // Default to locked for cleaner first-time experience
+            windows_locked: true,
+            // Default UI scale of 1.25 (125%) for better readability
+            ui_scale: 1.25,
+            // Default to Industrial theme
             theme: ThemeSettings::default(),
             // No custom themes saved by default
             custom_themes: Vec::new(),
-            // All windows visible by default
+            // Window visibility defaults
             window_visibility: WindowVisibilitySettings::default(),
             // Default fog settings
             fog_settings: FogSettings::default(),
@@ -249,7 +249,7 @@ impl Default for WindowVisibilitySettings {
             show_cell_inspector: true,
             show_genome_editor: true,
             show_scene_manager: true,
-            show_performance_monitor: false, // Disabled by default
+            show_performance_monitor: true, // Show performance monitor by default
             show_rendering_controls: true,
             show_time_scrubber: true,
             show_theme_editor: false, // Theme editor hidden by default
@@ -262,7 +262,7 @@ impl Default for WindowVisibilitySettings {
 impl Default for ThemeSettings {
     fn default() -> Self {
         Self {
-            current_theme_name: "Modern Dark".to_string(),
+            current_theme_name: "Industrial".to_string(),
             is_custom_theme: false,
         }
     }
