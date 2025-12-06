@@ -26,7 +26,7 @@ impl Plugin for CpuSimPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(CpuSimTimestepPlugin)
             .init_resource::<MainSimState>()
-            .add_systems(OnEnter(CpuSceneState::Active), setup_cpu_scene)
+            .add_systems(OnEnter(CpuSceneState::Active), (setup_cpu_scene, spawn_cpu_skybox))
             .add_systems(OnExit(CpuSceneState::Active), cleanup_cpu_scene)
             .init_state::<CpuSceneState>();
     }
@@ -535,6 +535,7 @@ fn setup_cpu_scene(
     config: Res<PhysicsConfig>,
     mut main_state: ResMut<MainSimState>,
     cpu_cell_capacity: Res<crate::ui::scene_manager::CpuCellCapacity>,
+    lighting_config: Res<crate::ui::lighting_settings::LightingConfig>,
 ) {
     // Spawn 3D camera with volumetric fog and boundary crossing effect
     commands.spawn((
@@ -662,14 +663,25 @@ fn setup_cpu_scene(
     main_state.entity_to_index.insert(entity, 0);
     main_state.index_to_entity[0] = Some(entity);
 
-    // Add basic lighting
+    // Add basic lighting (using saved settings)
+    let light_rotation = Quat::from_euler(
+        EulerRot::XYZ,
+        lighting_config.directional_rotation[0].to_radians(),
+        lighting_config.directional_rotation[1].to_radians(),
+        lighting_config.directional_rotation[2].to_radians(),
+    );
     commands.spawn((
         DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: lighting_config.directional_illuminance,
+            color: Color::srgb(
+                lighting_config.directional_color[0],
+                lighting_config.directional_color[1],
+                lighting_config.directional_color[2],
+            ),
             shadows_enabled: true, // Enable shadows for volumetric lighting
             ..default()
         },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+        Transform::from_rotation(light_rotation),
         bevy::light::VolumetricLight, // Enable volumetric lighting
         CpuSceneEntity,
     ));
@@ -678,7 +690,7 @@ fn setup_cpu_scene(
     commands.spawn((
         AmbientLight {
             color: Color::WHITE,
-            brightness: 500.0,
+            brightness: lighting_config.ambient_brightness,
             ..default()
         },
         CpuSceneEntity,
@@ -708,6 +720,20 @@ fn setup_cpu_scene(
     ));
     
     // Fog volume is now spawned automatically by VolumetricFogPlugin
+}
+
+/// Spawn skybox for CPU scene
+fn spawn_cpu_skybox(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    skybox_config: Res<crate::rendering::SkyboxConfig>,
+) {
+    crate::rendering::spawn_skybox(
+        &mut commands,
+        &asset_server,
+        &skybox_config,
+        CpuSceneEntity,
+    );
 }
 
 /// Cleanup CPU scene entities

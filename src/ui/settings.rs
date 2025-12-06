@@ -20,6 +20,12 @@ pub struct UiSettings {
     /// Bloom settings
     #[serde(default)]
     pub bloom_settings: BloomSettings,
+    /// Lighting settings
+    #[serde(default)]
+    pub lighting_settings: LightingSettings,
+    /// Skybox settings
+    #[serde(default)]
+    pub skybox_settings: SkyboxSettings,
 }
 
 /// Window visibility settings
@@ -34,6 +40,8 @@ pub struct WindowVisibilitySettings {
     pub show_theme_editor: bool,
     #[serde(default = "default_false")]
     pub show_camera_settings: bool,
+    #[serde(default = "default_false")]
+    pub show_lighting_settings: bool,
 }
 
 fn default_false() -> bool {
@@ -77,11 +85,49 @@ pub struct BloomSettings {
 impl Default for BloomSettings {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false, // Disabled by default - conflicts with boundary crossing effect
             intensity: 0.3,
             low_frequency_boost: 0.5,
             high_pass_frequency: 0.8,
             composite_mode: "EnergyConserving".to_string(),
+        }
+    }
+}
+
+/// Lighting settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LightingSettings {
+    pub directional_illuminance: f32,
+    pub directional_color: [f32; 3],
+    pub directional_rotation: [f32; 3],
+    pub ambient_brightness: f32,
+}
+
+impl Default for LightingSettings {
+    fn default() -> Self {
+        Self {
+            directional_illuminance: 10000.0,
+            directional_color: [1.0, 1.0, 1.0],
+            directional_rotation: [-28.6, 28.6, 0.0],
+            ambient_brightness: 500.0,
+        }
+    }
+}
+
+/// Skybox settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SkyboxSettings {
+    pub gamma: f32,
+    pub brightness: f32,
+    pub blue_tint: f32,
+}
+
+impl Default for SkyboxSettings {
+    fn default() -> Self {
+        Self {
+            gamma: 3.0,
+            brightness: 0.8,
+            blue_tint: 0.0,
         }
     }
 }
@@ -157,6 +203,10 @@ impl Default for UiSettings {
             fog_settings: FogSettings::default(),
             // Default bloom settings
             bloom_settings: BloomSettings::default(),
+            // Default lighting settings
+            lighting_settings: LightingSettings::default(),
+            // Default skybox settings
+            skybox_settings: SkyboxSettings::default(),
         }
     }
 }
@@ -172,6 +222,7 @@ impl Default for WindowVisibilitySettings {
             show_time_scrubber: true,
             show_theme_editor: false, // Theme editor hidden by default
             show_camera_settings: false, // Camera settings hidden by default
+            show_lighting_settings: false, // Lighting settings hidden by default
         }
     }
 }
@@ -228,6 +279,8 @@ pub(crate) struct LastSavedSettings {
     pub(crate) window_visibility: WindowVisibilitySettings,
     pub(crate) fog_settings: FogSettings,
     pub(crate) bloom_settings: BloomSettings,
+    pub(crate) lighting_settings: LightingSettings,
+    pub(crate) skybox_settings: SkyboxSettings,
 }
 
 /// System to save UI settings when they change
@@ -238,6 +291,8 @@ pub fn save_ui_settings_on_change(
     theme_editor_state: Res<crate::ui::theme_editor::ThemeEditorState>,
     fog_settings: Res<crate::rendering::VolumetricFogSettings>,
     rendering_config: Res<crate::rendering::RenderingConfig>,
+    lighting_config: Res<crate::ui::lighting_settings::LightingConfig>,
+    skybox_config: Res<crate::rendering::SkyboxConfig>,
     mut last_saved: Local<Option<LastSavedSettings>>,
 ) {
     // Get the current theme name from theme_editor_state
@@ -264,6 +319,7 @@ pub fn save_ui_settings_on_change(
                 show_time_scrubber: global_ui_state.show_time_scrubber,
                 show_theme_editor: global_ui_state.show_theme_editor,
                 show_camera_settings: global_ui_state.show_camera_settings,
+                show_lighting_settings: global_ui_state.show_lighting_settings,
             },
             fog_settings: FogSettings {
                 enabled: fog_settings.enabled,
@@ -287,6 +343,17 @@ pub fn save_ui_settings_on_change(
                     crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving".to_string(),
                 },
             },
+            lighting_settings: LightingSettings {
+                directional_illuminance: lighting_config.directional_illuminance,
+                directional_color: lighting_config.directional_color,
+                directional_rotation: lighting_config.directional_rotation,
+                ambient_brightness: lighting_config.ambient_brightness,
+            },
+            skybox_settings: SkyboxSettings {
+                gamma: skybox_config.gamma,
+                brightness: skybox_config.brightness,
+                blue_tint: skybox_config.blue_tint,
+            },
         });
         return;
     }
@@ -304,7 +371,8 @@ pub fn save_ui_settings_on_change(
         || last.window_visibility.show_rendering_controls != global_ui_state.show_rendering_controls
         || last.window_visibility.show_time_scrubber != global_ui_state.show_time_scrubber
         || last.window_visibility.show_theme_editor != global_ui_state.show_theme_editor
-        || last.window_visibility.show_camera_settings != global_ui_state.show_camera_settings;
+        || last.window_visibility.show_camera_settings != global_ui_state.show_camera_settings
+        || last.window_visibility.show_lighting_settings != global_ui_state.show_lighting_settings;
 
     // Check if fog settings changed
     let fog_changed = last.fog_settings.enabled != fog_settings.enabled
@@ -327,13 +395,30 @@ pub fn save_ui_settings_on_change(
         || (last.bloom_settings.high_pass_frequency - rendering_config.bloom_high_pass_frequency).abs() > 0.001
         || last.bloom_settings.composite_mode != current_bloom_mode;
 
+    // Check if lighting settings changed
+    let lighting_changed = (last.lighting_settings.directional_illuminance - lighting_config.directional_illuminance).abs() > 0.001
+        || (last.lighting_settings.directional_color[0] - lighting_config.directional_color[0]).abs() > 0.001
+        || (last.lighting_settings.directional_color[1] - lighting_config.directional_color[1]).abs() > 0.001
+        || (last.lighting_settings.directional_color[2] - lighting_config.directional_color[2]).abs() > 0.001
+        || (last.lighting_settings.directional_rotation[0] - lighting_config.directional_rotation[0]).abs() > 0.001
+        || (last.lighting_settings.directional_rotation[1] - lighting_config.directional_rotation[1]).abs() > 0.001
+        || (last.lighting_settings.directional_rotation[2] - lighting_config.directional_rotation[2]).abs() > 0.001
+        || (last.lighting_settings.ambient_brightness - lighting_config.ambient_brightness).abs() > 0.001;
+
+    // Check if skybox settings changed
+    let skybox_changed = (last.skybox_settings.gamma - skybox_config.gamma).abs() > 0.001
+        || (last.skybox_settings.brightness - skybox_config.brightness).abs() > 0.001
+        || (last.skybox_settings.blue_tint - skybox_config.blue_tint).abs() > 0.001;
+
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
         || (last.ui_scale - global_ui_state.ui_scale).abs() > 0.001
         || theme_changed
         || visibility_changed
         || fog_changed
-        || bloom_changed;
+        || bloom_changed
+        || lighting_changed
+        || skybox_changed;
 
     if changed {
         // Load existing settings to preserve custom themes library
@@ -355,6 +440,7 @@ pub fn save_ui_settings_on_change(
             show_time_scrubber: global_ui_state.show_time_scrubber,
             show_theme_editor: global_ui_state.show_theme_editor,
             show_camera_settings: global_ui_state.show_camera_settings,
+            show_lighting_settings: global_ui_state.show_lighting_settings,
         };
         settings.fog_settings = FogSettings {
             enabled: fog_settings.enabled,
@@ -378,6 +464,17 @@ pub fn save_ui_settings_on_change(
                 crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving".to_string(),
             },
         };
+        settings.lighting_settings = LightingSettings {
+            directional_illuminance: lighting_config.directional_illuminance,
+            directional_color: lighting_config.directional_color,
+            directional_rotation: lighting_config.directional_rotation,
+            ambient_brightness: lighting_config.ambient_brightness,
+        };
+        settings.skybox_settings = SkyboxSettings {
+            gamma: skybox_config.gamma,
+            brightness: skybox_config.brightness,
+            blue_tint: skybox_config.blue_tint,
+        };
 
         if let Err(e) = settings.save() {
             error!("Failed to save UI settings: {}", e);
@@ -398,6 +495,7 @@ pub fn save_ui_settings_on_change(
                 show_time_scrubber: global_ui_state.show_time_scrubber,
                 show_theme_editor: global_ui_state.show_theme_editor,
                 show_camera_settings: global_ui_state.show_camera_settings,
+                show_lighting_settings: global_ui_state.show_lighting_settings,
             },
             fog_settings: FogSettings {
                 enabled: fog_settings.enabled,
@@ -420,6 +518,17 @@ pub fn save_ui_settings_on_change(
                     crate::rendering::BloomCompositeMode::Additive => "Additive".to_string(),
                     crate::rendering::BloomCompositeMode::EnergyConserving => "EnergyConserving".to_string(),
                 },
+            },
+            lighting_settings: LightingSettings {
+                directional_illuminance: lighting_config.directional_illuminance,
+                directional_color: lighting_config.directional_color,
+                directional_rotation: lighting_config.directional_rotation,
+                ambient_brightness: lighting_config.ambient_brightness,
+            },
+            skybox_settings: SkyboxSettings {
+                gamma: skybox_config.gamma,
+                brightness: skybox_config.brightness,
+                blue_tint: skybox_config.blue_tint,
             },
         });
     }
@@ -456,4 +565,26 @@ pub fn load_bloom_settings_on_startup(
         "Additive" => crate::rendering::BloomCompositeMode::Additive,
         _ => crate::rendering::BloomCompositeMode::EnergyConserving,
     };
+}
+
+
+/// System to load lighting settings from saved UI settings on startup
+pub fn load_lighting_settings_on_startup(
+    mut lighting_config: ResMut<crate::ui::lighting_settings::LightingConfig>,
+) {
+    let saved_settings = UiSettings::load();
+    lighting_config.directional_illuminance = saved_settings.lighting_settings.directional_illuminance;
+    lighting_config.directional_color = saved_settings.lighting_settings.directional_color;
+    lighting_config.directional_rotation = saved_settings.lighting_settings.directional_rotation;
+    lighting_config.ambient_brightness = saved_settings.lighting_settings.ambient_brightness;
+}
+
+/// System to load skybox settings from saved UI settings on startup
+pub fn load_skybox_settings_on_startup(
+    mut skybox_config: ResMut<crate::rendering::SkyboxConfig>,
+) {
+    let saved_settings = UiSettings::load();
+    skybox_config.gamma = saved_settings.skybox_settings.gamma;
+    skybox_config.brightness = saved_settings.skybox_settings.brightness;
+    skybox_config.blue_tint = saved_settings.skybox_settings.blue_tint;
 }

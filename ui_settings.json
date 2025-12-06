@@ -1,5 +1,5 @@
 {
-  "windows_locked": true,
+  "windows_locked": false,
   "ui_scale": 1.25,
   "theme": {
     "current_theme_name": "Industrial",
@@ -14,7 +14,8 @@
     "show_rendering_controls": true,
     "show_time_scrubber": true,
     "show_theme_editor": false,
-    "show_camera_settings": false
+    "show_camera_settings": false,
+    "show_lighting_settings": false
   },
   "fog_settings": {
     "enabled": true,
@@ -29,10 +30,29 @@
     ]
   },
   "bloom_settings": {
-    "enabled": false,
+    "enabled": true,
     "intensity": 0.3,
     "low_frequency_boost": 0.5,
     "high_pass_frequency": 0.8,
     "composite_mode": "EnergyConserving"
+  },
+  "lighting_settings": {
+    "directional_illuminance": 11135.371,
+    "directional_color": [
+      0.93415636,
+      0.93415636,
+      0.93415636
+    ],
+    "directional_rotation": [
+      55.112,
+      -103.452,
+      0.0
+    ],
+    "ambient_brightness": 1327.441
+  },
+  "skybox_settings": {
+    "gamma": 5.178,
+    "brightness": 1.327,
+    "blue_tint": 0.618
   }
 }

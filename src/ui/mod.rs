@@ -9,6 +9,7 @@ pub mod imgui_style;
 pub mod imgui_widgets;
 pub mod genome_editor;
 pub mod imnodes_extensions;
+pub mod lighting_settings;
 pub mod performance_monitor;
 pub mod scene_manager;
 pub mod theme_editor;
@@ -23,6 +24,7 @@ pub use debug_info::DebugInfoPlugin;
 pub use imgui_panel::{ImguiPanelPlugin, ImguiPanelState};
 pub use imgui_style::{ImguiTheme, ImguiThemeState};
 pub use genome_editor::GenomeEditorPlugin;
+pub use lighting_settings::{LightingSettingsPlugin, LightingConfig};
 pub use performance_monitor::PerformanceMonitorPlugin;
 pub use scene_manager::{SceneManagerPlugin, SceneManagerState};
 pub use theme_editor::{ThemeEditorPlugin, ThemeEditorState};
@@ -43,6 +45,7 @@ pub struct GlobalUiState {
     pub show_time_scrubber: bool,
     pub show_theme_editor: bool,
     pub show_camera_settings: bool,
+    pub show_lighting_settings: bool,
 }
 
 impl Default for GlobalUiState {
@@ -60,6 +63,7 @@ impl Default for GlobalUiState {
             show_time_scrubber: saved_settings.window_visibility.show_time_scrubber,
             show_theme_editor: saved_settings.window_visibility.show_theme_editor,
             show_camera_settings: saved_settings.window_visibility.show_camera_settings,
+            show_lighting_settings: saved_settings.window_visibility.show_lighting_settings,
         }
     }
 }
@@ -209,10 +213,16 @@ impl Plugin for UiPlugin {
             .add_plugins(CameraSettingsPlugin)
             .add_plugins(DebugInfoPlugin)
             .add_plugins(ImguiPanelPlugin)
+            .add_plugins(LightingSettingsPlugin)
             .add_plugins(PerformanceMonitorPlugin)
             .add_plugins(RenderingControlsPlugin)
             .add_plugins(ThemeEditorPlugin)
-            .add_systems(Startup, (load_theme_from_settings, settings::load_fog_settings_on_startup))
+            .add_systems(Startup, (
+                load_theme_from_settings, 
+                settings::load_fog_settings_on_startup,
+                settings::load_lighting_settings_on_startup,
+                settings::load_skybox_settings_on_startup,
+            ))
             .add_systems(Update, (
                 apply_custom_theme_on_startup,
                 settings::save_ui_settings_on_change,

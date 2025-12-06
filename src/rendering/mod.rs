@@ -8,6 +8,7 @@ pub mod adhesion_lines;
 pub mod flagellocyte_mesh;
 pub mod volumetric_fog;
 pub mod boundary_crossing;
+pub mod skybox;
 
 /// Marker component for the world sphere entity
 #[derive(Component)]
@@ -18,6 +19,7 @@ pub use debug::DebugRenderingPlugin;
 pub use adhesion_lines::{AdhesionLineRenderPlugin, AdhesionLineSettings, AdhesionLines};
 pub use volumetric_fog::{VolumetricFogPlugin, VolumetricFogSettings, SphericalFogVolume, SphericalDensityTexture};
 pub use boundary_crossing::{BoundaryCrossingPlugin, BoundaryCrossingSettings, BoundaryCrossingState};
+pub use skybox::{Skybox, SkyboxConfig, SkyboxConfigured, SkyboxOriginalColor, spawn_skybox, configure_skybox_children, update_skybox_materials};
 
 /// Main rendering plugin
 pub struct RenderingPlugin;
@@ -32,12 +34,15 @@ impl Plugin for RenderingPlugin {
             .add_plugins(BoundaryCrossingPlugin)
             .init_resource::<RenderingConfig>()
             .init_resource::<AdhesionLineSettings>()
+            .init_resource::<SkyboxConfig>()
             .add_systems(Startup, crate::ui::settings::load_bloom_settings_on_startup)
             .add_systems(Update, (
                 update_gizmos_for_mode,
                 update_wireframe_mode,
                 update_world_sphere_material,
                 update_bloom_settings,
+                configure_skybox_children,
+                update_skybox_materials,
             ));
     }
 }
@@ -132,7 +137,7 @@ impl Default for RenderingConfig {
             world_sphere_opacity: 0.35,
             world_sphere_color: Vec3::new(0.2, 0.25, 0.35),
             world_sphere_emissive: 0.08,
-            // Bloom defaults - tuned for emissive-only glow
+            // Bloom defaults
             bloom_enabled: true,
             bloom_intensity: 0.3,
             bloom_low_frequency_boost: 0.5,

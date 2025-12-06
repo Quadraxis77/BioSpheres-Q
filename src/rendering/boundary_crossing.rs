@@ -29,11 +29,11 @@ use bevy::{
             ColorWrites, FragmentState, Operations, PipelineCache, RenderPassColorAttachment,
             RenderPassDescriptor, RenderPipelineDescriptor, Sampler, SamplerBindingType,
             SamplerDescriptor, ShaderStages, ShaderType, TextureFormat, TextureSampleType,
-            BindGroupLayoutEntries,
+            BindGroupLayoutEntries, SpecializedRenderPipeline, SpecializedRenderPipelines,
         },
         renderer::{RenderContext, RenderDevice},
-        view::ViewTarget,
-        RenderApp, RenderStartup,
+        view::{ExtractedView, ViewTarget},
+        Render, RenderApp, RenderStartup, RenderSystems,
     },
 };
 
@@ -64,7 +64,10 @@ impl Plugin for BoundaryCrossingPlugin {
             return;
         };
 
-        render_app.add_systems(RenderStartup, init_boundary_crossing_pipeline);
+        render_app
+            .init_resource::<SpecializedRenderPipelines<BoundaryCrossingPipeline>>()
+            .add_systems(RenderStartup, init_boundary_crossing_pipeline)
+            .add_systems(Render, prepare_boundary_crossing_pipelines.in_set(RenderSystems::Prepare));
 
         render_app
             .add_render_graph_node::<ViewNodeRunner<BoundaryCrossingNode>>(
@@ -208,6 +211,12 @@ fn update_boundary_effect(
     settings.direction = state.crossing_direction;
 }
 
+/// Component storing the per-view pipeline ID for boundary crossing
+#[derive(Component)]
+pub struct ViewBoundaryCrossingPipeline {
+    pub pipeline_id: CachedRenderPipelineId,
+}
+
 /// Render node for the boundary crossing effect
 #[derive(Default)]
 struct BoundaryCrossingNode;
@@ -217,16 +226,18 @@ impl ViewNode for BoundaryCrossingNode {
         &'static ViewTarget,
         &'static BoundaryCrossingSettings,
         &'static DynamicUniformIndex<BoundaryCrossingSettings>,
+        &'static ViewBoundaryCrossingPipeline,
     );
 
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, settings, settings_index): QueryItem<Self::ViewQuery>,
+        (view_target, settings, settings_index, view_pipeline): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         // Skip if effect is not active (intensity near zero)
+        // This prevents any render pass from being created when not needed
         if settings.intensity < 0.001 {
             return Ok(());
         }
@@ -237,7 +248,8 @@ impl ViewNode for BoundaryCrossingNode {
 
         let pipeline_cache = world.resource::<PipelineCache>();
 
-        let Some(render_pipeline) = pipeline_cache.get_render_pipeline(pipeline.pipeline_id) else {
+        // Use the per-view specialized pipeline
+        let Some(render_pipeline) = pipeline_cache.get_render_pipeline(view_pipeline.pipeline_id) else {
             return Ok(());
         };
 
@@ -246,6 +258,7 @@ impl ViewNode for BoundaryCrossingNode {
             return Ok(());
         };
 
+        // Get post process write - this handles the ping-pong buffer swap
         let post_process = view_target.post_process_write();
 
         let bind_group = render_context.render_device().create_bind_group(
@@ -279,12 +292,42 @@ impl ViewNode for BoundaryCrossingNode {
     }
 }
 
+/// Pipeline key for specializing the boundary crossing pipeline based on texture format
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct BoundaryCrossingPipelineKey {
+    texture_format: TextureFormat,
+}
+
 /// Pipeline resource for the boundary crossing effect
 #[derive(Resource)]
 struct BoundaryCrossingPipeline {
     layout: BindGroupLayout,
     sampler: Sampler,
-    pipeline_id: CachedRenderPipelineId,
+    fullscreen_shader: FullscreenShader,
+    fragment_shader: Handle<Shader>,
+}
+
+impl SpecializedRenderPipeline for BoundaryCrossingPipeline {
+    type Key = BoundaryCrossingPipelineKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        RenderPipelineDescriptor {
+            label: Some("boundary_crossing_pipeline".into()),
+            layout: vec![self.layout.clone()],
+            vertex: self.fullscreen_shader.to_vertex_state(),
+            fragment: Some(FragmentState {
+                shader: self.fragment_shader.clone(),
+                shader_defs: vec![],
+                targets: vec![Some(ColorTargetState {
+                    format: key.texture_format,
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                })],
+                ..default()
+            }),
+            ..default()
+        }
+    }
 }
 
 fn init_boundary_crossing_pipeline(
@@ -292,7 +335,6 @@ fn init_boundary_crossing_pipeline(
     render_device: Res<RenderDevice>,
     asset_server: Res<AssetServer>,
     fullscreen_shader: Res<FullscreenShader>,
-    pipeline_cache: Res<PipelineCache>,
 ) {
     let layout = render_device.create_bind_group_layout(
         "boundary_crossing_bind_group_layout",
@@ -307,29 +349,39 @@ fn init_boundary_crossing_pipeline(
     );
 
     let sampler = render_device.create_sampler(&SamplerDescriptor::default());
-
-    let shader = asset_server.load(SHADER_ASSET_PATH);
-    let vertex_state = fullscreen_shader.to_vertex_state();
-    
-    let pipeline_id = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
-        label: Some("boundary_crossing_pipeline".into()),
-        layout: vec![layout.clone()],
-        vertex: vertex_state,
-        fragment: Some(FragmentState {
-            shader,
-            targets: vec![Some(ColorTargetState {
-                format: TextureFormat::bevy_default(),
-                blend: None,
-                write_mask: ColorWrites::ALL,
-            })],
-            ..default()
-        }),
-        ..default()
-    });
+    let fragment_shader = asset_server.load(SHADER_ASSET_PATH);
 
     commands.insert_resource(BoundaryCrossingPipeline {
         layout,
         sampler,
-        pipeline_id,
+        fullscreen_shader: fullscreen_shader.clone(),
+        fragment_shader,
     });
+}
+
+/// System to prepare specialized pipelines for each view based on HDR setting
+fn prepare_boundary_crossing_pipelines(
+    mut commands: Commands,
+    pipeline_cache: Res<PipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<BoundaryCrossingPipeline>>,
+    boundary_pipeline: Res<BoundaryCrossingPipeline>,
+    views: Query<(Entity, &ExtractedView), With<BoundaryCrossingSettings>>,
+) {
+    for (entity, view) in &views {
+        let pipeline_id = pipelines.specialize(
+            &pipeline_cache,
+            &boundary_pipeline,
+            BoundaryCrossingPipelineKey {
+                texture_format: if view.hdr {
+                    ViewTarget::TEXTURE_FORMAT_HDR
+                } else {
+                    TextureFormat::bevy_default()
+                },
+            },
+        );
+
+        commands
+            .entity(entity)
+            .insert(ViewBoundaryCrossingPipeline { pipeline_id });
+    }
 }

@@ -15,7 +15,7 @@ impl Plugin for PreviewSimPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PreviewSimState>()
             .init_resource::<PreviewRequest>()
-            .add_systems(OnEnter(PreviewSceneState::Active), setup_preview_scene)
+            .add_systems(OnEnter(PreviewSceneState::Active), (setup_preview_scene, spawn_preview_skybox))
             .add_systems(OnExit(PreviewSceneState::Active), cleanup_preview_scene)
             .add_systems(
                 Update,
@@ -109,6 +109,7 @@ fn setup_preview_scene(
     mut preview_state: ResMut<PreviewSimState>,
     genome: Res<CurrentGenome>,
     config: Res<PhysicsConfig>,
+    lighting_config: Res<crate::ui::lighting_settings::LightingConfig>,
 ) {
     // Spawn camera with volumetric fog and boundary crossing effect
     commands.spawn((
@@ -137,14 +138,25 @@ fn setup_preview_scene(
         PreviewSceneEntity,
     ));
 
-    // Spawn lights
+    // Spawn lights (using saved settings)
+    let light_rotation = Quat::from_euler(
+        EulerRot::XYZ,
+        lighting_config.directional_rotation[0].to_radians(),
+        lighting_config.directional_rotation[1].to_radians(),
+        lighting_config.directional_rotation[2].to_radians(),
+    );
     commands.spawn((
         DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: lighting_config.directional_illuminance,
+            color: Color::srgb(
+                lighting_config.directional_color[0],
+                lighting_config.directional_color[1],
+                lighting_config.directional_color[2],
+            ),
             shadows_enabled: true, // Enable shadows for volumetric lighting
             ..default()
         },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+        Transform::from_rotation(light_rotation),
         bevy::light::VolumetricLight, // Enable volumetric lighting
         PreviewSceneEntity,
     ));
@@ -152,7 +164,7 @@ fn setup_preview_scene(
     commands.spawn((
         AmbientLight {
             color: Color::WHITE,
-            brightness: 500.0,
+            brightness: lighting_config.ambient_brightness,
             ..default()
         },
         PreviewSceneEntity,
@@ -570,3 +582,18 @@ fn sync_preview_visuals(
     }
 }
 
+
+
+/// Spawn skybox for Preview scene
+fn spawn_preview_skybox(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    skybox_config: Res<crate::rendering::SkyboxConfig>,
+) {
+    crate::rendering::spawn_skybox(
+        &mut commands,
+        &asset_server,
+        &skybox_config,
+        PreviewSceneEntity,
+    );
+}

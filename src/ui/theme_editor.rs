@@ -224,6 +224,7 @@ fn theme_editor_ui(
             ui.checkbox("Performance Monitor", &mut global_ui_state.show_performance_monitor);
             ui.checkbox("Rendering Controls", &mut global_ui_state.show_rendering_controls);
             ui.checkbox("Camera Settings", &mut global_ui_state.show_camera_settings);
+            ui.checkbox("Lighting Settings", &mut global_ui_state.show_lighting_settings);
             
             ui.checkbox("Time Scrubber", &mut global_ui_state.show_time_scrubber);
             if ui.is_item_hovered() {
@@ -338,7 +339,7 @@ fn theme_editor_ui(
         }
         
         // Add version text on the right side of the menu bar
-        let version_text = "Bio-Spheres (v.0.1.5)";
+        let version_text = "Bio-Spheres (v.0.1.7)";
         let text_width = ui.calc_text_size(version_text)[0];
         let window_width = ui.window_size()[0];
         let padding = 10.0;
