@@ -9,21 +9,43 @@ use std::io::Write;
 use std::panic;
 use std::time::SystemTime;
 use std::env;
+use std::sync::{Arc, Mutex};
+
+#[cfg(windows)]
+fn allocate_console() {
+    use winapi::um::consoleapi::AllocConsole;
+    use winapi::um::wincon::{AttachConsole, ATTACH_PARENT_PROCESS};
+    
+    unsafe {
+        // Try to attach to parent console first (if launched from cmd)
+        if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+            // If no parent console, allocate a new one
+            AllocConsole();
+        }
+    }
+}
 
 fn main() {
-    // Enable verbose wgpu logging
+    // Allocate console window on Windows
+    #[cfg(windows)]
+    allocate_console();
+    
+    // Enable verbose wgpu logging to console only
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("wgpu=debug,wgpu_core=debug,wgpu_hal=debug,bevy_render=debug"))
+        .init();
+    
     unsafe {
-        env::set_var("RUST_LOG", "wgpu=debug,wgpu_core=debug,wgpu_hal=debug");
+        env::set_var("RUST_LOG", "wgpu=debug,wgpu_core=debug,wgpu_hal=debug,bevy_render=debug");
         env::set_var("WGPU_VALIDATION", "1");
     }
     
-    // Set up panic hook to log crashes
-    panic::set_hook(Box::new(|panic_info| {
+    // Set up panic hook to create crash log only when there's actually a crash
+    panic::set_hook(Box::new(move |panic_info| {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let log_filename = format!("crash_log_{}.txt", timestamp);
+        let crash_log_filename = format!("crash_log_{}.txt", timestamp);
         
         let mut log_content = String::new();
         log_content.push_str("=== BIOSPHERES CRASH LOG ===\n");
@@ -37,20 +59,24 @@ fn main() {
         
         log_content.push_str(&format!("\nBacktrace:\n{:?}\n", std::backtrace::Backtrace::force_capture()));
         
-        // Write to file
+        // Write crash log file
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&log_filename) {
+            .open(&crash_log_filename) {
             let _ = file.write_all(log_content.as_bytes());
-            eprintln!("\n!!! CRASH DETECTED - Log written to: {} !!!\n", log_filename);
-        } else {
-            eprintln!("\n!!! CRASH DETECTED - Failed to write log file !!!\n");
+            let _ = file.flush();
+            eprintln!("\n!!! CRASH LOG SAVED: {} !!!\n", crash_log_filename);
         }
         
-        // Also print to stderr
+        // Print to console
         eprintln!("{}", log_content);
+        eprintln!("\nPress Enter to exit...");
+        
+        // Keep console open so user can read the error
+        let mut input = String::new();
+        let _ = std::io::stdin().read_line(&mut input);
     }));
 
     App::new()
@@ -65,6 +91,8 @@ fn main() {
                     render_creation: WgpuSettings {
                         // Allow fallback to DX12/DX11 on Windows if Vulkan isn't available
                         backends: Some(Backends::all()),
+                        // Explicitly request only basic features to avoid compatibility issues
+                        features: wgpu::Features::empty(),
                         ..default()
                     }.into(),
                     ..default()
