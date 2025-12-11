@@ -8,8 +8,15 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::panic;
 use std::time::SystemTime;
+use std::env;
 
 fn main() {
+    // Enable verbose wgpu logging
+    unsafe {
+        env::set_var("RUST_LOG", "wgpu=debug,wgpu_core=debug,wgpu_hal=debug");
+        env::set_var("WGPU_VALIDATION", "1");
+    }
+    
     // Set up panic hook to log crashes
     panic::set_hook(Box::new(|panic_info| {
         let timestamp = SystemTime::now()
@@ -56,7 +63,8 @@ fn main() {
                 })
                 .set(RenderPlugin {
                     render_creation: WgpuSettings {
-                        backends: Some(Backends::VULKAN),
+                        // Allow fallback to DX12/DX11 on Windows if Vulkan isn't available
+                        backends: Some(Backends::all()),
                         ..default()
                     }.into(),
                     ..default()
