@@ -136,16 +136,7 @@ fn render_genome_editor(
         .size_constraints([700.0, 500.0], [f32::MAX, f32::MAX])
         .flags(flags)
         .build(|| {
-            // Genome name input
-            ui.text("Genome Name:");
-            ui.same_line();
-            let mut genome_name = current_genome.genome.name.clone();
-            ui.set_next_item_width(200.0);
-            if ui.input_text("##GenomeName", &mut genome_name).build() {
-                current_genome.genome.name = genome_name;
-            }
-
-            ui.same_line();
+            // Genome buttons section
             if ui.button("Save Genome") {
                 // Use native file dialog to save genome
                 // Default to genomes/ folder if it exists
@@ -214,6 +205,17 @@ fn render_genome_editor(
             ui.checkbox("Mode Glow", &mut current_genome.show_mode_glow);
             if ui.is_item_hovered() {
                 ui.tooltip_text("Highlight cells of the selected mode with a pulsing glow");
+            }
+
+            ui.separator();
+
+            // Genome name input
+            ui.text("Genome Name:");
+            ui.same_line();
+            let mut genome_name = current_genome.genome.name.clone();
+            ui.set_next_item_width(200.0);
+            if ui.input_text("##GenomeName", &mut genome_name).build() {
+                current_genome.genome.name = genome_name;
             }
 
             ui.separator();

@@ -61,5 +61,6 @@
     "cpu_cell_capacity": 10000,
     "grid_density": 64,
     "disable_collisions": false
-  }
+  },
+  "window_maximized": true
 }

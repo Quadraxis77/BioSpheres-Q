@@ -28,6 +28,7 @@ pub use genome_editor::GenomeEditorPlugin;
 pub use lighting_settings::{LightingSettingsPlugin, LightingConfig};
 pub use performance_monitor::PerformanceMonitorPlugin;
 pub use scene_manager::{SceneManagerPlugin, SceneManagerState};
+pub use settings::UiSettings;
 pub use theme_editor::{ThemeEditorPlugin, ThemeEditorState};
 pub use time_scrubber::{TimeScrubberPlugin, TimeScrubberState};
 pub use rendering_controls::RenderingControlsPlugin;
