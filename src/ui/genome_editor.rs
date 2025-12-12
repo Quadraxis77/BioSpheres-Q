@@ -220,32 +220,6 @@ fn render_genome_editor(
 
             ui.separator();
 
-            // Initial mode dropdown
-            ui.text("Initial Mode:");
-            ui.same_line();
-            // Build display strings that show both index and name for clarity
-            let mode_display_names: Vec<String> = current_genome.genome.modes.iter()
-                .enumerate()
-                .map(|(idx, m)| format!("[{}] {}", idx, m.name))
-                .collect();
-
-            let initial_mode = current_genome.genome.initial_mode as usize;
-            // Clamp to valid range
-            let clamped_initial_mode = initial_mode.min(current_genome.genome.modes.len().saturating_sub(1));
-            let current_mode_display = mode_display_names.get(clamped_initial_mode)
-                .map(|s| s.as_str())
-                .unwrap_or("None");
-            if let Some(_token) = ui.begin_combo("##InitialMode", current_mode_display) {
-                for (i, display_name) in mode_display_names.iter().enumerate() {
-                    let is_selected = i == clamped_initial_mode;
-                    if ui.selectable_config(display_name).selected(is_selected).build() {
-                        current_genome.genome.initial_mode = i as i32;
-                    }
-                }
-            }
-
-            ui.separator();
-
             // Mode management
             ui.text("Modes:");
             ui.same_line();
