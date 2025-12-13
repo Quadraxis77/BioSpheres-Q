@@ -75,6 +75,15 @@ pub struct PreviewSimState {
     /// Mapping from cell index to ECS entity (1D array for cache efficiency)
     /// Index matches canonical_state cell indices
     pub index_to_entity: Vec<Option<Entity>>,
+    
+    /// Checkpoints for fast backward scrubbing (time, state)
+    pub checkpoints: Vec<(f32, CanonicalState)>,
+    
+    /// Checkpoint interval in seconds
+    pub checkpoint_interval: f32,
+    
+    /// Hash of genome to detect changes
+    pub genome_hash: u64,
 }
 
 impl Default for PreviewSimState {
@@ -88,6 +97,67 @@ impl Default for PreviewSimState {
             initial_state,
             current_time: 0.0,
             index_to_entity: vec![None; 256],
+            checkpoints: Vec::new(),
+            checkpoint_interval: 5.0, // Checkpoint every 5 seconds
+            genome_hash: 0,
+        }
+    }
+}
+
+impl PreviewSimState {
+    /// Compute a simple hash of the genome for change detection
+    fn compute_genome_hash(genome: &crate::genome::GenomeData) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        
+        // Hash key genome properties that affect simulation
+        genome.initial_mode.hash(&mut hasher);
+        genome.initial_orientation.to_array().iter().for_each(|v| {
+            v.to_bits().hash(&mut hasher);
+        });
+        
+        // Hash all modes
+        for mode in &genome.modes {
+            mode.split_mass.to_bits().hash(&mut hasher);
+            mode.split_interval.to_bits().hash(&mut hasher);
+            mode.cell_type.hash(&mut hasher);
+            mode.swim_force.to_bits().hash(&mut hasher);
+            mode.child_a.mode_number.hash(&mut hasher);
+            mode.child_b.mode_number.hash(&mut hasher);
+            mode.parent_make_adhesion.hash(&mut hasher);
+            mode.max_adhesions.hash(&mut hasher);
+            mode.min_adhesions.hash(&mut hasher);
+            // Add other critical fields as needed
+        }
+        
+        hasher.finish()
+    }
+    
+    /// Clear checkpoints (called when genome changes)
+    fn clear_checkpoints(&mut self) {
+        self.checkpoints.clear();
+    }
+    
+    /// Find the best checkpoint to start from for a given target time
+    fn find_best_checkpoint(&self, target_time: f32) -> Option<(f32, CanonicalState)> {
+        // Find the latest checkpoint that's before or at target_time
+        self.checkpoints
+            .iter()
+            .rev() // Search from newest to oldest
+            .find(|(time, _)| *time <= target_time)
+            .cloned()
+    }
+    
+    /// Add a checkpoint if we've passed a checkpoint interval
+    fn maybe_add_checkpoint(&mut self, time: f32, state: &CanonicalState) {
+        // Check if we should add a checkpoint at this time
+        let checkpoint_index = (time / self.checkpoint_interval).floor() as usize;
+        
+        // Only add if we don't already have this checkpoint
+        if self.checkpoints.len() <= checkpoint_index {
+            self.checkpoints.push((time, state.clone()));
         }
     }
 }
@@ -96,6 +166,7 @@ impl Default for PreviewSimState {
 pub struct ResimulationResult {
     pub canonical_state: CanonicalState,
     pub target_time: f32,
+    pub new_checkpoints: Vec<(f32, CanonicalState)>,
 }
 
 /// Preview request resource
@@ -248,6 +319,8 @@ fn setup_preview_scene(
     preview_state.current_time = 0.0;
     preview_state.index_to_entity.clear();
     preview_state.index_to_entity.resize(256, None);
+    preview_state.checkpoints.clear();
+    preview_state.genome_hash = PreviewSimState::compute_genome_hash(&genome.genome);
     
     // Spawn ECS entity for the initial cell
     let mode = genome.genome.modes.get(initial_mode_index)
@@ -333,41 +406,88 @@ fn run_preview_resimulation(
     config: Res<PhysicsConfig>,
     genome: Res<CurrentGenome>,
     mut preview_request: ResMut<PreviewRequest>,
-    mut gpu_physics: ResMut<crate::simulation::GpuPhysicsResource>,
-    threading_config: Res<crate::simulation::SimulationThreadingConfig>,
 ) {
+    // Check if there's a completed background task
+    if let Some(mut task) = preview_request.background_task.take() {
+        if let Some(result) = block_on(poll_once(&mut task)) {
+            // Task completed - apply results
+            let old_cell_count = preview_state.canonical_state.cell_count;
+            preview_state.canonical_state = result.canonical_state;
+            preview_state.current_time = result.target_time;
+            let new_cell_count = preview_state.canonical_state.cell_count;
+            
+            // Add new checkpoints created during simulation
+            for (time, state) in result.new_checkpoints {
+                preview_state.maybe_add_checkpoint(time, &state);
+            }
+            
+            sim_state.target_time = None;
+            sim_state.is_resimulating = false;
+            
+            // Only trigger respawn if cell count changed
+            // Otherwise, sync_preview_visuals will handle position updates
+            if old_cell_count != new_cell_count {
+                sim_state.needs_respawn = true;
+            }
+        } else {
+            // Task still running - put it back and keep waiting
+            preview_request.background_task = Some(task);
+            sim_state.is_resimulating = true;
+            return;
+        }
+    }
+
     // Check if we need to start a new resimulation
     let Some(target_time) = sim_state.target_time else {
         sim_state.is_resimulating = false;
         return;
     };
 
-    // Update initial state with current genome values before any simulation
-    if let Some(initial_cell) = preview_state.initial_state.initial_cells.first_mut() {
-        let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
-        let mode = genome.genome.modes.get(initial_mode_index)
-            .or_else(|| genome.genome.modes.first());
+    // Check if genome changed
+    let current_genome_hash = PreviewSimState::compute_genome_hash(&genome.genome);
+    let genome_changed = current_genome_hash != preview_state.genome_hash;
+    
+    if genome_changed {
+        // Genome changed - clear checkpoints and reset
+        preview_state.clear_checkpoints();
+        preview_state.genome_hash = current_genome_hash;
+        preview_state.current_time = 0.0;
+        
+        // Update initial state with new genome values
+        if let Some(initial_cell) = preview_state.initial_state.initial_cells.first_mut() {
+            let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
+            let mode = genome.genome.modes.get(initial_mode_index)
+                .or_else(|| genome.genome.modes.first());
 
-        if let Some(mode) = mode {
-            initial_cell.split_interval = mode.get_split_interval(0, 0, 0);
-            initial_cell.split_mass = mode.get_split_mass(0, 0, 0);
-            initial_cell.mode_index = initial_mode_index;
-            initial_cell.rotation = genome.genome.initial_orientation;
+            if let Some(mode) = mode {
+                initial_cell.split_interval = mode.get_split_interval(0, 0, 0);
+                initial_cell.split_mass = mode.get_split_mass(0, 0, 0);
+                initial_cell.mode_index = initial_mode_index;
+                initial_cell.rotation = genome.genome.initial_orientation;
+            }
         }
+        
+        // Reset canonical state
+        preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
     }
 
-    // Determine if we can simulate forward incrementally
-    let (start_step, steps, mut canonical_state) = if target_time > preview_state.current_time {
-        // Moving forward: simulate only the additional steps
+    // Determine best starting point using checkpoints
+    let (start_time, start_step, mut canonical_state) = if target_time > preview_state.current_time && !genome_changed {
+        // Moving forward: simulate from current state
         let start_step = (preview_state.current_time / config.fixed_timestep).ceil() as u32;
-        let end_step = (target_time / config.fixed_timestep).ceil() as u32;
-        (start_step, end_step - start_step, preview_state.canonical_state.clone())
+        (preview_state.current_time, start_step, preview_state.canonical_state.clone())
+    } else if let Some((checkpoint_time, checkpoint_state)) = preview_state.find_best_checkpoint(target_time) {
+        // Moving backward: use nearest checkpoint
+        let start_step = (checkpoint_time / config.fixed_timestep).ceil() as u32;
+        (checkpoint_time, start_step, checkpoint_state)
     } else {
-        // Moving backward or genome changed: reset to initial state IN THE BACKGROUND TASK
-        // Don't modify preview_state.canonical_state here to avoid visual flashing
+        // No suitable checkpoint: start from initial state
         let initial_canonical = preview_state.initial_state.to_canonical_state();
-        (0, (target_time / config.fixed_timestep).ceil() as u32, initial_canonical)
+        (0.0, 0, initial_canonical)
     };
+    
+    let end_step = (target_time / config.fixed_timestep).ceil() as u32;
+    let steps = end_step.saturating_sub(start_step);
 
     // Clone other data needed for background task
     let config = config.clone();
@@ -375,10 +495,15 @@ fn run_preview_resimulation(
     let max_cells = preview_state.initial_state.max_cells;
     let rng_seed = preview_state.initial_state.rng_seed;
     let fixed_timestep = config.fixed_timestep;
+    let checkpoint_interval = preview_state.checkpoint_interval;
 
     // Spawn background task
     let task_pool = AsyncComputeTaskPool::get();
     let task = task_pool.spawn(async move {
+        // Track checkpoints to create during simulation
+        let mut new_checkpoints = Vec::new();
+        let mut last_checkpoint_index = (start_time / checkpoint_interval).floor() as usize;
+        
         // Run physics steps in background thread with multithreading
         for step in 0..steps {
             let current_time = (start_step + step) as f32 * fixed_timestep;
@@ -410,11 +535,20 @@ fn run_preview_resimulation(
                 max_cells,
                 rng_seed,
             );
+            
+            // Check if we should create a checkpoint
+            let current_checkpoint_index = (current_time / checkpoint_interval).floor() as usize;
+            if current_checkpoint_index > last_checkpoint_index {
+                // Create checkpoint at this interval
+                new_checkpoints.push((current_time, canonical_state.clone()));
+                last_checkpoint_index = current_checkpoint_index;
+            }
         }
 
         ResimulationResult {
             canonical_state,
             target_time,
+            new_checkpoints,
         }
     });
 
