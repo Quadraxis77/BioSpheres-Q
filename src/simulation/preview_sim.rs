@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::light::NotShadowCaster;
+use bevy::tasks::{block_on, poll_once, AsyncComputeTaskPool, Task};
 use crate::cell::{Cell, CellPosition, CellOrientation, CellSignaling};
 use crate::genome::CurrentGenome;
 use crate::ui::camera::MainCamera;
@@ -91,14 +92,17 @@ impl Default for PreviewSimState {
     }
 }
 
+/// Result from background resimulation task
+pub struct ResimulationResult {
+    pub canonical_state: CanonicalState,
+    pub target_time: f32,
+}
+
 /// Preview request resource
 #[derive(Resource, Default)]
 pub struct PreviewRequest {
-    /// Target time for preview (None = no pending request)
-    pub target_time: Option<f32>,
-    
-    /// Whether genome changed (requires full resimulation)
-    pub genome_changed: bool,
+    /// Background task for async resimulation
+    pub background_task: Option<Task<ResimulationResult>>,
 }
 
 /// Setup the Preview simulation scene with camera and initial state
@@ -321,34 +325,53 @@ fn cleanup_preview_scene(
     }
 }
 
-/// Run preview re-simulation using canonical physics
-/// This replaces the old headless simulation with deterministic replay
+/// Run preview re-simulation using canonical physics in a background task
+/// This runs the simulation asynchronously to keep the UI responsive
 fn run_preview_resimulation(
     mut preview_state: ResMut<PreviewSimState>,
     mut sim_state: ResMut<crate::simulation::SimulationState>,
     config: Res<PhysicsConfig>,
     genome: Res<CurrentGenome>,
+    mut preview_request: ResMut<PreviewRequest>,
 ) {
+    // Check if there's a completed background task
+    if let Some(mut task) = preview_request.background_task.take() {
+        if let Some(result) = block_on(poll_once(&mut task)) {
+            // Task completed - apply results
+            let old_cell_count = preview_state.canonical_state.cell_count;
+            preview_state.canonical_state = result.canonical_state;
+            preview_state.current_time = result.target_time;
+            let new_cell_count = preview_state.canonical_state.cell_count;
+            
+            sim_state.target_time = None;
+            sim_state.is_resimulating = false;
+            
+            // Only trigger respawn if cell count changed
+            // Otherwise, sync_preview_visuals will handle position updates
+            if old_cell_count != new_cell_count {
+                sim_state.needs_respawn = true;
+            }
+        } else {
+            // Task still running - put it back and keep waiting
+            preview_request.background_task = Some(task);
+            sim_state.is_resimulating = true;
+            return;
+        }
+    }
+
+    // Check if we need to start a new resimulation
     let Some(target_time) = sim_state.target_time else {
         sim_state.is_resimulating = false;
         return;
     };
 
-    sim_state.is_resimulating = true;
-
-    let start_time = std::time::Instant::now();
-
     // Update initial state with current genome values before any simulation
-    // This ensures that when genome changes trigger resimulation, the initial cell
-    // has the updated split_interval and other genome properties
     if let Some(initial_cell) = preview_state.initial_state.initial_cells.first_mut() {
         let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
         let mode = genome.genome.modes.get(initial_mode_index)
             .or_else(|| genome.genome.modes.first());
 
         if let Some(mode) = mode {
-            // Use get_split_interval/get_split_mass for potentially randomized values
-            // These are called with fixed parameters (0,0,0) so they return consistent values
             initial_cell.split_interval = mode.get_split_interval(0, 0, 0);
             initial_cell.split_mass = mode.get_split_mass(0, 0, 0);
             initial_cell.mode_index = initial_mode_index;
@@ -357,58 +380,58 @@ fn run_preview_resimulation(
     }
 
     // Determine if we can simulate forward incrementally
-    let (start_step, steps) = if target_time > preview_state.current_time {
+    let (start_step, steps, mut canonical_state) = if target_time > preview_state.current_time {
         // Moving forward: simulate only the additional steps
         let start_step = (preview_state.current_time / config.fixed_timestep).ceil() as u32;
         let end_step = (target_time / config.fixed_timestep).ceil() as u32;
-        (start_step, end_step - start_step)
+        (start_step, end_step - start_step, preview_state.canonical_state.clone())
     } else {
-        // Moving backward or genome changed (target_time <= current_time):
-        // reset to initial state and simulate from beginning
-        preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
-        preview_state.current_time = 0.0;
-        (0, (target_time / config.fixed_timestep).ceil() as u32)
+        // Moving backward or genome changed: reset to initial state IN THE BACKGROUND TASK
+        // Don't modify preview_state.canonical_state here to avoid visual flashing
+        let initial_canonical = preview_state.initial_state.to_canonical_state();
+        (0, (target_time / config.fixed_timestep).ceil() as u32, initial_canonical)
     };
 
-    // Extract values we need before the loop
+    // Clone other data needed for background task
+    let config = config.clone();
+    let genome_data = genome.genome.clone();
     let max_cells = preview_state.initial_state.max_cells;
     let rng_seed = preview_state.initial_state.rng_seed;
+    let fixed_timestep = config.fixed_timestep;
 
-    // Run physics steps (no ECS overhead)
-    let mut total_physics_time = std::time::Duration::ZERO;
-    let mut total_division_time = std::time::Duration::ZERO;
+    // Spawn background task
+    let task_pool = AsyncComputeTaskPool::get();
+    let task = task_pool.spawn(async move {
+        // Run physics steps in background thread
+        for step in 0..steps {
+            let current_time = (start_step + step) as f32 * fixed_timestep;
 
-    for step in 0..steps {
-        let current_time = (start_step + step) as f32 * config.fixed_timestep;
+            // Run CPU physics step
+            crate::simulation::cpu_physics::physics_step_st_with_genome(
+                &mut canonical_state,
+                &config,
+                &genome_data,
+                current_time,
+            );
 
-        // Run CPU physics step (single-threaded for preview)
-        let physics_start = std::time::Instant::now();
-        crate::simulation::cpu_physics::physics_step_st_with_genome(
-            &mut preview_state.canonical_state, 
-            &config,
-            &genome.genome,
-            current_time,
-        );
-        total_physics_time += physics_start.elapsed();
+            // Run division step
+            crate::simulation::cpu_physics::division_step(
+                &mut canonical_state,
+                &genome_data,
+                current_time,
+                max_cells,
+                rng_seed,
+            );
+        }
 
-        // Run division step using CPU physics
-        let division_start = std::time::Instant::now();
-        crate::simulation::cpu_physics::division_step(
-            &mut preview_state.canonical_state,
-            &genome.genome,
-            current_time,
-            max_cells,
-            rng_seed,
-        );
-        total_division_time += division_start.elapsed();
-    }
+        ResimulationResult {
+            canonical_state,
+            target_time,
+        }
+    });
 
-    let _sim_duration = start_time.elapsed();
-
-    preview_state.current_time = target_time;
-    sim_state.target_time = None;
-    sim_state.is_resimulating = false;
-    sim_state.needs_respawn = true;
+    preview_request.background_task = Some(task);
+    sim_state.is_resimulating = true;
 }
 
 /// Respawn all preview cells after resimulation completes
@@ -424,7 +447,7 @@ fn respawn_preview_cells_after_resimulation(
     mut preview_state: ResMut<PreviewSimState>,
     mut sim_state: ResMut<crate::simulation::SimulationState>,
     genome: Res<CurrentGenome>,
-    cells_query: Query<Entity, (With<Cell>, With<PreviewSceneEntity>)>,
+    mut cells_query: Query<(Entity, &mut Cell, &mut CellPosition, &mut CellOrientation, &MeshMaterial3d<StandardMaterial>, &mut Mesh3d), With<PreviewSceneEntity>>,
     drag_state: Res<crate::input::DragState>,
 ) {
     // Don't respawn if currently dragging
@@ -438,25 +461,92 @@ fn respawn_preview_cells_after_resimulation(
     }
     
     {
-        // Despawn all existing cell entities
-        for entity in cells_query.iter() {
-            commands.entity(entity).despawn();
+        let new_cell_count = preview_state.canonical_state.cell_count;
+        
+        // Count existing entities
+        let mut existing_count = 0;
+        for i in 0..preview_state.index_to_entity.len() {
+            if preview_state.index_to_entity[i].is_some() {
+                existing_count += 1;
+            }
         }
         
-        // Clear entity mapping
-        for slot in preview_state.index_to_entity.iter_mut() {
-            *slot = None;
+        // Update existing cells using index_to_entity mapping
+        for i in 0..existing_count.max(new_cell_count) {
+            if i < new_cell_count {
+                // This cell should exist
+                if let Some(entity) = preview_state.index_to_entity[i] {
+                    // Update existing entity
+                    if let Ok((_, mut cell, mut cell_pos, mut cell_orient, material_handle, mut mesh_handle)) = cells_query.get_mut(entity) {
+                        let mode_index = preview_state.canonical_state.mode_indices[i];
+                        let old_mode_index = cell.mode_index;
+                        
+                        cell.mass = preview_state.canonical_state.masses[i];
+                        cell.radius = preview_state.canonical_state.radii[i];
+                        cell.genome_id = preview_state.canonical_state.genome_ids[i];
+                        cell.mode_index = mode_index;
+                        
+                        cell_pos.position = preview_state.canonical_state.positions[i];
+                        cell_pos.velocity = preview_state.canonical_state.velocities[i];
+                        cell_orient.rotation = preview_state.canonical_state.rotations[i];
+                        cell_orient.angular_velocity = preview_state.canonical_state.angular_velocities[i];
+                        
+                        // Update material and mesh if mode changed
+                        let mode = genome.genome.modes.get(mode_index);
+                        let old_mode = genome.genome.modes.get(old_mode_index);
+                        
+                        let (color, opacity, emissive) = if let Some(mode) = mode {
+                            (mode.color, mode.opacity, mode.emissive)
+                        } else {
+                            (Vec3::ONE, 1.0, 0.0)
+                        };
+                        
+                        if let Some(material) = materials.get_mut(&material_handle.0) {
+                            material.base_color = Color::srgba(color.x, color.y, color.z, opacity);
+                            material.emissive = LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive);
+                        }
+                        
+                        // Check if cell type changed (need to update mesh)
+                        let old_cell_type = old_mode.map(|m| m.cell_type).unwrap_or(0);
+                        let new_cell_type = mode.map(|m| m.cell_type).unwrap_or(0);
+                        
+                        if old_cell_type != new_cell_type {
+                            // Cell type changed - update mesh
+                            let is_flagellocyte = new_cell_type == 1;
+                            let swim_force = mode.map(|m| m.swim_force).unwrap_or(0.0);
+                            
+                            let new_mesh = if is_flagellocyte {
+                                meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(1.0, swim_force, 5))
+                            } else {
+                                meshes.add(Sphere::new(1.0).mesh().ico(5).unwrap())
+                            };
+                            
+                            mesh_handle.0 = new_mesh;
+                        }
+                    }
+                }
+                // If entity doesn't exist, it will be spawned below
+            } else {
+                // This cell should NOT exist - despawn if it does
+                if let Some(entity) = preview_state.index_to_entity[i] {
+                    commands.entity(entity).despawn();
+                    preview_state.index_to_entity[i] = None;
+                }
+            }
         }
         
-        // Pre-create shared mesh (reuse for all cells)
+        // Spawn cells that don't have entities yet
         let sphere_mesh = meshes.add(Sphere::new(1.0).mesh().ico(5).unwrap());
-        
-        // Pre-create materials for each unique color (cache by mode as 1D array)
         let max_modes = genome.genome.modes.len();
         let mut material_cache: Vec<Option<Handle<StandardMaterial>>> = vec![None; max_modes];
         
-        // Batch spawn all cells
-        for i in 0..preview_state.canonical_state.cell_count {
+        for i in 0..new_cell_count {
+            // Skip if entity already exists
+            if preview_state.index_to_entity[i].is_some() {
+                continue;
+            }
+            
+            // Spawn new cell entity
             let mode_index = preview_state.canonical_state.mode_indices[i];
             let mass = preview_state.canonical_state.masses[i];
             let radius = preview_state.canonical_state.radii[i];
@@ -560,16 +650,21 @@ fn respawn_preview_cells_after_resimulation(
 /// This updates existing ECS entities to match the canonical state without respawning
 fn sync_preview_visuals(
     preview_state: Res<PreviewSimState>,
-    mut cells_query: Query<(Entity, &mut CellPosition, &mut CellOrientation), (With<Cell>, With<PreviewSceneEntity>)>,
+    mut cells_query: Query<(Entity, &mut Cell, &mut CellPosition, &mut CellOrientation), (With<Cell>, With<PreviewSceneEntity>)>,
     drag_state: Res<crate::input::DragState>,
+    sim_state: Res<crate::simulation::SimulationState>,
 ) {
     // Skip sync entirely if currently dragging a cell
     if drag_state.dragged_entity.is_some() {
         return;
     }
     
-    // Sync positions and orientations from canonical state to existing entities
-    // Only update CellPosition and CellOrientation - Transform will be synced by sync_transforms system
+    // Skip if we're about to respawn (cell count changed)
+    if sim_state.needs_respawn {
+        return;
+    }
+    
+    // Sync all cell data from canonical state to existing entities
     for i in 0..preview_state.canonical_state.cell_count {
         if let Some(entity) = preview_state.index_to_entity[i] {
             // Skip the dragged entity
@@ -578,7 +673,13 @@ fn sync_preview_visuals(
             }
             
             // Update entity components directly using index
-            if let Ok((_, mut cell_pos, mut cell_orientation)) = cells_query.get_mut(entity) {
+            if let Ok((_, mut cell, mut cell_pos, mut cell_orientation)) = cells_query.get_mut(entity) {
+                // Update all cell data
+                cell.mass = preview_state.canonical_state.masses[i];
+                cell.radius = preview_state.canonical_state.radii[i];
+                cell.genome_id = preview_state.canonical_state.genome_ids[i];
+                cell.mode_index = preview_state.canonical_state.mode_indices[i];
+                
                 cell_pos.position = preview_state.canonical_state.positions[i];
                 cell_pos.velocity = preview_state.canonical_state.velocities[i];
                 cell_orientation.rotation = preview_state.canonical_state.rotations[i];
