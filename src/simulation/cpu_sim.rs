@@ -241,9 +241,9 @@ fn get_or_create_material(
             emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             alpha_mode: if opacity < 0.99 {
-                // Use Blend mode with OIT (Order-Independent Transparency) enabled on camera
-                // OIT provides correct depth sorting and proper interaction with volumetric fog
-                bevy::prelude::AlphaMode::Blend
+                // Use AlphaToCoverage with MSAA for order-independent transparency
+                // Eliminates view-dependent sorting artifacts without requiring OIT
+                bevy::prelude::AlphaMode::AlphaToCoverage
             } else {
                 bevy::prelude::AlphaMode::Opaque
             },
@@ -574,7 +574,7 @@ fn setup_cpu_scene(
         // bevy_mod_imgui renders directly to swapchain, causing command encoder conflicts with OIT
         // To re-enable: refactor bevy_mod_imgui to render to intermediate texture first
         // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
-        // Msaa::Off,
+        Msaa::Sample4, // Enable MSAA for AlphaToCoverage transparency
         CpuSceneEntity,
     ));
 
@@ -727,7 +727,7 @@ fn setup_cpu_scene(
             perceptual_roughness: 0.2,
             reflectance: 0.95,
             cull_mode: Some(bevy::render::render_resource::Face::Front),
-            alpha_mode: AlphaMode::Blend,
+            alpha_mode: AlphaMode::AlphaToCoverage,
             depth_bias: 0.1, // Push world sphere back slightly in depth to ensure cells render in front
             ..default()
         })),

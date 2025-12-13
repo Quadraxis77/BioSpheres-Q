@@ -409,7 +409,7 @@ fn update_anchor_gizmos(
                     MeshMaterial3d(materials.add(StandardMaterial {
                         base_color: color_a,
                         unlit: true,
-                        alpha_mode: AlphaMode::Blend,
+                        alpha_mode: AlphaMode::AlphaToCoverage,
                         ..default()
                     })),
                     Transform::from_translation(anchor_pos_a),
@@ -447,7 +447,7 @@ fn update_anchor_gizmos(
                     MeshMaterial3d(materials.add(StandardMaterial {
                         base_color: color_b,
                         unlit: true,
-                        alpha_mode: AlphaMode::Blend,
+                        alpha_mode: AlphaMode::AlphaToCoverage,
                         ..default()
                     })),
                     Transform::from_translation(anchor_pos_b),

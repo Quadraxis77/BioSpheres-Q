@@ -172,7 +172,7 @@ fn check_and_divide_cells(
                 emissive: LinearRgba::rgb(child_a_color.x * child_a_emissive, child_a_color.y * child_a_emissive, child_a_color.z * child_a_emissive),
                 cull_mode: Some(bevy::render::render_resource::Face::Back),
                 alpha_mode: if child_a_opacity < 0.99 {
-                    bevy::prelude::AlphaMode::Blend
+                    bevy::prelude::AlphaMode::AlphaToCoverage
                 } else {
                     bevy::prelude::AlphaMode::Opaque
                 },
@@ -212,7 +212,7 @@ fn check_and_divide_cells(
                 emissive: LinearRgba::rgb(child_b_color.x * child_b_emissive, child_b_color.y * child_b_emissive, child_b_color.z * child_b_emissive),
                 cull_mode: Some(bevy::render::render_resource::Face::Back),
                 alpha_mode: if child_b_opacity < 0.99 {
-                    bevy::prelude::AlphaMode::Blend
+                    bevy::prelude::AlphaMode::AlphaToCoverage
                 } else {
                     bevy::prelude::AlphaMode::Opaque
                 },

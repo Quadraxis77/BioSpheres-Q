@@ -135,7 +135,7 @@ fn setup_preview_scene(
         // bevy_mod_imgui renders directly to swapchain, causing command encoder conflicts with OIT
         // To re-enable: refactor bevy_mod_imgui to render to intermediate texture first
         // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
-        // Msaa::Off,
+        Msaa::Sample4, // Enable MSAA for AlphaToCoverage transparency
         PreviewSceneEntity,
     ));
 
@@ -184,7 +184,7 @@ fn setup_preview_scene(
             perceptual_roughness: 0.2,
             reflectance: 0.95,
             cull_mode: Some(bevy::render::render_resource::Face::Front),
-            alpha_mode: AlphaMode::Blend,
+            alpha_mode: AlphaMode::AlphaToCoverage,
             depth_bias: 0.1, // Push world sphere back slightly in depth to ensure cells render in front
             ..default()
         })),
@@ -295,7 +295,7 @@ fn setup_preview_scene(
             emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             alpha_mode: if opacity < 0.99 {
-                bevy::prelude::AlphaMode::Blend
+                bevy::prelude::AlphaMode::AlphaToCoverage
             } else {
                 bevy::prelude::AlphaMode::Opaque
             },
@@ -489,7 +489,7 @@ fn respawn_preview_cells_after_resimulation(
                         emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
                         cull_mode: Some(bevy::render::render_resource::Face::Back),
                         alpha_mode: if opacity < 0.99 {
-                            bevy::prelude::AlphaMode::Blend
+                            bevy::prelude::AlphaMode::AlphaToCoverage
                         } else {
                             bevy::prelude::AlphaMode::Opaque
                         },

@@ -454,7 +454,7 @@ fn spawn_cpu_cells_only(
             emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             alpha_mode: if opacity < 0.99 {
-                bevy::prelude::AlphaMode::Blend
+                bevy::prelude::AlphaMode::AlphaToCoverage
             } else {
                 bevy::prelude::AlphaMode::Opaque
             },
@@ -562,7 +562,7 @@ fn spawn_preview_cells_only(
             emissive: LinearRgba::rgb(color.x * emissive, color.y * emissive, color.z * emissive),
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             alpha_mode: if opacity < 0.99 {
-                bevy::prelude::AlphaMode::Blend
+                bevy::prelude::AlphaMode::AlphaToCoverage
             } else {
                 bevy::prelude::AlphaMode::Opaque
             },
