@@ -181,6 +181,7 @@ fn run_main_simulation(
             &genome.genome,
             &mut gpu_physics,
             current_time,
+            true, // Enable swim in main simulation mode
         );
     } else {
         crate::simulation::cpu_physics::physics_step_with_genome(
@@ -188,6 +189,7 @@ fn run_main_simulation(
             &config,
             &genome.genome,
             current_time,
+            true, // Enable swim in main simulation mode
         );
     }
     

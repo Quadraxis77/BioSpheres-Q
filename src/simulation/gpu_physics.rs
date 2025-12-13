@@ -697,6 +697,7 @@ pub fn physics_step_gpu_with_genome(
     genome: &crate::genome::GenomeData,
     gpu_physics: &mut GpuPhysicsResource,
     _current_time: f32,
+    enable_swim: bool,
 ) {
     use crate::simulation::cpu_physics::{
         verlet_integrate_positions_soa_st,
@@ -772,7 +773,7 @@ pub fn physics_step_gpu_with_genome(
         &state.rotations[..state.cell_count],
         &state.mode_indices[..state.cell_count],
         genome,
-        true, // Enable swim in main simulation
+        enable_swim,
     );
     
     // 6. Apply boundary conditions - CPU

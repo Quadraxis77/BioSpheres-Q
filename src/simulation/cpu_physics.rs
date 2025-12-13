@@ -1300,6 +1300,7 @@ pub fn physics_step_with_genome(
     config: &crate::simulation::PhysicsConfig,
     genome: &crate::genome::GenomeData,
     _current_time: f32,
+    enable_swim: bool,
 ) {
     // 1. Verlet integration (position update)
     verlet_integrate_positions_soa(
@@ -1348,13 +1349,13 @@ pub fn physics_step_with_genome(
         );
     }
     
-    // 5.6. Apply swim forces for Flagellocyte cells (enabled in main simulation)
+    // 5.6. Apply swim forces for Flagellocyte cells
     apply_swim_forces(
         &mut state.forces[..state.cell_count],
         &state.rotations[..state.cell_count],
         &state.mode_indices[..state.cell_count],
         genome,
-        true, // Enable swim in main simulation mode
+        enable_swim,
     );
     
     // 6. Apply boundary conditions

@@ -333,32 +333,9 @@ fn run_preview_resimulation(
     config: Res<PhysicsConfig>,
     genome: Res<CurrentGenome>,
     mut preview_request: ResMut<PreviewRequest>,
+    mut gpu_physics: ResMut<crate::simulation::GpuPhysicsResource>,
+    threading_config: Res<crate::simulation::SimulationThreadingConfig>,
 ) {
-    // Check if there's a completed background task
-    if let Some(mut task) = preview_request.background_task.take() {
-        if let Some(result) = block_on(poll_once(&mut task)) {
-            // Task completed - apply results
-            let old_cell_count = preview_state.canonical_state.cell_count;
-            preview_state.canonical_state = result.canonical_state;
-            preview_state.current_time = result.target_time;
-            let new_cell_count = preview_state.canonical_state.cell_count;
-            
-            sim_state.target_time = None;
-            sim_state.is_resimulating = false;
-            
-            // Only trigger respawn if cell count changed
-            // Otherwise, sync_preview_visuals will handle position updates
-            if old_cell_count != new_cell_count {
-                sim_state.needs_respawn = true;
-            }
-        } else {
-            // Task still running - put it back and keep waiting
-            preview_request.background_task = Some(task);
-            sim_state.is_resimulating = true;
-            return;
-        }
-    }
-
     // Check if we need to start a new resimulation
     let Some(target_time) = sim_state.target_time else {
         sim_state.is_resimulating = false;
@@ -402,16 +379,27 @@ fn run_preview_resimulation(
     // Spawn background task
     let task_pool = AsyncComputeTaskPool::get();
     let task = task_pool.spawn(async move {
-        // Run physics steps in background thread
+        // Run physics steps in background thread with multithreading
         for step in 0..steps {
             let current_time = (start_step + step) as f32 * fixed_timestep;
 
-            // Run CPU physics step
-            crate::simulation::cpu_physics::physics_step_st_with_genome(
+            // Run CPU physics step (multithreaded via Rayon, swim disabled for preview)
+            // Preview mode disables swim to keep flagellocytes from swimming away
+            // 
+            // NOTE: GPU physics is not used here because:
+            // 1. GPU operations must run on the main thread with GPU context access
+            // 2. This background task runs on a separate async compute thread
+            // 3. Multithreaded CPU physics via Rayon is already very fast for preview (<256 cells)
+            // 
+            // For GPU acceleration in preview, we would need to:
+            // - Run resimulation synchronously on the main thread, OR
+            // - Implement a command queue system to schedule GPU work from background threads
+            crate::simulation::cpu_physics::physics_step_with_genome(
                 &mut canonical_state,
                 &config,
                 &genome_data,
                 current_time,
+                false, // Disable swim in preview mode
             );
 
             // Run division step
