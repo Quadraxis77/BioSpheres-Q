@@ -24,16 +24,11 @@ fn allocate_console() {
     }
 }
 
-/// Startup system to apply saved window maximized state
+/// Startup system to apply window maximized state (always maximized)
 fn apply_window_state(mut windows: Query<&mut Window>) {
-    let ui_settings = biospheres_bevy::ui::UiSettings::load();
-    println!("Applying window state - maximized: {}", ui_settings.window_maximized);
-    
-    if ui_settings.window_maximized {
-        for mut window in windows.iter_mut() {
-            println!("Setting window to maximized");
-            window.set_maximized(true);
-        }
+    for mut window in windows.iter_mut() {
+        println!("Setting window to maximized");
+        window.set_maximized(true);
     }
 }
 

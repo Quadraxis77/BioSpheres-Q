@@ -29,9 +29,6 @@ pub struct UiSettings {
     /// Simulation settings
     #[serde(default)]
     pub simulation_settings: SimulationSettings,
-    /// Window maximized state
-    #[serde(default)]
-    pub window_maximized: bool,
 }
 
 /// Window visibility settings
@@ -242,8 +239,6 @@ impl Default for UiSettings {
             skybox_settings: SkyboxSettings::default(),
             // Default simulation settings
             simulation_settings: SimulationSettings::default(),
-            // Default to not maximized
-            window_maximized: false,
         }
     }
 }
@@ -319,7 +314,6 @@ pub(crate) struct LastSavedSettings {
     pub(crate) lighting_settings: LightingSettings,
     pub(crate) skybox_settings: SkyboxSettings,
     pub(crate) simulation_settings: SimulationSettings,
-    pub(crate) window_maximized: bool,
 }
 
 /// System to save UI settings when they change
@@ -338,13 +332,6 @@ pub fn save_ui_settings_on_change(
     spatial_grid_config: Res<crate::simulation::SpatialGridConfig>,
     mut last_saved: Local<Option<LastSavedSettings>>,
 ) {
-    // Note: Bevy doesn't expose a way to query if a window is currently maximized,
-    // so we don't auto-track this. Users can set window_maximized in ui_settings.json
-    // and it will be applied on startup.
-    let window_maximized = last_saved
-        .as_ref()
-        .map(|s| s.window_maximized)
-        .unwrap_or(false);
     // Get the current theme name from theme_editor_state
     let current_theme_name = if theme_editor_state.active_custom_theme.is_some() {
         theme_editor_state.active_custom_theme.clone().unwrap()
@@ -411,7 +398,6 @@ pub fn save_ui_settings_on_change(
                 grid_density: spatial_grid_config.grid_density,
                 disable_collisions: physics_config.disable_collisions,
             },
-            window_maximized,
         });
         return;
     }
@@ -475,9 +461,6 @@ pub fn save_ui_settings_on_change(
         || last.simulation_settings.grid_density != spatial_grid_config.grid_density
         || last.simulation_settings.disable_collisions != physics_config.disable_collisions;
 
-    // Check if window maximized state changed
-    let window_changed = last.window_maximized != window_maximized;
-
     // Only save if values actually changed
     let changed = last.windows_locked != global_ui_state.windows_locked
         || (last.ui_scale - global_ui_state.ui_scale).abs() > 0.001
@@ -487,8 +470,7 @@ pub fn save_ui_settings_on_change(
         || bloom_changed
         || lighting_changed
         || skybox_changed
-        || simulation_changed
-        || window_changed;
+        || simulation_changed;
 
     if changed {
         // Load existing settings to preserve custom themes library
@@ -552,7 +534,6 @@ pub fn save_ui_settings_on_change(
             grid_density: spatial_grid_config.grid_density,
             disable_collisions: physics_config.disable_collisions,
         };
-        settings.window_maximized = window_maximized;
 
         if let Err(e) = settings.save() {
             error!("Failed to save UI settings: {}", e);
@@ -615,7 +596,6 @@ pub fn save_ui_settings_on_change(
                 grid_density: spatial_grid_config.grid_density,
                 disable_collisions: physics_config.disable_collisions,
             },
-            window_maximized,
         });
     }
 }
