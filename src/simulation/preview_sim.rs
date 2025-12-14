@@ -35,6 +35,7 @@ impl Plugin for PreviewSimPlugin {
                 (
                     sync_preview_visuals,
                     crate::rendering::sync_transforms,
+                    update_cell_materials_on_genome_change,
                     highlight_selected_mode_cells,
                 )
                     .chain()
@@ -825,6 +826,49 @@ fn spawn_preview_skybox(
         &skybox_config,
         PreviewSceneEntity,
     );
+}
+
+
+/// Update cell materials when genome color/opacity/emissive changes
+/// This runs before highlight_selected_mode_cells to ensure base materials are correct
+fn update_cell_materials_on_genome_change(
+    genome: Res<CurrentGenome>,
+    cells_query: Query<(&Cell, &MeshMaterial3d<StandardMaterial>), With<PreviewSceneEntity>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Only update if genome changed
+    if !genome.is_changed() {
+        return;
+    }
+    
+    // Update all cell materials to match current genome settings
+    for (cell, material_handle) in cells_query.iter() {
+        if let Some(material) = materials.get_mut(&material_handle.0) {
+            let mode = genome.genome.modes.get(cell.mode_index);
+            let (color, opacity, emissive) = if let Some(mode) = mode {
+                (mode.color, mode.opacity, mode.emissive)
+            } else {
+                (Vec3::ONE, 1.0, 0.0)
+            };
+            
+            // Update base color (includes opacity)
+            material.base_color = Color::srgba(color.x, color.y, color.z, opacity);
+            
+            // Update alpha mode based on opacity
+            material.alpha_mode = if opacity < 0.99 {
+                bevy::prelude::AlphaMode::AlphaToCoverage
+            } else {
+                bevy::prelude::AlphaMode::Opaque
+            };
+            
+            // Update emissive (will be overridden by highlight if needed)
+            material.emissive = LinearRgba::rgb(
+                color.x * emissive,
+                color.y * emissive,
+                color.z * emissive,
+            );
+        }
+    }
 }
 
 

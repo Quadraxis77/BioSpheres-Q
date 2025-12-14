@@ -65,12 +65,12 @@ pub struct FogSettings {
 impl Default for FogSettings {
     fn default() -> Self {
         Self {
-            enabled: false,
-            density_factor: 0.084,
-            absorption: 0.084,
-            scattering: 0.121,
-            ambient_intensity: 0.0,
-            fog_color: [0.068, 0.427, 0.595],
+            enabled: true,
+            density_factor: 0.15,
+            absorption: 0.3,
+            scattering: 0.3,
+            ambient_intensity: 0.02,
+            fog_color: [0.3, 0.4, 0.5],
         }
     }
 }

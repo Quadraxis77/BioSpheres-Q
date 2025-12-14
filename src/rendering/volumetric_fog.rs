@@ -14,7 +14,7 @@ pub struct VolumetricFogPlugin;
 impl Plugin for VolumetricFogPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<VolumetricFogSettings>()
-            .add_systems(Startup, setup_spherical_density_texture)
+            .add_systems(Startup, (setup_spherical_density_texture, crate::ui::settings::load_fog_settings_on_startup))
             .add_systems(Update, (update_volumetric_fog_settings, spawn_missing_fog_volumes));
     }
 }
@@ -118,13 +118,14 @@ fn update_volumetric_fog_settings(
     mut fog_volume_components: Query<&mut FogVolume, With<SphericalFogVolume>>,
     mut last_enabled: Local<Option<bool>>,
 ) {
-    // Only update if settings actually changed
-    if !settings.is_changed() {
+    // Check if this is the first run or if enabled state changed
+    let is_first_run = last_enabled.is_none();
+    let enabled_changed = is_first_run || last_enabled.unwrap() != settings.enabled;
+    
+    // Only update if settings changed OR it's the first run
+    if !settings.is_changed() && !is_first_run {
         return;
     }
-    
-    // Check if enabled state changed
-    let enabled_changed = last_enabled.is_none() || last_enabled.unwrap() != settings.enabled;
     
     if enabled_changed {
         *last_enabled = Some(settings.enabled);
@@ -138,6 +139,17 @@ fn update_volumetric_fog_settings(
                     step_count: settings.step_count,
                     ..default()
                 });
+            }
+            
+            // On first run, also update cameras that already have fog (from scene setup)
+            if is_first_run {
+                for (entity, _) in cameras_with_fog.iter() {
+                    commands.entity(entity).insert(BevyVolumetricFog {
+                        ambient_intensity: settings.ambient_intensity,
+                        step_count: settings.step_count,
+                        ..default()
+                    });
+                }
             }
         } else {
             // Remove VolumetricFog from all cameras to disable fog

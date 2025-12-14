@@ -19,7 +19,7 @@
   },
   "fog_settings": {
     "enabled": true,
-    "density_factor": 0.041,
+    "density_factor": 0.073,
     "absorption": 0.084,
     "scattering": 0.121,
     "ambient_intensity": 0.0,
