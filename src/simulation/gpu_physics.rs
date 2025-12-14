@@ -69,9 +69,6 @@ pub struct GpuGridCell {
 
 /// GPU Physics compute pipeline and resources
 pub struct GpuPhysicsContext {
-    pub device: Arc<wgpu::Device>,
-    pub queue: Arc<wgpu::Queue>,
-    
     // Compute pipelines
     pub collision_pipeline: wgpu::ComputePipeline,
     
@@ -97,46 +94,22 @@ pub struct GpuPhysicsContext {
 }
 
 impl GpuPhysicsContext {
-    /// Create a new GPU physics context
-    pub async fn new() -> Result<Self, GpuPhysicsError> {
-        // Create wgpu instance and adapter
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        });
-        
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: None,
-                force_fallback_adapter: false,
-            })
-            .await
-            .map_err(|_| GpuPhysicsError::NoAdapter)?;
-        
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("GPU Physics Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                memory_hints: wgpu::MemoryHints::Performance,
-                trace: wgpu::Trace::Off,
-            })
-            .await
-            .map_err(|e| GpuPhysicsError::DeviceCreation(e.to_string()))?;
-        
-        let device: Arc<wgpu::Device> = Arc::new(device);
-        let queue: Arc<wgpu::Queue> = Arc::new(queue);
+    /// Create a new GPU physics context using Bevy's existing device
+    pub fn new_from_bevy(
+        device: &bevy::render::renderer::RenderDevice,
+    ) -> Result<Self, GpuPhysicsError> {
+        // Use Bevy's existing device to avoid conflicts
+        let wgpu_device = device.wgpu_device();
         
         // Load shader
         let shader_source = include_str!("../../assets/shaders/gpu_collision.wgsl");
-        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let shader_module = wgpu_device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("GPU Collision Shader"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
         // Create bind group layout
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let bind_group_layout = wgpu_device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("GPU Physics Bind Group Layout"),
             entries: &[
                 // cells: storage buffer (read)
@@ -209,14 +182,14 @@ impl GpuPhysicsContext {
         });
         
         // Create pipeline layout
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        let pipeline_layout = wgpu_device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("GPU Physics Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
         
         // Create compute pipeline
-        let collision_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        let collision_pipeline = wgpu_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Collision Detection Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader_module,
@@ -234,49 +207,49 @@ impl GpuPhysicsContext {
         let cell_indices_buffer_size = (GPU_MAX_CELLS * std::mem::size_of::<u32>()) as u64;
         
         // Create buffers
-        let cell_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let cell_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Cell Data Buffer"),
             size: cell_buffer_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         
-        let force_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let force_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Force Output Buffer"),
             size: force_buffer_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
         
-        let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let params_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Physics Params Buffer"),
             size: params_buffer_size,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         
-        let grid_cells_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let grid_cells_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Grid Cells Buffer"),
             size: grid_cells_buffer_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         
-        let cell_indices_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let cell_indices_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Cell Indices Buffer"),
             size: cell_indices_buffer_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         
-        let cell_grid_indices_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let cell_grid_indices_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Cell Grid Indices Buffer"),
             size: cell_indices_buffer_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         
-        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let staging_buffer = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Staging Buffer"),
             size: force_buffer_size,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
@@ -284,7 +257,7 @@ impl GpuPhysicsContext {
         });
         
         // Create bind group
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = wgpu_device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("GPU Physics Bind Group"),
             layout: &bind_group_layout,
             entries: &[
@@ -323,8 +296,6 @@ impl GpuPhysicsContext {
         let cpu_cell_grid_indices = vec![0u32; GPU_MAX_CELLS];
         
         Ok(Self {
-            device,
-            queue,
             collision_pipeline,
             cell_buffer,
             force_buffer,
@@ -398,7 +369,7 @@ impl GpuPhysicsContext {
     }
     
     /// Upload cell data to GPU
-    fn upload_cell_data(&mut self, state: &CanonicalState) {
+    fn upload_cell_data(&mut self, state: &CanonicalState, queue: &bevy::render::renderer::RenderQueue) {
         let cell_count = state.cell_count;
         
         for i in 0..cell_count {
@@ -412,11 +383,11 @@ impl GpuPhysicsContext {
         }
         
         let cell_data_bytes = bytemuck::cast_slice(&self.cpu_cells[..cell_count]);
-        self.queue.write_buffer(&self.cell_buffer, 0, cell_data_bytes);
+        queue.write_buffer(&self.cell_buffer, 0, cell_data_bytes);
     }
     
     /// Upload physics parameters
-    fn upload_params(&self, state: &CanonicalState, config: &PhysicsConfig) {
+    fn upload_params(&self, state: &CanonicalState, config: &PhysicsConfig, queue: &bevy::render::renderer::RenderQueue) {
         let params = GpuPhysicsParams {
             cell_count: state.cell_count as u32,
             grid_size: GPU_GRID_SIZE,
@@ -428,19 +399,19 @@ impl GpuPhysicsContext {
             max_force: 10000.0,
         };
         
-        self.queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
+        queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
     }
     
     /// Upload spatial grid data
-    fn upload_grid_data(&self, cell_count: usize) {
+    fn upload_grid_data(&self, cell_count: usize, queue: &bevy::render::renderer::RenderQueue) {
         let grid_data_bytes = bytemuck::cast_slice(&self.cpu_grid_cells);
-        self.queue.write_buffer(&self.grid_cells_buffer, 0, grid_data_bytes);
+        queue.write_buffer(&self.grid_cells_buffer, 0, grid_data_bytes);
         
         let indices_bytes = bytemuck::cast_slice(&self.cpu_cell_indices[..cell_count]);
-        self.queue.write_buffer(&self.cell_indices_buffer, 0, indices_bytes);
+        queue.write_buffer(&self.cell_indices_buffer, 0, indices_bytes);
         
         let grid_indices_bytes = bytemuck::cast_slice(&self.cpu_cell_grid_indices[..cell_count]);
-        self.queue.write_buffer(&self.cell_grid_indices_buffer, 0, grid_indices_bytes);
+        queue.write_buffer(&self.cell_grid_indices_buffer, 0, grid_indices_bytes);
     }
     
     /// Run collision detection on GPU and download results
@@ -448,6 +419,8 @@ impl GpuPhysicsContext {
         &mut self,
         state: &mut CanonicalState,
         config: &PhysicsConfig,
+        device: &bevy::render::renderer::RenderDevice,
+        queue: &bevy::render::renderer::RenderQueue,
     ) {
         if state.cell_count == 0 {
             return;
@@ -459,12 +432,14 @@ impl GpuPhysicsContext {
         self.build_spatial_grid(state, config);
         
         // Upload data to GPU
-        self.upload_cell_data(state);
-        self.upload_params(state, config);
-        self.upload_grid_data(cell_count);
+        self.upload_cell_data(state, queue);
+        self.upload_params(state, config, queue);
+        self.upload_grid_data(cell_count, queue);
+        
+        let wgpu_device = device.wgpu_device();
         
         // Create command encoder
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        let mut encoder = wgpu_device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("GPU Physics Encoder"),
         });
         
@@ -488,7 +463,7 @@ impl GpuPhysicsContext {
         encoder.copy_buffer_to_buffer(&self.force_buffer, 0, &self.staging_buffer, 0, force_size);
         
         // Submit commands
-        self.queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(std::iter::once(encoder.finish()));
         
         // Map staging buffer and read results
         let buffer_slice = self.staging_buffer.slice(..force_size);
@@ -498,7 +473,7 @@ impl GpuPhysicsContext {
         });
         
         // Wait for GPU to finish
-        let _ = self.device.poll(wgpu::PollType::Wait);
+        let _ = wgpu_device.poll(wgpu::PollType::Wait);
         rx.recv().unwrap().unwrap();
         
         // Read force data
@@ -532,9 +507,11 @@ pub enum GpuPhysicsError {
 }
 
 /// Bevy resource for GPU physics
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct GpuPhysicsResource {
-    pub context: Option<GpuPhysicsContext>,
+    pub context: Option<Arc<std::sync::Mutex<GpuPhysicsContext>>>,
+    pub device: Option<bevy::render::renderer::RenderDevice>,
+    pub queue: Option<bevy::render::renderer::RenderQueue>,
     pub enabled: bool,
     pub initialization_attempted: bool,
 }
@@ -543,24 +520,34 @@ impl Default for GpuPhysicsResource {
     fn default() -> Self {
         Self {
             context: None,
+            device: None,
+            queue: None,
             enabled: false,
             initialization_attempted: false,
         }
     }
 }
 
-/// Initialize GPU physics context (call once at startup)
-pub fn initialize_gpu_physics(gpu_physics: &mut GpuPhysicsResource) {
+/// Initialize GPU physics context using Bevy's render device
+pub fn initialize_gpu_physics_from_bevy(
+    gpu_physics: &mut GpuPhysicsResource,
+    render_device: &bevy::render::renderer::RenderDevice,
+    render_queue: &bevy::render::renderer::RenderQueue,
+) {
     if gpu_physics.initialization_attempted {
         return;
     }
     
     gpu_physics.initialization_attempted = true;
     
-    match pollster::block_on(GpuPhysicsContext::new()) {
+    // Store device and queue for later use
+    gpu_physics.device = Some(render_device.clone());
+    gpu_physics.queue = Some(render_queue.clone());
+    
+    match GpuPhysicsContext::new_from_bevy(render_device) {
         Ok(context) => {
-            info!("GPU physics initialized successfully");
-            gpu_physics.context = Some(context);
+            info!("GPU physics initialized successfully using Bevy's render device");
+            gpu_physics.context = Some(Arc::new(std::sync::Mutex::new(context)));
             gpu_physics.enabled = true;
         }
         Err(e) => {
@@ -576,8 +563,11 @@ pub fn compute_collision_forces_gpu(
     config: &PhysicsConfig,
     gpu_physics: &mut GpuPhysicsResource,
 ) {
-    if let Some(ref mut context) = gpu_physics.context {
-        context.compute_collision_forces(state, config);
+    if let (Some(ref context), Some(ref device), Some(ref queue)) = 
+        (&gpu_physics.context, &gpu_physics.device, &gpu_physics.queue) {
+        if let Ok(mut ctx) = context.lock() {
+            ctx.compute_collision_forces(state, config, device, queue);
+        }
     }
 }
 
@@ -587,12 +577,26 @@ pub struct GpuPhysicsPlugin;
 impl Plugin for GpuPhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GpuPhysicsResource>()
-            .add_systems(Startup, setup_gpu_physics);
+            // Delay initialization until first use when render resources are available
+            .add_systems(Update, lazy_initialize_gpu_physics.run_if(
+                |gpu: Res<GpuPhysicsResource>| !gpu.initialization_attempted
+            ));
     }
 }
 
-fn setup_gpu_physics(mut gpu_physics: ResMut<GpuPhysicsResource>) {
-    initialize_gpu_physics(&mut gpu_physics);
+fn lazy_initialize_gpu_physics(
+    mut gpu_physics: ResMut<GpuPhysicsResource>,
+    render_device: Option<Res<bevy::render::renderer::RenderDevice>>,
+    render_queue: Option<Res<bevy::render::renderer::RenderQueue>>,
+) {
+    if let (Some(device), Some(queue)) = (render_device, render_queue) {
+        initialize_gpu_physics_from_bevy(&mut gpu_physics, &device, &queue);
+    } else {
+        // Render resources not yet available, mark as attempted to avoid spam
+        gpu_physics.initialization_attempted = true;
+        gpu_physics.enabled = false;
+        warn!("Render device not available for GPU physics initialization");
+    }
 }
 
 
