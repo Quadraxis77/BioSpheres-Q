@@ -1110,6 +1110,42 @@ BevyGenerator.forBlock['bevy_ui_style'] = function(block) {
     return [`Style { width: Val::Px(${width}), height: Val::Px(${height}), ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
 };
 
+// ============================================================================
+// FILE & MODULE ORGANIZATION
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_mod'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const body = BevyGenerator.statementToCode(block, 'BODY');
+    
+    return `mod ${name} {\n${body}}\n\n`;
+};
+
+BevyGenerator.forBlock['bevy_use'] = function(block) {
+    const path = block.getFieldValue('PATH');
+    
+    return `use ${path};\n`;
+};
+
+BevyGenerator.forBlock['bevy_pub_use'] = function(block) {
+    const path = block.getFieldValue('PATH');
+    
+    return `pub use ${path};\n`;
+};
+
+BevyGenerator.forBlock['bevy_pub_mod'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const body = BevyGenerator.statementToCode(block, 'BODY');
+    
+    return `pub mod ${name} {\n${body}}\n\n`;
+};
+
+BevyGenerator.forBlock['bevy_comment'] = function(block) {
+    const text = block.getFieldValue('TEXT');
+    
+    return `// ${text}\n`;
+};
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = BevyGenerator;

@@ -12,6 +12,23 @@ const BevyToolbox = {
         return {
             kind: "categoryToolbox",
             contents: [
+                // File Organization
+                {
+                    kind: "category",
+                    name: "Files",
+                    colour: 120,
+                    contents: [
+                        { kind: "label", text: "Modules" },
+                        { kind: "block", type: "bevy_mod" },
+                        { kind: "block", type: "bevy_pub_mod" },
+                        { kind: "label", text: "Imports" },
+                        { kind: "block", type: "bevy_use" },
+                        { kind: "block", type: "bevy_pub_use" },
+                        { kind: "label", text: "Comments" },
+                        { kind: "block", type: "bevy_comment" }
+                    ]
+                },
+                
                 // App & Plugins
                 {
                     kind: "category",

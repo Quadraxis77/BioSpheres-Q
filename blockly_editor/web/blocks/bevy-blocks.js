@@ -2796,5 +2796,121 @@ Blockly.defineBlocksWithJsonArray([
         validation: {
             required: ["WIDTH", "HEIGHT"]
         }
+    },
+
+    // ============================================================================
+    // FILE & MODULE ORGANIZATION
+    // ============================================================================
+
+    {
+        type: "bevy_mod",
+        message0: "mod %1 %2 %3",
+        args0: [
+            { type: "field_input", name: "NAME", text: "my_module" },
+            { type: "input_dummy" },
+            { type: "input_statement", name: "BODY" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 120,
+        tooltip: "Define a module",
+        helpUrl: "",
+        mode: "bevy",
+        template: "mod {{NAME}} {\n{{BODY}}\n}",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    {
+        type: "bevy_use",
+        message0: "use %1",
+        args0: [
+            { type: "field_input", name: "PATH", text: "bevy::prelude::*" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 120,
+        tooltip: "Import items into scope",
+        helpUrl: "",
+        mode: "bevy",
+        template: "use {{PATH}};",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["PATH"]
+        }
+    },
+
+    {
+        type: "bevy_pub_use",
+        message0: "pub use %1",
+        args0: [
+            { type: "field_input", name: "PATH", text: "bevy::prelude::*" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 120,
+        tooltip: "Re-export items",
+        helpUrl: "",
+        mode: "bevy",
+        template: "pub use {{PATH}};",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["PATH"]
+        }
+    },
+
+    {
+        type: "bevy_pub_mod",
+        message0: "pub mod %1 %2 %3",
+        args0: [
+            { type: "field_input", name: "NAME", text: "my_module" },
+            { type: "input_dummy" },
+            { type: "input_statement", name: "BODY" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 120,
+        tooltip: "Define a public module",
+        helpUrl: "",
+        mode: "bevy",
+        template: "pub mod {{NAME}} {\n{{BODY}}\n}",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    {
+        type: "bevy_comment",
+        message0: "// %1",
+        args0: [
+            { type: "field_input", name: "TEXT", text: "comment" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 120,
+        tooltip: "Single-line comment",
+        helpUrl: "",
+        mode: "bevy",
+        template: "// {{TEXT}}",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {}
     }
 ]);
