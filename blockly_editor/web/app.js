@@ -110,7 +110,9 @@ async function initWorkspace() {
                 scaleSpeed: 1.2
             },
             trashcan: true,
-            theme: createBiospheresTheme()
+            theme: createBiospheresTheme(),
+            comments: false,
+            disable: false
         });
         
         console.log('[App] Blockly workspace created');
