@@ -901,10 +901,84 @@ The generated code would include proper imports and handles.</comment>
 
 
 const workflows = {
+    "getting_started": {
+        title: "Getting Started with Blockly Editor",
+        description: "Learn the basics of using the visual code editor",
+        steps: [
+            {
+                title: "1. Always Start with a File Block",
+                description: "Every workspace must begin with a File Container block. This defines what file your code will be saved to.",
+                blocks: ["file_container"],
+                example: `IMPORTANT: Drag a "File Container" block from the toolbox first!
+
+Set the filename (e.g., "my_code.rs" for Rust, "shader.wgsl" for WGSL)
+Then add your code blocks inside the file container.
+
+Without a file container, your code won't be generated!`
+            },
+            {
+                title: "2. Choose Your Mode",
+                description: "Select the appropriate mode from the dropdown at the top",
+                blocks: [],
+                example: `Available modes:
+🦀 Rust - General Rust code and functions
+🎨 WGSL - GPU shaders for graphics/compute
+🎮 Bevy - Bevy ECS systems and components
+🧬 Biospheres - Cell types and behaviors
+
+The toolbox will update to show blocks for that mode.`
+            },
+            {
+                title: "3. Build Your Code",
+                description: "Drag blocks from the toolbox and connect them inside the file container",
+                blocks: [],
+                example: `Tips:
+- Blocks snap together when they're compatible
+- Use the trash can to delete unwanted blocks
+- Right-click blocks for more options
+- Comments help document your code
+- Generate code frequently to see the output`
+            },
+            {
+                title: "4. Generate and Export",
+                description: "Click Generate to see your code, then Export to save it",
+                blocks: [],
+                example: `Workflow:
+1. Click "⚡ Generate" to see the generated code
+2. Review the code in the right panel
+3. Click "💾 Export" to download your workspace
+4. Click "📦 Download All" to get all generated files as a ZIP
+
+You can also load saved workspaces with "📂 Load"`
+            },
+            {
+                title: "5. Try the Examples",
+                description: "Load example workspaces to see how things work",
+                blocks: [],
+                example: `Click "📚 Examples" in the toolbar to:
+- View pre-built example workspaces
+- Learn common patterns
+- See how different blocks work together
+
+Examples are organized by difficulty:
+- Beginner: Simple, single-file examples
+- Intermediate: More complex logic
+- Advanced: Multi-file, cross-mode references`
+            }
+        ]
+    },
     "create_cell_type": {
         title: "Creating a New Cell Type",
         description: "Add a custom cell type with unique behaviors to your simulation",
         steps: [
+            {
+                title: "0. Start with File Container",
+                description: "Create a file container block first (e.g., 'cell_types.rs')",
+                blocks: ["file_container"],
+                example: `IMPORTANT: Always start with a File Container block!
+Set filename to something like "cell_types.rs" or "photocyte.rs"
+All your code blocks go INSIDE this container.`
+            },
             {
                 title: "1. Define the Component",
                 description: "Create a component struct to store cell-specific data",
@@ -961,6 +1035,12 @@ if let Some(mut registry) = app.world.get_resource_mut::<CellTypeRegistry>() {
         description: "Create a cell that contracts and relaxes adhesions rhythmically",
         steps: [
             {
+                title: "0. Start with File Container",
+                description: "Create a file container block first (e.g., 'muscle_cell.rs')",
+                blocks: ["file_container"],
+                example: `Start with a File Container block and name it "muscle_cell.rs"`
+            },
+            {
                 title: "1. Define Muscle Component",
                 description: "Store contraction state and timing",
                 blocks: ["cell_type_component", "component_field"],
@@ -999,6 +1079,12 @@ pub struct MuscleCell {
         description: "Create a cell that propels itself forward",
         steps: [
             {
+                title: "0. Start with File Container",
+                description: "Create a file container block first (e.g., 'flagella_cell.rs')",
+                blocks: ["file_container"],
+                example: `Start with a File Container block and name it "flagella_cell.rs"`
+            },
+            {
                 title: "1. Define Flagella Component",
                 description: "Store thrust parameters",
                 blocks: ["cell_type_component", "component_field"],
@@ -1035,6 +1121,12 @@ pub struct FlagellaCell {
         title: "Creating a Signaling Network",
         description: "Cells that communicate via chemical signals",
         steps: [
+            {
+                title: "0. Start with File Container",
+                description: "Create a file container block first (e.g., 'signaling_cell.rs')",
+                blocks: ["file_container"],
+                example: `Start with a File Container block and name it "signaling_cell.rs"`
+            },
             {
                 title: "1. Define Signaling Component",
                 description: "Store signal state",
@@ -1074,6 +1166,12 @@ pub struct SignalingCell {
         title: "Creating a Viral Cell (Genome Injection)",
         description: "Cell that injects its genome into other cells on contact",
         steps: [
+            {
+                title: "0. Start with File Container",
+                description: "Create a file container block first (e.g., 'viral_cell.rs')",
+                blocks: ["file_container"],
+                example: `Start with a File Container block and name it "viral_cell.rs"`
+            },
             {
                 title: "1. Define Viral Component",
                 description: "Track infection state",

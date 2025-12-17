@@ -1449,8 +1449,6 @@ function parseWGSLCode(code) {
  * Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 16.2
  */
 function importCode() {
-    console.log('[App] Starting code import...');
-    
     // Create file input element
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -1460,6 +1458,7 @@ function importCode() {
     // Handle file selection
     fileInput.addEventListener('change', async (event) => {
         const files = event.target.files;
+        
         if (!files || files.length === 0) {
             return;
         }
@@ -1531,19 +1530,43 @@ async function importCodeFiles(files) {
             updateProgressIndicator(progressIndicator, 'Creating blocks...', 80);
             
             // Convert to XML and load into workspace
-            const xml = parser.blocksToXml(blocks);
+            const xml = parser.blocksToXml(blocks, filename);
+            console.log('[App] Generated XML:', xml.substring(0, 500) + '...');
+            
+            // Check if block types are defined
+            console.log('[App] Checking block types...');
+            console.log('[App] file_container defined?', typeof Blockly.Blocks['file_container'] !== 'undefined');
+            console.log('[App] rust_use defined?', typeof Blockly.Blocks['rust_use'] !== 'undefined');
+            console.log('[App] rust_main defined?', typeof Blockly.Blocks['rust_main'] !== 'undefined');
+            console.log('[App] rust_function defined?', typeof Blockly.Blocks['rust_function'] !== 'undefined');
+            
             const xmlDom = Blockly.utils.xml.textToDom(xml);
+            console.log('[App] XML DOM created, children:', xmlDom.children.length);
             
             // Ask user if they want to clear workspace or append
             const shouldClear = await confirmClearWorkspace();
             
-            if (shouldClear) {
-                Blockly.Xml.clearWorkspaceAndLoadFromXml(xmlDom, workspace);
-            } else {
-                Blockly.Xml.appendDomToWorkspace(xmlDom, workspace);
+            console.log('[App] Loading XML into workspace...');
+            
+            try {
+                if (shouldClear) {
+                    Blockly.Xml.clearWorkspaceAndLoadFromXml(xmlDom, workspace);
+                } else {
+                    Blockly.Xml.appendDomToWorkspace(xmlDom, workspace);
+                }
+            } catch (error) {
+                console.error('[App] Error loading XML:', error);
+                throw error;
             }
             
             console.log(`[App] Imported ${blocks.length} block(s) from ${filename}`);
+            const loadedBlocks = workspace.getAllBlocks(false);
+            console.log('[App] Workspace now has', loadedBlocks.length, 'blocks');
+            
+            // Log what blocks were actually loaded
+            loadedBlocks.forEach(block => {
+                console.log('[App] Loaded block type:', block.type, 'id:', block.id);
+            });
             
         } else {
             // Multi-file import with reference preservation
@@ -1558,15 +1581,26 @@ async function importCodeFiles(files) {
             
             updateProgressIndicator(progressIndicator, 'Creating blocks...', 80);
             
-            // Combine all blocks from all files
-            const allBlocks = [];
+            // Create separate file containers for each file
+            let xml = '<xml xmlns="https://developers.google.com/blockly/xml">\n';
+            let xOffset = 20;
+            
             for (const [filename, { blocks }] of results.entries()) {
                 console.log(`[App] Parsed ${blocks.length} block(s) from ${filename}`);
-                allBlocks.push(...blocks);
+                
+                // Create file container for this file
+                const fileXml = parser.blocksToXml(blocks, filename);
+                // Extract just the block part (without xml wrapper) and adjust position
+                const blockMatch = fileXml.match(/<block type="file_container"[^>]*>[\s\S]*<\/block>/);
+                if (blockMatch) {
+                    // Update x position for each file
+                    const adjustedBlock = blockMatch[0].replace(/x="\d+"/, `x="${xOffset}"`);
+                    xml += adjustedBlock + '\n';
+                    xOffset += 600; // Space files horizontally
+                }
             }
             
-            // Convert to XML and load into workspace
-            const xml = parser.blocksToXml(allBlocks);
+            xml += '</xml>';
             const xmlDom = Blockly.utils.xml.textToDom(xml);
             
             // Ask user if they want to clear workspace or append

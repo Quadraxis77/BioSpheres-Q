@@ -26,27 +26,39 @@ class MultiModeCodeParser {
         this.errors = [];
         this.references.clear();
         
+        console.log(`[MultiModeCodeParser] parse() called with mode: ${mode}, code length: ${code.length}`);
+        
         try {
             // Auto-detect mode if not specified
             if (mode === 'auto') {
                 mode = this.detectMode(code);
+                console.log(`[MultiModeCodeParser] Auto-detected mode: ${mode}`);
             }
             
             // Delegate to appropriate parser
+            let blocks;
             switch (mode) {
                 case 'rust':
-                    return this.rustParser.parse(code);
+                    blocks = this.rustParser.parse(code);
+                    break;
                 case 'wgsl':
-                    return this.wgslParser.parse(code);
+                    blocks = this.wgslParser.parse(code);
+                    break;
                 case 'bevy':
-                    return this.bevyParser.parse(code);
+                    blocks = this.bevyParser.parse(code);
+                    break;
                 case 'biospheres':
-                    return this.biospheresParser.parse(code);
+                    blocks = this.biospheresParser.parse(code);
+                    break;
                 default:
                     this.addError(`Unknown mode: ${mode}`, 0, 0);
-                    return [];
+                    blocks = [];
             }
+            
+            console.log(`[MultiModeCodeParser] parse() returning ${blocks.length} blocks`);
+            return blocks;
         } catch (error) {
+            console.error('[MultiModeCodeParser] Parse error:', error);
             this.addError(`Parse error: ${error.message}`, 0, 0);
             return [];
         }
@@ -182,14 +194,88 @@ class MultiModeCodeParser {
     }
     
     // Convert parsed blocks to Blockly XML
-    blocksToXml(blocks) {
+    blocksToXml(blocks, filename = 'imported.rs') {
+        console.log(`[MultiModeCodeParser] blocksToXml() called with ${blocks.length} blocks, filename: ${filename}`);
+        
         let xml = '<xml xmlns="https://developers.google.com/blockly/xml">\n';
         
-        for (let block of blocks) {
-            xml += this.blockToXml(block, 2);
+        // Wrap all blocks in a file container
+        xml += '  <block type="file_container" x="20" y="20">\n';
+        xml += `    <field name="FILENAME">${this.escapeXml(filename)}</field>\n`;
+        
+        if (blocks.length > 0) {
+            xml += '    <statement name="CONTENTS">\n';
+            
+            // Recursively chain blocks with proper nesting
+            xml += this.chainBlocks(blocks, 6);
+            
+            xml += '    </statement>\n';
+        } else {
+            console.warn('[MultiModeCodeParser] No blocks to add to file container!');
         }
         
+        xml += '  </block>\n';
         xml += '</xml>';
+        
+        console.log('[MultiModeCodeParser] Generated XML length:', xml.length);
+        return xml;
+    }
+    
+    // Chain blocks together with <next> tags
+    chainBlocks(blocks, indent) {
+        if (blocks.length === 0) return '';
+        
+        const spaces = ' '.repeat(indent);
+        let xml = '';
+        
+        // Generate the first block with next blocks nested inside
+        xml += this.blockToXmlWithNext(blocks[0], blocks.slice(1), indent);
+        
+        return xml;
+    }
+    
+    // Convert block to XML with next blocks nested inside
+    blockToXmlWithNext(block, nextBlocks, indent) {
+        const spaces = ' '.repeat(indent);
+        let xml = `${spaces}<block type="${block.type}" id="${block.id}">\n`;
+        
+        // Add fields
+        if (block.fields) {
+            for (let [name, value] of Object.entries(block.fields)) {
+                xml += `${spaces}  <field name="${name}">${this.escapeXml(value)}</field>\n`;
+            }
+        }
+        
+        // Add values
+        if (block.values) {
+            for (let [name, valueBlock] of Object.entries(block.values)) {
+                if (valueBlock) {
+                    xml += `${spaces}  <value name="${name}">\n`;
+                    xml += this.blockToXml(valueBlock, indent + 4);
+                    xml += `${spaces}  </value>\n`;
+                }
+            }
+        }
+        
+        // Add statements
+        if (block.statements) {
+            for (let [name, stmtBlocks] of Object.entries(block.statements)) {
+                if (stmtBlocks && stmtBlocks.length > 0) {
+                    xml += `${spaces}  <statement name="${name}">\n`;
+                    xml += this.chainBlocks(stmtBlocks, indent + 4);
+                    xml += `${spaces}  </statement>\n`;
+                }
+            }
+        }
+        
+        // Add next blocks INSIDE this block
+        if (nextBlocks && nextBlocks.length > 0) {
+            xml += `${spaces}  <next>\n`;
+            xml += this.blockToXmlWithNext(nextBlocks[0], nextBlocks.slice(1), indent + 4);
+            xml += `${spaces}  </next>\n`;
+        }
+        
+        xml += `${spaces}</block>\n`;
         return xml;
     }
 
@@ -283,12 +369,31 @@ class RustParser {
         
         try {
             // Parse top-level constructs
-            blocks.push(...this.parseUseStatements(code));
-            blocks.push(...this.parseFunctions(code));
-            blocks.push(...this.parseImpls(code));
-            blocks.push(...this.parseStructs(code));
+            const useBlocks = this.parseUseStatements(code);
+            const functionBlocks = this.parseFunctions(code);
+            const implBlocks = this.parseImpls(code);
+            const structBlocks = this.parseStructs(code);
+            
+            blocks.push(...useBlocks);
+            blocks.push(...functionBlocks);
+            blocks.push(...implBlocks);
+            blocks.push(...structBlocks);
+            
+            console.log(`[RustParser] Parsed ${useBlocks.length} use statements, ${functionBlocks.length} functions, ${implBlocks.length} impls, ${structBlocks.length} structs`);
+            
+            // If no blocks were parsed, create a comment block with the code
+            if (blocks.length === 0) {
+                blocks.push({
+                    type: 'rust_comment',
+                    id: this.parent.generateBlockId(),
+                    fields: {
+                        TEXT: 'Imported code (could not parse):\n' + code.substring(0, 500) + (code.length > 500 ? '...' : '')
+                    }
+                });
+            }
         } catch (error) {
             this.parent.addError(`Rust parse error: ${error.message}`, 0, 0, 'Check Rust syntax');
+            console.error('[RustParser] Parse error:', error);
         }
         
         return blocks;
@@ -301,6 +406,7 @@ class RustParser {
         let match;
         
         while ((match = useRegex.exec(code)) !== null) {
+            console.log('[RustParser] Found use statement:', match[1].trim());
             blocks.push({
                 type: 'rust_use',
                 id: this.parent.generateBlockId(),
@@ -310,6 +416,7 @@ class RustParser {
             });
         }
         
+        console.log(`[RustParser] parseUseStatements returning ${blocks.length} blocks`);
         return blocks;
     }
 
@@ -317,43 +424,123 @@ class RustParser {
     parseFunctions(code) {
         const blocks = [];
         
-        // Match fn main()
-        const mainRegex = /fn\s+main\s*\(\s*\)\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
-        let match;
+        // Use a more robust approach to find functions with balanced braces
+        const functions = this.extractFunctions(code);
         
-        while ((match = mainRegex.exec(code)) !== null) {
-            blocks.push({
-                type: 'rust_main',
-                id: this.parent.generateBlockId(),
-                statements: {
-                    BODY: this.parseStatements(match[1])
-                }
-            });
-        }
-        
-        // Match regular functions
-        const fnRegex = /fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*([^{]+))?\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
-        
-        while ((match = fnRegex.exec(code)) !== null) {
-            if (match[1] === 'main') continue;
-            
-            blocks.push({
-                type: 'rust_function',
-                id: this.parent.generateBlockId(),
-                fields: {
-                    NAME: match[1]
-                },
-                values: {
-                    PARAMS: match[2] ? this.parent.createTextBlock(match[2].trim()) : null,
-                    RETURN_TYPE: match[3] ? this.parent.createTextBlock(`-> ${match[3].trim()}`) : null
-                },
-                statements: {
-                    BODY: this.parseStatements(match[4])
-                }
-            });
+        for (const func of functions) {
+            if (func.name === 'main' && func.params === '') {
+                blocks.push({
+                    type: 'rust_main',
+                    id: this.parent.generateBlockId(),
+                    statements: {
+                        BODY: this.parseStatements(func.body)
+                    }
+                });
+            } else {
+                blocks.push({
+                    type: 'rust_function',
+                    id: this.parent.generateBlockId(),
+                    fields: {
+                        NAME: func.name,
+                        VISIBILITY: func.visibility || ''
+                    },
+                    values: {
+                        PARAMS: func.params ? this.parent.createTextBlock(func.params) : null,
+                        RETURN_TYPE: func.returnType ? this.parent.createTextBlock(func.returnType) : null
+                    },
+                    statements: {
+                        BODY: this.parseStatements(func.body)
+                    }
+                });
+            }
         }
         
         return blocks;
+    }
+    
+    // Extract functions with balanced brace matching
+    extractFunctions(code) {
+        const functions = [];
+        const fnRegex = /(pub\s+)?fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*([^{]+))?\s*\{/g;
+        let match;
+        
+        while ((match = fnRegex.exec(code)) !== null) {
+            const visibility = match[1] ? match[1].trim() : '';
+            const name = match[2];
+            const params = match[3].trim();
+            const returnType = match[4] ? match[4].trim() : '';
+            const bodyStart = match.index + match[0].length;
+            
+            console.log(`[RustParser] Found function: ${name}(${params})`);
+            
+            // Find matching closing brace
+            const body = this.extractBalancedBraces(code, bodyStart - 1);
+            
+            if (body !== null) {
+                console.log(`[RustParser] Extracted body for ${name}, length: ${body.length}`);
+                functions.push({
+                    visibility,
+                    name,
+                    params,
+                    returnType,
+                    body
+                });
+            } else {
+                console.warn(`[RustParser] Could not extract body for ${name}`);
+            }
+        }
+        
+        console.log(`[RustParser] extractFunctions returning ${functions.length} functions`);
+        return functions;
+    }
+    
+    // Extract content between balanced braces
+    extractBalancedBraces(code, startPos) {
+        let braceCount = 0;
+        let inString = false;
+        let inChar = false;
+        let escaped = false;
+        let start = -1;
+        
+        for (let i = startPos; i < code.length; i++) {
+            const char = code[i];
+            const prevChar = i > 0 ? code[i - 1] : '';
+            
+            // Handle escape sequences
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (char === '\\') {
+                escaped = true;
+                continue;
+            }
+            
+            // Handle strings and chars
+            if (char === '"' && !inChar) {
+                inString = !inString;
+                continue;
+            }
+            if (char === "'" && !inString && prevChar !== '&') {
+                inChar = !inChar;
+                continue;
+            }
+            
+            if (inString || inChar) continue;
+            
+            // Count braces
+            if (char === '{') {
+                if (braceCount === 0) start = i + 1;
+                braceCount++;
+            } else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                    return code.substring(start, i);
+                }
+            }
+        }
+        
+        return null;
     }
 
 
