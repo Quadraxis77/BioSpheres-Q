@@ -1,0 +1,153 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <comment pinned="true" h="80" w="400" x="20" y="20">Example: Basic Rust Function with Vec3 Math
+This example demonstrates:
+- Creating a Rust function
+- Using Vec3 math operations
+- Working with numeric types
+- Returning values</comment>
+  
+  <block type="file_container" x="20" y="120">
+    <field name="FILENAME">math_utils.rs</field>
+    <statement name="CONTENTS">
+      <block type="rust_pub_function">
+    <field name="NAME">calculate_distance</field>
+    <value name="PARAMS">
+      <block type="rust_parameters">
+        <field name="PARAMS">pos_a: Vec3, pos_b: Vec3</field>
+      </block>
+    </value>
+    <value name="RETURN_TYPE">
+      <block type="rust_return_type">
+        <field name="TYPE">f32</field>
+      </block>
+    </value>
+    <statement name="BODY">
+      <block type="rust_let">
+        <field name="MUTABLE">FALSE</field>
+        <field name="NAME">diff</field>
+        <value name="VALUE">
+          <block type="rust_binary_op">
+            <field name="OP">SUB</field>
+            <value name="LEFT">
+              <block type="rust_var">
+                <field name="NAME">pos_b</field>
+              </block>
+            </value>
+            <value name="RIGHT">
+              <block type="rust_var">
+                <field name="NAME">pos_a</field>
+              </block>
+            </value>
+          </block>
+        </value>
+        <next>
+          <block type="rust_let">
+            <field name="MUTABLE">FALSE</field>
+            <field name="NAME">distance_squared</field>
+            <value name="VALUE">
+              <block type="rust_binary_op">
+                <field name="OP">ADD</field>
+                <value name="LEFT">
+                  <block type="rust_binary_op">
+                    <field name="OP">ADD</field>
+                    <value name="LEFT">
+                      <block type="rust_binary_op">
+                        <field name="OP">MUL</field>
+                        <value name="LEFT">
+                          <block type="rust_field_access">
+                            <field name="FIELD">x</field>
+                            <value name="OBJECT">
+                              <block type="rust_var">
+                                <field name="NAME">diff</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                        <value name="RIGHT">
+                          <block type="rust_field_access">
+                            <field name="FIELD">x</field>
+                            <value name="OBJECT">
+                              <block type="rust_var">
+                                <field name="NAME">diff</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                    <value name="RIGHT">
+                      <block type="rust_binary_op">
+                        <field name="OP">MUL</field>
+                        <value name="LEFT">
+                          <block type="rust_field_access">
+                            <field name="FIELD">y</field>
+                            <value name="OBJECT">
+                              <block type="rust_var">
+                                <field name="NAME">diff</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                        <value name="RIGHT">
+                          <block type="rust_field_access">
+                            <field name="FIELD">y</field>
+                            <value name="OBJECT">
+                              <block type="rust_var">
+                                <field name="NAME">diff</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+                <value name="RIGHT">
+                  <block type="rust_binary_op">
+                    <field name="OP">MUL</field>
+                    <value name="LEFT">
+                      <block type="rust_field_access">
+                        <field name="FIELD">z</field>
+                        <value name="OBJECT">
+                          <block type="rust_var">
+                            <field name="NAME">diff</field>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                    <value name="RIGHT">
+                      <block type="rust_field_access">
+                        <field name="FIELD">z</field>
+                        <value name="OBJECT">
+                          <block type="rust_var">
+                            <field name="NAME">diff</field>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+              </block>
+            </value>
+            <next>
+              <block type="rust_return">
+                <value name="VALUE">
+                  <block type="rust_method_call">
+                    <field name="METHOD">sqrt</field>
+                    <value name="OBJECT">
+                      <block type="rust_var">
+                        <field name="NAME">distance_squared</field>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+              </block>
+            </next>
+          </block>
+          </next>
+        </block>
+      </statement>
+    </block>
+  </statement>
+  </block>
+</xml>

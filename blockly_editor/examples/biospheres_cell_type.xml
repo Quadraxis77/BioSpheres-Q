@@ -1,0 +1,160 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <comment pinned="true" h="100" w="450" x="20" y="20">Example: Biospheres Cell Type Definition
+This example demonstrates:
+- Defining a custom cell type component
+- Creating a behavior system for the cell
+- Using cell-specific operations (forces, energy, division)
+- Querying cell components
+- Registering the cell type in the plugin</comment>
+  
+  <block type="file_container" x="20" y="140">
+    <field name="FILENAME">cell_types.rs</field>
+    <statement name="CONTENTS">
+      <block type="bio_cell_type_component">
+    <field name="NAME">Photocyte</field>
+    <statement name="FIELDS">
+      <block type="bio_component_field">
+        <field name="NAME">energy</field>
+        <field name="TYPE">f32</field>
+        <next>
+          <block type="bio_component_field">
+            <field name="NAME">photosynthesis_rate</field>
+            <field name="TYPE">f32</field>
+            <next>
+              <block type="bio_component_field">
+                <field name="NAME">division_threshold</field>
+                <field name="TYPE">f32</field>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+      </block>
+      <next>
+        <block type="bio_cell_behavior_system">
+    <field name="NAME">photocyte_behavior</field>
+    <statement name="QUERY_PARAMS">
+      <block type="bio_query_cell_type">
+        <field name="CELL_TYPE">Photocyte</field>
+        <field name="MUTABILITY">MUT</field>
+        <next>
+          <block type="bio_query_cell_components">
+            <field name="MUTABILITY">MUT</field>
+            <field name="COMPONENT">CellForces</field>
+            <next>
+              <block type="bio_query_cell_components">
+                <field name="MUTABILITY">REF</field>
+                <field name="COMPONENT">CellPosition</field>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+    <statement name="BODY">
+      <block type="rust_for_iter">
+        <field name="VAR">(entity, mut photocyte, mut forces, cell_pos)</field>
+        <value name="ITER">
+          <block type="rust_method_call">
+            <field name="METHOD">iter_mut</field>
+            <value name="OBJECT">
+              <block type="rust_var">
+                <field name="NAME">query</field>
+              </block>
+            </value>
+          </block>
+        </value>
+        <statement name="BODY">
+          <block type="bio_update_cell_field">
+            <field name="COMPONENT">photocyte</field>
+            <field name="FIELD">energy</field>
+            <field name="OP">ADD</field>
+            <value name="VALUE">
+              <block type="rust_binary_op">
+                <field name="OP">MUL</field>
+                <value name="LEFT">
+                  <block type="rust_field_access">
+                    <field name="FIELD">photosynthesis_rate</field>
+                    <value name="OBJECT">
+                      <block type="rust_var">
+                        <field name="NAME">photocyte</field>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+                <value name="RIGHT">
+                  <block type="bio_get_delta_time"></block>
+                </value>
+              </block>
+            </value>
+            <next>
+              <block type="rust_if">
+                <value name="CONDITION">
+                  <block type="bio_check_energy_threshold">
+                    <field name="COMPONENT">photocyte</field>
+                    <field name="FIELD">energy</field>
+                    <field name="OP">GT</field>
+                    <value name="THRESHOLD">
+                      <block type="rust_field_access">
+                        <field name="FIELD">division_threshold</field>
+                        <value name="OBJECT">
+                          <block type="rust_var">
+                            <field name="NAME">photocyte</field>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+                <statement name="THEN">
+                  <block type="bio_trigger_division">
+                    <field name="ENTITY">entity</field>
+                    <next>
+                      <block type="bio_update_cell_field">
+                        <field name="COMPONENT">photocyte</field>
+                        <field name="FIELD">energy</field>
+                        <field name="OP">DIV</field>
+                        <value name="VALUE">
+                          <block type="rust_float">
+                            <field name="VALUE">2</field>
+                          </block>
+                        </value>
+                      </block>
+                    </next>
+                  </block>
+                </statement>
+                <next>
+                  <block type="bio_apply_force">
+                    <field name="CELL_VAR">forces</field>
+                    <value name="FORCE">
+                      <block type="rust_method_call">
+                        <field name="METHOD">normalize</field>
+                        <value name="OBJECT">
+                          <block type="bio_sense_gradient">
+                            <field name="NUTRIENT_TYPE">NUTRIENT</field>
+                            <value name="POSITION">
+                              <block type="bio_get_position">
+                                <field name="VAR">cell_pos</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+          </statement>
+        </block>
+      </next>
+    </statement>
+  </block>
+  
+  <comment pinned="true" h="80" w="400" x="20" y="800">Plugin Registration:
+Don't forget to register this cell type in your plugin:
+app.add_systems(Update, photocyte_behavior);
+app.register_type::&lt;Photocyte&gt;();</comment>
+</xml>

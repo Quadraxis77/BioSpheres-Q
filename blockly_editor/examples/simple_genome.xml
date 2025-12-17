@@ -1,0 +1,57 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <block type="file_container" x="20" y="20">
+    <field name="FILENAME">genome.json</field>
+    <statement name="CONTENTS">
+      <block type="genome_definition">
+    <field name="NAME">Simple Organism</field>
+    <field name="INITIAL_MODE">0</field>
+    <statement name="MODES">
+      <block type="mode_definition">
+        <field name="MODE_NUM">0</field>
+        <field name="MODE_NAME">Stem Cell</field>
+        <field name="CELL_TYPE">0</field>
+        <value name="COLOR">
+          <block type="color_rgb">
+            <field name="R">0.2</field>
+            <field name="G">0.8</field>
+            <field name="B">0.4</field>
+          </block>
+        </value>
+        <value name="DIVISION">
+          <block type="division_settings">
+            <field name="SPLIT_MASS">1</field>
+            <field name="SPLIT_INTERVAL">5</field>
+            <field name="MAX_SPLITS">-1</field>
+            <field name="MAX_ADHESIONS">20</field>
+            <field name="MIN_ADHESIONS">0</field>
+            <value name="CHILD_A">
+              <block type="child_settings">
+                <field name="MODE">0</field>
+                <field name="KEEP_ADHESION">TRUE</field>
+                <field name="ANGLE_SNAP">TRUE</field>
+              </block>
+            </value>
+            <value name="CHILD_B">
+              <block type="child_settings">
+                <field name="MODE">0</field>
+                <field name="KEEP_ADHESION">TRUE</field>
+                <field name="ANGLE_SNAP">TRUE</field>
+              </block>
+            </value>
+          </block>
+        </value>
+        <value name="ADHESION">
+          <block type="adhesion_settings">
+            <field name="CAN_BREAK">TRUE</field>
+            <field name="BREAK_FORCE">10</field>
+            <field name="REST_LENGTH">1</field>
+            <field name="STIFFNESS">150</field>
+            <field name="DAMPING">5</field>
+          </block>
+        </value>
+        </block>
+      </statement>
+    </block>
+  </statement>
+  </block>
+</xml>

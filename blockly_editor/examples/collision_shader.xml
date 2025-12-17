@@ -1,0 +1,75 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <block type="file_container" x="20" y="20">
+    <field name="FILENAME">collision.wgsl</field>
+    <statement name="CONTENTS">
+      <block type="wgsl_compute_shader">
+    <field name="WORKGROUP_SIZE">64</field>
+    <statement name="BINDINGS">
+      <block type="wgsl_storage_buffer">
+        <field name="GROUP">0</field>
+        <field name="BINDING">0</field>
+        <field name="NAME">cells</field>
+        <field name="TYPE">array&lt;CellData&gt;</field>
+        <field name="ACCESS">read</field>
+        <next>
+          <block type="wgsl_storage_buffer">
+            <field name="GROUP">0</field>
+            <field name="BINDING">1</field>
+            <field name="NAME">forces</field>
+            <field name="TYPE">array&lt;ForceOutput&gt;</field>
+            <field name="ACCESS">read_write</field>
+            <next>
+              <block type="wgsl_uniform_buffer">
+                <field name="GROUP">0</field>
+                <field name="BINDING">2</field>
+                <field name="NAME">params</field>
+                <field name="TYPE">PhysicsParams</field>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+    <statement name="MAIN">
+      <block type="wgsl_var_declare">
+        <field name="NAME">cell_idx</field>
+        <value name="VALUE">
+          <block type="wgsl_field_access">
+            <field name="FIELD">x</field>
+            <value name="OBJECT">
+              <block type="wgsl_var_ref">
+                <field name="NAME">global_id</field>
+              </block>
+            </value>
+          </block>
+        </value>
+        <next>
+          <block type="wgsl_var_declare">
+            <field name="NAME">total_force</field>
+            <value name="VALUE">
+              <block type="wgsl_vec3">
+                <value name="X">
+                  <block type="wgsl_number">
+                    <field name="VALUE">0</field>
+                  </block>
+                </value>
+                <value name="Y">
+                  <block type="wgsl_number">
+                    <field name="VALUE">0</field>
+                  </block>
+                </value>
+                <value name="Z">
+                  <block type="wgsl_number">
+                    <field name="VALUE">0</field>
+                  </block>
+                </value>
+              </block>
+            </value>
+          </block>
+          </next>
+        </block>
+      </statement>
+    </block>
+  </statement>
+  </block>
+</xml>

@@ -6,6 +6,7 @@ pub mod adhesion_manager;
 pub mod adhesion_zones;
 pub mod division;
 pub mod types;
+pub mod type_registry;
 
 pub use adhesion::{AdhesionPlugin, AdhesionSettings, AdhesionConnections, AdhesionIndices, MAX_ADHESIONS_PER_CELL, MAX_ADHESION_CONNECTIONS};
 pub use adhesion_forces::{compute_adhesion_forces, compute_adhesion_forces_parallel, compute_adhesion_forces_batched};
@@ -13,6 +14,7 @@ pub use adhesion_manager::AdhesionConnectionManager;
 pub use adhesion_zones::{AdhesionZone, classify_bond_direction, get_zone_color, EQUATORIAL_THRESHOLD_DEGREES};
 pub use division::{DivisionPlugin, DivisionQueue, has_pending_divisions};
 pub use types::TypesPlugin;
+pub use type_registry::{CellTypeRegistry, CellTypeMetadata, CellTypeRegistryPlugin};
 
 // Re-export physics types for backwards compatibility
 pub mod physics {
@@ -33,7 +35,8 @@ pub struct CellPlugin;
 
 impl Plugin for CellPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(TypesPlugin)
+        app.add_plugins(CellTypeRegistryPlugin)
+            .add_plugins(TypesPlugin)
             .add_plugins(DivisionPlugin)
             .add_plugins(AdhesionPlugin);
     }

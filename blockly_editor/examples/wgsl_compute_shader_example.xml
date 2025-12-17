@@ -1,0 +1,238 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <comment pinned="true" h="100" w="450" x="20" y="20">Example: WGSL Compute Shader
+This example demonstrates:
+- Creating a compute shader with workgroup size
+- Defining storage buffers for GPU data
+- Using builtin variables (global_invocation_id)
+- Performing parallel computations on arrays
+- Vector math in WGSL</comment>
+  
+  <block type="file_container" x="20" y="140">
+    <field name="FILENAME">particles.wgsl</field>
+    <statement name="CONTENTS">
+      <block type="wgsl_struct">
+    <field name="NAME">Particle</field>
+    <statement name="FIELDS">
+      <block type="wgsl_struct_field">
+        <field name="NAME">position</field>
+        <field name="TYPE">vec3&lt;f32&gt;</field>
+        <next>
+          <block type="wgsl_struct_field">
+            <field name="NAME">velocity</field>
+            <field name="TYPE">vec3&lt;f32&gt;</field>
+            <next>
+              <block type="wgsl_struct_field">
+                <field name="NAME">mass</field>
+                <field name="TYPE">f32</field>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+    <next>
+      <block type="wgsl_storage_buffer_full">
+        <field name="GROUP">0</field>
+        <field name="BINDING">0</field>
+        <field name="ACCESS">read_write</field>
+        <field name="NAME">particles</field>
+        <field name="TYPE">array&lt;Particle&gt;</field>
+        <next>
+          <block type="wgsl_uniform_buffer_full">
+            <field name="GROUP">0</field>
+            <field name="BINDING">1</field>
+            <field name="NAME">delta_time</field>
+            <field name="TYPE">f32</field>
+            <next>
+              <block type="wgsl_compute_shader_full">
+                <field name="X">64</field>
+                <field name="Y">1</field>
+                <field name="Z">1</field>
+                <field name="NAME">update_particles</field>
+                <value name="PARAMS">
+                  <block type="wgsl_struct_field_builtin">
+                    <field name="BUILTIN">global_invocation_id</field>
+                    <field name="NAME">global_id</field>
+                    <field name="TYPE">vec3&lt;u32&gt;</field>
+                  </block>
+                </value>
+                <statement name="BODY">
+                  <block type="wgsl_let">
+                    <field name="NAME">index</field>
+                    <value name="VALUE">
+                      <block type="wgsl_field_access">
+                        <field name="FIELD">x</field>
+                        <value name="OBJECT">
+                          <block type="wgsl_var_ref">
+                            <field name="NAME">global_id</field>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                    <next>
+                      <block type="wgsl_if">
+                        <value name="CONDITION">
+                          <block type="wgsl_binary_op">
+                            <field name="OP">LT</field>
+                            <value name="LEFT">
+                              <block type="wgsl_var_ref">
+                                <field name="NAME">index</field>
+                              </block>
+                            </value>
+                            <value name="RIGHT">
+                              <block type="wgsl_array_length">
+                                <value name="ARRAY">
+                                  <block type="wgsl_var_ref">
+                                    <field name="NAME">particles</field>
+                                  </block>
+                                </value>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                        <statement name="THEN">
+                          <block type="wgsl_var_declare">
+                            <field name="NAME">particle</field>
+                            <value name="VALUE">
+                              <block type="wgsl_index">
+                                <value name="ARRAY">
+                                  <block type="wgsl_var_ref">
+                                    <field name="NAME">particles</field>
+                                  </block>
+                                </value>
+                                <value name="INDEX">
+                                  <block type="wgsl_var_ref">
+                                    <field name="NAME">index</field>
+                                  </block>
+                                </value>
+                              </block>
+                            </value>
+                            <next>
+                              <block type="wgsl_let">
+                                <field name="NAME">gravity</field>
+                                <value name="VALUE">
+                                  <block type="wgsl_vec3_typed">
+                                    <field name="TYPE">f32</field>
+                                    <value name="X">
+                                      <block type="wgsl_number">
+                                        <field name="VALUE">0</field>
+                                      </block>
+                                    </value>
+                                    <value name="Y">
+                                      <block type="wgsl_number">
+                                        <field name="VALUE">-9.8</field>
+                                      </block>
+                                    </value>
+                                    <value name="Z">
+                                      <block type="wgsl_number">
+                                        <field name="VALUE">0</field>
+                                      </block>
+                                    </value>
+                                  </block>
+                                </value>
+                                <next>
+                                  <block type="wgsl_compound_assign">
+                                    <field name="OP">+=</field>
+                                    <value name="TARGET">
+                                      <block type="wgsl_field_access">
+                                        <field name="FIELD">velocity</field>
+                                        <value name="OBJECT">
+                                          <block type="wgsl_var_ref">
+                                            <field name="NAME">particle</field>
+                                          </block>
+                                        </value>
+                                      </block>
+                                    </value>
+                                    <value name="VALUE">
+                                      <block type="wgsl_binary_op">
+                                        <field name="OP">MUL</field>
+                                        <value name="LEFT">
+                                          <block type="wgsl_var_ref">
+                                            <field name="NAME">gravity</field>
+                                          </block>
+                                        </value>
+                                        <value name="RIGHT">
+                                          <block type="wgsl_var_ref">
+                                            <field name="NAME">delta_time</field>
+                                          </block>
+                                        </value>
+                                      </block>
+                                    </value>
+                                    <next>
+                                      <block type="wgsl_compound_assign">
+                                        <field name="OP">+=</field>
+                                        <value name="TARGET">
+                                          <block type="wgsl_field_access">
+                                            <field name="FIELD">position</field>
+                                            <value name="OBJECT">
+                                              <block type="wgsl_var_ref">
+                                                <field name="NAME">particle</field>
+                                              </block>
+                                            </value>
+                                          </block>
+                                        </value>
+                                        <value name="VALUE">
+                                          <block type="wgsl_binary_op">
+                                            <field name="OP">MUL</field>
+                                            <value name="LEFT">
+                                              <block type="wgsl_field_access">
+                                                <field name="FIELD">velocity</field>
+                                                <value name="OBJECT">
+                                                  <block type="wgsl_var_ref">
+                                                    <field name="NAME">particle</field>
+                                                  </block>
+                                                </value>
+                                              </block>
+                                            </value>
+                                            <value name="RIGHT">
+                                              <block type="wgsl_var_ref">
+                                                <field name="NAME">delta_time</field>
+                                              </block>
+                                            </value>
+                                          </block>
+                                        </value>
+                                        <next>
+                                          <block type="wgsl_assign">
+                                            <value name="TARGET">
+                                              <block type="wgsl_index">
+                                                <value name="ARRAY">
+                                                  <block type="wgsl_var_ref">
+                                                    <field name="NAME">particles</field>
+                                                  </block>
+                                                </value>
+                                                <value name="INDEX">
+                                                  <block type="wgsl_var_ref">
+                                                    <field name="NAME">index</field>
+                                                  </block>
+                                                </value>
+                                              </block>
+                                            </value>
+                                            <value name="VALUE">
+                                              <block type="wgsl_var_ref">
+                                                <field name="NAME">particle</field>
+                                              </block>
+                                            </value>
+                                          </block>
+                                        </next>
+                                      </block>
+                                    </next>
+                                  </block>
+                                </next>
+                              </block>
+                            </next>
+                          </block>
+                        </statement>
+                      </block>
+                    </next>
+                  </block>
+                </statement>
+              </block>
+              </next>
+            </block>
+          </next>
+        </block>
+      </next>
+    </block>
+  </statement>
+  </block>
+</xml>

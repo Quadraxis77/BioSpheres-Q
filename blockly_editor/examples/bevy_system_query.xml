@@ -1,0 +1,90 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <comment pinned="true" h="100" w="450" x="20" y="20">Example: Bevy System with Query
+This example demonstrates:
+- Creating a Bevy ECS system
+- Using Query to iterate over entities
+- Accessing mutable and immutable components
+- Using the Time resource
+- Applying transformations to entities</comment>
+  
+  <block type="file_container" x="20" y="140">
+    <field name="FILENAME">systems.rs</field>
+    <statement name="CONTENTS">
+      <block type="bevy_system">
+    <field name="NAME">rotate_entities</field>
+    <value name="PARAMS">
+      <block type="bevy_query">
+        <value name="COMPONENTS">
+          <block type="bevy_query_components">
+            <field name="COMPONENTS">&amp;mut Transform, &amp;RotationSpeed</field>
+          </block>
+        </value>
+      </block>
+    </value>
+    <statement name="BODY">
+      <block type="rust_for_iter">
+        <field name="VAR">(mut transform, speed)</field>
+        <value name="ITER">
+          <block type="bevy_query_iter_mut">
+            <value name="QUERY">
+              <block type="rust_var">
+                <field name="NAME">query</field>
+              </block>
+            </value>
+          </block>
+        </value>
+        <statement name="BODY">
+          <block type="rust_compound_assign">
+            <field name="OP">ADD</field>
+            <value name="TARGET">
+              <block type="rust_field_access">
+                <field name="FIELD">y</field>
+                <value name="OBJECT">
+                  <block type="rust_field_access">
+                    <field name="FIELD">rotation</field>
+                    <value name="OBJECT">
+                      <block type="rust_var">
+                        <field name="NAME">transform</field>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+              </block>
+            </value>
+            <value name="VALUE">
+              <block type="rust_binary_op">
+                <field name="OP">MUL</field>
+                <value name="LEFT">
+                  <block type="rust_field_access">
+                    <field name="FIELD">radians_per_second</field>
+                    <value name="OBJECT">
+                      <block type="rust_var">
+                        <field name="NAME">speed</field>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+                <value name="RIGHT">
+                  <block type="rust_method_call">
+                    <field name="METHOD">delta_seconds</field>
+                    <value name="OBJECT">
+                      <block type="rust_var">
+                        <field name="NAME">time</field>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+              </block>
+            </value>
+          </block>
+        </statement>
+        </block>
+      </block>
+    </statement>
+  </block>
+  
+  <comment pinned="true" h="60" w="400" x="20" y="500">Component Definition:
+You would also need to define the RotationSpeed component:
+#[derive(Component)]
+struct RotationSpeed { radians_per_second: f32 }</comment>
+</xml>
