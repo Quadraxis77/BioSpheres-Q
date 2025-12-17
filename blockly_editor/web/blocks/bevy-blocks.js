@@ -1264,5 +1264,1537 @@ Blockly.defineBlocksWithJsonArray([
         validation: {
             required: ["TARGET_FILE"]
         }
+    },
+
+    // ============================================================================
+    // VEC3 / VEC2 / QUAT CONSTRUCTORS
+    // ============================================================================
+
+    {
+        type: "bevy_vec3_new",
+        message0: "Vec3::new( %1 , %2 , %3 )",
+        args0: [
+            { type: "input_value", name: "X", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "Y", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "Z", check: ["Number", "f32", "float"] }
+        ],
+        output: "Vec3",
+        colour: 290,
+        tooltip: "Create a new Vec3",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Vec3::new({{X}}, {{Y}}, {{Z}})",
+        typeInfo: {
+            inputs: {
+                X: ["f32", "Number", "float"],
+                Y: ["f32", "Number", "float"],
+                Z: ["f32", "Number", "float"]
+            },
+            output: ["Vec3"]
+        },
+        validation: {
+            required: ["X", "Y", "Z"]
+        }
+    },
+
+    {
+        type: "bevy_vec3_const",
+        message0: "Vec3:: %1",
+        args0: [
+            { type: "field_dropdown", name: "CONST", options: [
+                ["ZERO", "ZERO"],
+                ["ONE", "ONE"],
+                ["X", "X"],
+                ["Y", "Y"],
+                ["Z", "Z"],
+                ["NEG_X", "NEG_X"],
+                ["NEG_Y", "NEG_Y"],
+                ["NEG_Z", "NEG_Z"]
+            ]}
+        ],
+        output: "Vec3",
+        colour: 290,
+        tooltip: "Vec3 constant",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Vec3::{{CONST}}",
+        typeInfo: {
+            inputs: {},
+            output: ["Vec3"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_vec2_new",
+        message0: "Vec2::new( %1 , %2 )",
+        args0: [
+            { type: "input_value", name: "X", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "Y", check: ["Number", "f32", "float"] }
+        ],
+        output: "Vec2",
+        colour: 290,
+        tooltip: "Create a new Vec2",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Vec2::new({{X}}, {{Y}})",
+        typeInfo: {
+            inputs: {
+                X: ["f32", "Number", "float"],
+                Y: ["f32", "Number", "float"]
+            },
+            output: ["Vec2"]
+        },
+        validation: {
+            required: ["X", "Y"]
+        }
+    },
+
+    {
+        type: "bevy_quat_from_rotation",
+        message0: "Quat::from_rotation_%1 ( %2 )",
+        args0: [
+            { type: "field_dropdown", name: "AXIS", options: [
+                ["x", "x"],
+                ["y", "y"],
+                ["z", "z"]
+            ]},
+            { type: "input_value", name: "ANGLE", check: ["Number", "f32", "float"] }
+        ],
+        output: "Quat",
+        colour: 290,
+        tooltip: "Create quaternion from axis rotation",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Quat::from_rotation_{{AXIS}}({{ANGLE}})",
+        typeInfo: {
+            inputs: {
+                ANGLE: ["f32", "Number", "float"]
+            },
+            output: ["Quat"]
+        },
+        validation: {
+            required: ["ANGLE"]
+        }
+    },
+
+    // ============================================================================
+    // CAMERA BUNDLES
+    // ============================================================================
+
+    {
+        type: "bevy_camera3d_bundle",
+        message0: "Camera3dBundle { %1 transform: %2 , %3 ..Default::default() %4 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "TRANSFORM" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Bundle",
+        colour: 290,
+        tooltip: "3D camera bundle",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Camera3dBundle { transform: {{TRANSFORM}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                TRANSFORM: ["Transform"]
+            },
+            output: ["Bundle"]
+        },
+        validation: {
+            required: ["TRANSFORM"]
+        }
+    },
+
+    {
+        type: "bevy_camera2d_bundle",
+        message0: "Camera2dBundle::default()",
+        output: "Bundle",
+        colour: 290,
+        tooltip: "2D camera bundle",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Camera2dBundle::default()",
+        typeInfo: {
+            inputs: {},
+            output: ["Bundle"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // LIGHT BUNDLES
+    // ============================================================================
+
+    {
+        type: "bevy_point_light_bundle",
+        message0: "PointLightBundle { %1 transform: %2 , %3 ..Default::default() %4 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "TRANSFORM" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Bundle",
+        colour: 290,
+        tooltip: "Point light bundle",
+        helpUrl: "",
+        mode: "bevy",
+        template: "PointLightBundle { transform: {{TRANSFORM}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                TRANSFORM: ["Transform"]
+            },
+            output: ["Bundle"]
+        },
+        validation: {
+            required: ["TRANSFORM"]
+        }
+    },
+
+    {
+        type: "bevy_directional_light_bundle",
+        message0: "DirectionalLightBundle { %1 transform: %2 , %3 ..Default::default() %4 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "TRANSFORM" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Bundle",
+        colour: 290,
+        tooltip: "Directional light bundle",
+        helpUrl: "",
+        mode: "bevy",
+        template: "DirectionalLightBundle { transform: {{TRANSFORM}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                TRANSFORM: ["Transform"]
+            },
+            output: ["Bundle"]
+        },
+        validation: {
+            required: ["TRANSFORM"]
+        }
+    },
+
+    // ============================================================================
+    // MESH PRIMITIVES
+    // ============================================================================
+
+    {
+        type: "bevy_mesh_primitive",
+        message0: "meshes.add( %1 )",
+        args0: [
+            { type: "field_dropdown", name: "PRIMITIVE", options: [
+                ["Cuboid::default()", "CUBOID"],
+                ["Sphere::default()", "SPHERE"],
+                ["Plane3d::default()", "PLANE"],
+                ["Capsule3d::default()", "CAPSULE"],
+                ["Cylinder::default()", "CYLINDER"],
+                ["Torus::default()", "TORUS"]
+            ]}
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create mesh primitive",
+        helpUrl: "",
+        mode: "bevy",
+        typeInfo: {
+            inputs: {},
+            output: ["Handle"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_mesh_primitive_sized",
+        message0: "meshes.add( %1 ( %2 ) )",
+        args0: [
+            { type: "field_dropdown", name: "PRIMITIVE", options: [
+                ["Cuboid::new", "CUBOID"],
+                ["Sphere::new", "SPHERE"],
+                ["Capsule3d::new", "CAPSULE"],
+                ["Cylinder::new", "CYLINDER"]
+            ]},
+            { type: "input_value", name: "SIZE", check: ["Number", "f32", "float"] }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create sized mesh primitive",
+        helpUrl: "",
+        mode: "bevy",
+        typeInfo: {
+            inputs: {
+                SIZE: ["f32", "Number", "float"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["SIZE"]
+        }
+    },
+
+    // ============================================================================
+    // MATERIAL & COLOR
+    // ============================================================================
+
+    {
+        type: "bevy_standard_material",
+        message0: "materials.add( Color::srgb( %1 , %2 , %3 ) )",
+        args0: [
+            { type: "input_value", name: "R", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "G", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "B", check: ["Number", "f32", "float"] }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create standard material with RGB color",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(Color::srgb({{R}}, {{G}}, {{B}}))",
+        typeInfo: {
+            inputs: {
+                R: ["f32", "Number", "float"],
+                G: ["f32", "Number", "float"],
+                B: ["f32", "Number", "float"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["R", "G", "B"]
+        }
+    },
+
+    {
+        type: "bevy_standard_material_full",
+        message0: "materials.add( StandardMaterial { %1 base_color: %2 , %3 metallic: %4 , %5 perceptual_roughness: %6 , %7 ..Default::default() %8 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "METALLIC", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "ROUGHNESS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create standard material with metallic and roughness",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(StandardMaterial { base_color: {{COLOR}}, metallic: {{METALLIC}}, perceptual_roughness: {{ROUGHNESS}}, ..Default::default() })",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"],
+                METALLIC: ["f32", "Number", "float"],
+                ROUGHNESS: ["f32", "Number", "float"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["COLOR", "METALLIC", "ROUGHNESS"]
+        }
+    },
+
+    {
+        type: "bevy_material_emissive",
+        message0: "materials.add( StandardMaterial { %1 emissive: %2 , %3 ..Default::default() %4 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create emissive material (glowing)",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(StandardMaterial { emissive: {{COLOR}}.into(), ..Default::default() })",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["COLOR"]
+        }
+    },
+
+    {
+        type: "bevy_material_textured",
+        message0: "materials.add( StandardMaterial { %1 base_color_texture: Some( %2 ), %3 ..Default::default() %4 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "TEXTURE", check: "Handle" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create material with base color texture",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(StandardMaterial { base_color_texture: Some({{TEXTURE}}), ..Default::default() })",
+        typeInfo: {
+            inputs: {
+                TEXTURE: ["Handle"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["TEXTURE"]
+        }
+    },
+
+    {
+        type: "bevy_material_normal_map",
+        message0: "materials.add( StandardMaterial { %1 normal_map_texture: Some( %2 ), %3 ..Default::default() %4 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "TEXTURE", check: "Handle" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create material with normal map",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(StandardMaterial { normal_map_texture: Some({{TEXTURE}}), ..Default::default() })",
+        typeInfo: {
+            inputs: {
+                TEXTURE: ["Handle"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["TEXTURE"]
+        }
+    },
+
+    {
+        type: "bevy_material_alpha_mode",
+        message0: "materials.add( StandardMaterial { %1 alpha_mode: AlphaMode:: %2 , %3 ..Default::default() %4 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "field_dropdown", name: "MODE", options: [
+                ["Opaque", "Opaque"],
+                ["Blend", "Blend"],
+                ["Mask(0.5)", "Mask"],
+                ["Add", "Add"],
+                ["Multiply", "Multiply"]
+            ]},
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create material with alpha blending mode",
+        helpUrl: "",
+        mode: "bevy",
+        typeInfo: {
+            inputs: {},
+            output: ["Handle"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_material_unlit",
+        message0: "materials.add( StandardMaterial { %1 base_color: %2 , %3 unlit: true, %4 ..Default::default() %5 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create unlit material (no lighting calculations)",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(StandardMaterial { base_color: {{COLOR}}, unlit: true, ..Default::default() })",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["COLOR"]
+        }
+    },
+
+    {
+        type: "bevy_material_double_sided",
+        message0: "materials.add( StandardMaterial { %1 base_color: %2 , %3 double_sided: true, %4 ..Default::default() %5 } )",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Handle",
+        colour: 290,
+        tooltip: "Create double-sided material (renders both faces)",
+        helpUrl: "",
+        mode: "bevy",
+        template: "materials.add(StandardMaterial { base_color: {{COLOR}}, double_sided: true, ..Default::default() })",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["COLOR"]
+        }
+    },
+
+    {
+        type: "bevy_color_const",
+        message0: "Color:: %1",
+        args0: [
+            { type: "field_dropdown", name: "COLOR", options: [
+                ["WHITE", "WHITE"],
+                ["BLACK", "BLACK"],
+                ["RED", "RED"],
+                ["GREEN", "GREEN"],
+                ["BLUE", "BLUE"],
+                ["YELLOW", "YELLOW"],
+                ["CYAN", "CYAN"],
+                ["MAGENTA", "MAGENTA"]
+            ]}
+        ],
+        output: "Color",
+        colour: 290,
+        tooltip: "Color constant",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Color::{{COLOR}}",
+        typeInfo: {
+            inputs: {},
+            output: ["Color"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_color_srgb",
+        message0: "Color::srgb( %1 , %2 , %3 )",
+        args0: [
+            { type: "input_value", name: "R", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "G", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "B", check: ["Number", "f32", "float"] }
+        ],
+        output: "Color",
+        colour: 290,
+        tooltip: "Create RGB color",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Color::srgb({{R}}, {{G}}, {{B}})",
+        typeInfo: {
+            inputs: {
+                R: ["f32", "Number", "float"],
+                G: ["f32", "Number", "float"],
+                B: ["f32", "Number", "float"]
+            },
+            output: ["Color"]
+        },
+        validation: {
+            required: ["R", "G", "B"]
+        }
+    },
+
+    {
+        type: "bevy_color_srgba",
+        message0: "Color::srgba( %1 , %2 , %3 , %4 )",
+        args0: [
+            { type: "input_value", name: "R", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "G", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "B", check: ["Number", "f32", "float"] },
+            { type: "input_value", name: "A", check: ["Number", "f32", "float"] }
+        ],
+        output: "Color",
+        colour: 290,
+        tooltip: "Create RGBA color with alpha",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Color::srgba({{R}}, {{G}}, {{B}}, {{A}})",
+        typeInfo: {
+            inputs: {
+                R: ["f32", "Number", "float"],
+                G: ["f32", "Number", "float"],
+                B: ["f32", "Number", "float"],
+                A: ["f32", "Number", "float"]
+            },
+            output: ["Color"]
+        },
+        validation: {
+            required: ["R", "G", "B", "A"]
+        }
+    },
+
+    // ============================================================================
+    // ASSET LOADING
+    // ============================================================================
+
+    {
+        type: "bevy_asset_server",
+        message0: "Res< AssetServer >",
+        output: "SystemParam",
+        colour: 200,
+        tooltip: "Asset server system parameter",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Res<AssetServer>",
+        typeInfo: {
+            inputs: {},
+            output: ["SystemParam", "Res", "AssetServer"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_load_asset",
+        message0: "%1 .load( %2 )",
+        args0: [
+            { type: "input_value", name: "ASSET_SERVER", check: "AssetServer" },
+            { type: "field_input", name: "PATH", text: "models/scene.gltf" }
+        ],
+        output: "Handle",
+        colour: 200,
+        tooltip: "Load asset from file",
+        helpUrl: "",
+        mode: "bevy",
+        template: "{{ASSET_SERVER}}.load(\"{{PATH}}\")",
+        typeInfo: {
+            inputs: {
+                ASSET_SERVER: ["AssetServer", "Res"]
+            },
+            output: ["Handle"]
+        },
+        validation: {
+            required: ["ASSET_SERVER", "PATH"]
+        }
+    },
+
+    // ============================================================================
+    // INPUT HANDLING
+    // ============================================================================
+
+    {
+        type: "bevy_keyboard_input",
+        message0: "Res< ButtonInput< KeyCode > >",
+        output: "SystemParam",
+        colour: 200,
+        tooltip: "Keyboard input system parameter",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Res<ButtonInput<KeyCode>>",
+        typeInfo: {
+            inputs: {},
+            output: ["SystemParam", "Res", "ButtonInput"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_key_pressed",
+        message0: "%1 .pressed( KeyCode:: %2 )",
+        args0: [
+            { type: "input_value", name: "INPUT", check: "ButtonInput" },
+            { type: "field_dropdown", name: "KEY", options: [
+                ["W", "KeyW"],
+                ["A", "KeyA"],
+                ["S", "KeyS"],
+                ["D", "KeyD"],
+                ["Space", "Space"],
+                ["Escape", "Escape"],
+                ["Enter", "Enter"],
+                ["ArrowUp", "ArrowUp"],
+                ["ArrowDown", "ArrowDown"],
+                ["ArrowLeft", "ArrowLeft"],
+                ["ArrowRight", "ArrowRight"]
+            ]}
+        ],
+        output: "Boolean",
+        colour: 200,
+        tooltip: "Check if key is pressed",
+        helpUrl: "",
+        mode: "bevy",
+        template: "{{INPUT}}.pressed(KeyCode::{{KEY}})",
+        typeInfo: {
+            inputs: {
+                INPUT: ["ButtonInput", "Res"]
+            },
+            output: ["bool", "Boolean"]
+        },
+        validation: {
+            required: ["INPUT"]
+        }
+    },
+
+    {
+        type: "bevy_key_just_pressed",
+        message0: "%1 .just_pressed( KeyCode:: %2 )",
+        args0: [
+            { type: "input_value", name: "INPUT", check: "ButtonInput" },
+            { type: "field_dropdown", name: "KEY", options: [
+                ["W", "KeyW"],
+                ["A", "KeyA"],
+                ["S", "KeyS"],
+                ["D", "KeyD"],
+                ["Space", "Space"],
+                ["Escape", "Escape"],
+                ["Enter", "Enter"]
+            ]}
+        ],
+        output: "Boolean",
+        colour: 200,
+        tooltip: "Check if key was just pressed this frame",
+        helpUrl: "",
+        mode: "bevy",
+        template: "{{INPUT}}.just_pressed(KeyCode::{{KEY}})",
+        typeInfo: {
+            inputs: {
+                INPUT: ["ButtonInput", "Res"]
+            },
+            output: ["bool", "Boolean"]
+        },
+        validation: {
+            required: ["INPUT"]
+        }
+    },
+
+    // ============================================================================
+    // STATE MANAGEMENT
+    // ============================================================================
+
+    {
+        type: "bevy_state",
+        message0: "Res< State< %1 > >",
+        args0: [
+            { type: "field_input", name: "TYPE", text: "GameState" }
+        ],
+        output: "SystemParam",
+        colour: 200,
+        tooltip: "State system parameter",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Res<State<{{TYPE}}>>",
+        typeInfo: {
+            inputs: {},
+            output: ["SystemParam", "Res", "State"]
+        },
+        validation: {
+            required: ["TYPE"]
+        }
+    },
+
+    {
+        type: "bevy_next_state",
+        message0: "ResMut< NextState< %1 > >",
+        args0: [
+            { type: "field_input", name: "TYPE", text: "GameState" }
+        ],
+        output: "SystemParam",
+        colour: 200,
+        tooltip: "Next state system parameter",
+        helpUrl: "",
+        mode: "bevy",
+        template: "ResMut<NextState<{{TYPE}}>>",
+        typeInfo: {
+            inputs: {},
+            output: ["SystemParam", "ResMut", "NextState"]
+        },
+        validation: {
+            required: ["TYPE"]
+        }
+    },
+
+    {
+        type: "bevy_set_state",
+        message0: "%1 .set( %2 :: %3 )",
+        args0: [
+            { type: "input_value", name: "NEXT_STATE", check: "NextState" },
+            { type: "field_input", name: "TYPE", text: "GameState" },
+            { type: "field_input", name: "VARIANT", text: "Playing" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 200,
+        tooltip: "Set next state",
+        helpUrl: "",
+        mode: "bevy",
+        template: "{{NEXT_STATE}}.set({{TYPE}}::{{VARIANT}});",
+        typeInfo: {
+            inputs: {
+                NEXT_STATE: ["NextState", "ResMut"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["NEXT_STATE", "TYPE", "VARIANT"]
+        }
+    },
+
+    {
+        type: "bevy_in_state",
+        message0: "in_state( %1 :: %2 )",
+        args0: [
+            { type: "field_input", name: "TYPE", text: "GameState" },
+            { type: "field_input", name: "VARIANT", text: "Playing" }
+        ],
+        output: "Condition",
+        colour: 200,
+        tooltip: "State condition for run_if",
+        helpUrl: "",
+        mode: "bevy",
+        template: "in_state({{TYPE}}::{{VARIANT}})",
+        typeInfo: {
+            inputs: {},
+            output: ["Condition"]
+        },
+        validation: {
+            required: ["TYPE", "VARIANT"]
+        }
+    },
+
+    {
+        type: "bevy_on_enter",
+        message0: "OnEnter( %1 :: %2 )",
+        args0: [
+            { type: "field_input", name: "TYPE", text: "GameState" },
+            { type: "field_input", name: "VARIANT", text: "Playing" }
+        ],
+        output: "Schedule",
+        colour: 200,
+        tooltip: "Schedule that runs when entering a state",
+        helpUrl: "",
+        mode: "bevy",
+        template: "OnEnter({{TYPE}}::{{VARIANT}})",
+        typeInfo: {
+            inputs: {},
+            output: ["Schedule"]
+        },
+        validation: {
+            required: ["TYPE", "VARIANT"]
+        }
+    },
+
+    {
+        type: "bevy_on_exit",
+        message0: "OnExit( %1 :: %2 )",
+        args0: [
+            { type: "field_input", name: "TYPE", text: "GameState" },
+            { type: "field_input", name: "VARIANT", text: "Playing" }
+        ],
+        output: "Schedule",
+        colour: 200,
+        tooltip: "Schedule that runs when exiting a state",
+        helpUrl: "",
+        mode: "bevy",
+        template: "OnExit({{TYPE}}::{{VARIANT}})",
+        typeInfo: {
+            inputs: {},
+            output: ["Schedule"]
+        },
+        validation: {
+            required: ["TYPE", "VARIANT"]
+        }
+    },
+
+    // ============================================================================
+    // APP RUNNER
+    // ============================================================================
+
+    {
+        type: "bevy_app_new",
+        message0: "App::new()",
+        output: "App",
+        colour: 160,
+        tooltip: "Create new Bevy app",
+        helpUrl: "",
+        mode: "bevy",
+        template: "App::new()",
+        typeInfo: {
+            inputs: {},
+            output: ["App"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_app_run",
+        message0: "%1 .run()",
+        args0: [
+            { type: "input_value", name: "APP", check: "App" }
+        ],
+        previousStatement: null,
+        colour: 160,
+        tooltip: "Run the Bevy app",
+        helpUrl: "",
+        mode: "bevy",
+        template: "{{APP}}.run();",
+        typeInfo: {
+            inputs: {
+                APP: ["App"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["APP"]
+        }
+    },
+
+    // ============================================================================
+    // COMMON PLUGINS
+    // ============================================================================
+
+    {
+        type: "bevy_default_plugins",
+        message0: "DefaultPlugins",
+        output: "Plugin",
+        colour: 160,
+        tooltip: "Default Bevy plugins",
+        helpUrl: "",
+        mode: "bevy",
+        template: "DefaultPlugins",
+        typeInfo: {
+            inputs: {},
+            output: ["Plugin"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_minimal_plugins",
+        message0: "MinimalPlugins",
+        output: "Plugin",
+        colour: 160,
+        tooltip: "Minimal Bevy plugins",
+        helpUrl: "",
+        mode: "bevy",
+        template: "MinimalPlugins",
+        typeInfo: {
+            inputs: {},
+            output: ["Plugin"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // HIERARCHY
+    // ============================================================================
+
+    {
+        type: "bevy_with_children",
+        message0: "%1 .with_children( |parent| %2 %3 )",
+        args0: [
+            { type: "input_value", name: "ENTITY_COMMANDS", check: "EntityCommands" },
+            { type: "input_dummy" },
+            { type: "input_statement", name: "BODY" }
+        ],
+        output: "EntityCommands",
+        colour: 160,
+        tooltip: "Add children to entity",
+        helpUrl: "",
+        mode: "bevy",
+        template: "{{ENTITY_COMMANDS}}.with_children(|parent| {\n    {{BODY}}\n})",
+        typeInfo: {
+            inputs: {
+                ENTITY_COMMANDS: ["EntityCommands"]
+            },
+            output: ["EntityCommands"]
+        },
+        validation: {
+            required: ["ENTITY_COMMANDS"]
+        }
+    },
+
+    {
+        type: "bevy_parent_spawn",
+        message0: "parent.spawn( %1 )",
+        args0: [
+            { type: "input_value", name: "BUNDLE" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 160,
+        tooltip: "Spawn child entity",
+        helpUrl: "",
+        mode: "bevy",
+        template: "parent.spawn({{BUNDLE}});",
+        typeInfo: {
+            inputs: {
+                BUNDLE: ["Bundle", "Component"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["BUNDLE"]
+        }
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - FOG
+    // ============================================================================
+
+    {
+        type: "bevy_fog_settings",
+        message0: "FogSettings { %1 color: %2 , %3 falloff: %4 %5 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "field_dropdown", name: "FALLOFF", options: [
+                ["Linear", "LINEAR"],
+                ["Exponential", "EXPONENTIAL"],
+                ["ExponentialSquared", "EXPONENTIAL_SQUARED"],
+                ["Atmospheric", "ATMOSPHERIC"]
+            ]},
+            { type: "input_value", name: "FALLOFF_PARAMS" }
+        ],
+        output: "Component",
+        colour: 290,
+        tooltip: "Fog settings component",
+        helpUrl: "",
+        mode: "bevy",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"],
+                FALLOFF_PARAMS: ["FogFalloff"]
+            },
+            output: ["Component", "FogSettings"]
+        },
+        validation: {
+            required: ["COLOR"]
+        }
+    },
+
+    {
+        type: "bevy_fog_falloff_linear",
+        message0: "FogFalloff::Linear { %1 start: %2 , %3 end: %4 %5 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "START", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "END", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" }
+        ],
+        output: "FogFalloff",
+        colour: 290,
+        tooltip: "Linear fog falloff",
+        helpUrl: "",
+        mode: "bevy",
+        template: "FogFalloff::Linear { start: {{START}}, end: {{END}} }",
+        typeInfo: {
+            inputs: {
+                START: ["f32", "Number", "float"],
+                END: ["f32", "Number", "float"]
+            },
+            output: ["FogFalloff"]
+        },
+        validation: {
+            required: ["START", "END"]
+        }
+    },
+
+    {
+        type: "bevy_fog_falloff_exponential",
+        message0: "FogFalloff::Exponential { %1 density: %2 %3 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "DENSITY", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" }
+        ],
+        output: "FogFalloff",
+        colour: 290,
+        tooltip: "Exponential fog falloff",
+        helpUrl: "",
+        mode: "bevy",
+        template: "FogFalloff::Exponential { density: {{DENSITY}} }",
+        typeInfo: {
+            inputs: {
+                DENSITY: ["f32", "Number", "float"]
+            },
+            output: ["FogFalloff"]
+        },
+        validation: {
+            required: ["DENSITY"]
+        }
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - AMBIENT LIGHT
+    // ============================================================================
+
+    {
+        type: "bevy_ambient_light",
+        message0: "AmbientLight { %1 color: %2 , %3 brightness: %4 %5 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "BRIGHTNESS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" }
+        ],
+        output: "Resource",
+        colour: 290,
+        tooltip: "Ambient light resource",
+        helpUrl: "",
+        mode: "bevy",
+        template: "AmbientLight { color: {{COLOR}}, brightness: {{BRIGHTNESS}} }",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"],
+                BRIGHTNESS: ["f32", "Number", "float"]
+            },
+            output: ["Resource", "AmbientLight"]
+        },
+        validation: {
+            required: ["COLOR", "BRIGHTNESS"]
+        }
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - SHADOWS
+    // ============================================================================
+
+    {
+        type: "bevy_cascaded_shadow_config",
+        message0: "CascadeShadowConfig { %1 num_cascades: %2 %3 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "field_number", name: "NUM_CASCADES", value: 4, min: 1, max: 8 },
+            { type: "input_dummy" }
+        ],
+        output: "Component",
+        colour: 290,
+        tooltip: "Cascade shadow configuration",
+        helpUrl: "",
+        mode: "bevy",
+        template: "CascadeShadowConfig { num_cascades: {{NUM_CASCADES}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {},
+            output: ["Component", "CascadeShadowConfig"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_shadow_settings",
+        message0: "shadows_enabled: %1",
+        args0: [
+            { type: "field_checkbox", name: "ENABLED", checked: true }
+        ],
+        output: "Setting",
+        colour: 290,
+        tooltip: "Enable/disable shadows",
+        helpUrl: "",
+        mode: "bevy",
+        typeInfo: {
+            inputs: {},
+            output: ["Setting"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - SKYBOX
+    // ============================================================================
+
+    {
+        type: "bevy_skybox",
+        message0: "Skybox { %1 image: %2 , %3 brightness: %4 %5 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "IMAGE", check: "Handle" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "BRIGHTNESS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" }
+        ],
+        output: "Component",
+        colour: 290,
+        tooltip: "Skybox component",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Skybox { image: {{IMAGE}}, brightness: {{BRIGHTNESS}} }",
+        typeInfo: {
+            inputs: {
+                IMAGE: ["Handle"],
+                BRIGHTNESS: ["f32", "Number", "float"]
+            },
+            output: ["Component", "Skybox"]
+        },
+        validation: {
+            required: ["IMAGE", "BRIGHTNESS"]
+        }
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - BLOOM
+    // ============================================================================
+
+    {
+        type: "bevy_bloom_settings",
+        message0: "BloomSettings { %1 intensity: %2 %3 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "INTENSITY", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" }
+        ],
+        output: "Component",
+        colour: 290,
+        tooltip: "Bloom post-processing effect",
+        helpUrl: "",
+        mode: "bevy",
+        template: "BloomSettings { intensity: {{INTENSITY}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                INTENSITY: ["f32", "Number", "float"]
+            },
+            output: ["Component", "BloomSettings"]
+        },
+        validation: {
+            required: ["INTENSITY"]
+        }
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - TONEMAPPING
+    // ============================================================================
+
+    {
+        type: "bevy_tonemapping",
+        message0: "Tonemapping:: %1",
+        args0: [
+            { type: "field_dropdown", name: "METHOD", options: [
+                ["None", "None"],
+                ["Reinhard", "Reinhard"],
+                ["ReinhardLuminance", "ReinhardLuminance"],
+                ["AcesFitted", "AcesFitted"],
+                ["AgX", "AgX"],
+                ["SomewhatBoringDisplayTransform", "SomewhatBoringDisplayTransform"],
+                ["TonyMcMapface", "TonyMcMapface"],
+                ["BlenderFilmic", "BlenderFilmic"]
+            ]}
+        ],
+        output: "Component",
+        colour: 290,
+        tooltip: "Tonemapping method",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Tonemapping::{{METHOD}}",
+        typeInfo: {
+            inputs: {},
+            output: ["Component", "Tonemapping"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - MSAA
+    // ============================================================================
+
+    {
+        type: "bevy_msaa",
+        message0: "Msaa:: %1",
+        args0: [
+            { type: "field_dropdown", name: "SAMPLES", options: [
+                ["Off", "Off"],
+                ["Sample2", "Sample2"],
+                ["Sample4", "Sample4"],
+                ["Sample8", "Sample8"]
+            ]}
+        ],
+        output: "Resource",
+        colour: 290,
+        tooltip: "Multi-sample anti-aliasing",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Msaa::{{SAMPLES}}",
+        typeInfo: {
+            inputs: {},
+            output: ["Resource", "Msaa"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - CLEAR COLOR
+    // ============================================================================
+
+    {
+        type: "bevy_clear_color",
+        message0: "ClearColor( %1 )",
+        args0: [
+            { type: "input_value", name: "COLOR", check: "Color" }
+        ],
+        output: "Resource",
+        colour: 290,
+        tooltip: "Background clear color",
+        helpUrl: "",
+        mode: "bevy",
+        template: "ClearColor({{COLOR}})",
+        typeInfo: {
+            inputs: {
+                COLOR: ["Color"]
+            },
+            output: ["Resource", "ClearColor"]
+        },
+        validation: {
+            required: ["COLOR"]
+        }
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - VISIBILITY
+    // ============================================================================
+
+    {
+        type: "bevy_visibility",
+        message0: "Visibility:: %1",
+        args0: [
+            { type: "field_dropdown", name: "STATE", options: [
+                ["Visible", "Visible"],
+                ["Hidden", "Hidden"],
+                ["Inherited", "Inherited"]
+            ]}
+        ],
+        output: "Component",
+        colour: 290,
+        tooltip: "Visibility component",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Visibility::{{STATE}}",
+        typeInfo: {
+            inputs: {},
+            output: ["Component", "Visibility"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // RENDERING MODULES - WIREFRAME
+    // ============================================================================
+
+    {
+        type: "bevy_wireframe",
+        message0: "Wireframe",
+        output: "Component",
+        colour: 290,
+        tooltip: "Wireframe rendering component",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Wireframe",
+        typeInfo: {
+            inputs: {},
+            output: ["Component", "Wireframe"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_no_wireframe",
+        message0: "NoWireframe",
+        output: "Component",
+        colour: 290,
+        tooltip: "Disable wireframe rendering",
+        helpUrl: "",
+        mode: "bevy",
+        template: "NoWireframe",
+        typeInfo: {
+            inputs: {},
+            output: ["Component", "NoWireframe"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // PHYSICS MODULES - VELOCITY
+    // ============================================================================
+
+    {
+        type: "bevy_velocity",
+        message0: "Velocity { %1 linvel: %2 , %3 angvel: %4 %5 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "LINEAR", check: "Vec3" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "ANGULAR", check: "Vec3" },
+            { type: "input_dummy" }
+        ],
+        output: "Component",
+        colour: 330,
+        tooltip: "Velocity component (linear and angular)",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Velocity { linvel: {{LINEAR}}, angvel: {{ANGULAR}} }",
+        typeInfo: {
+            inputs: {
+                LINEAR: ["Vec3"],
+                ANGULAR: ["Vec3"]
+            },
+            output: ["Component", "Velocity"]
+        },
+        validation: {
+            required: ["LINEAR", "ANGULAR"]
+        }
+    },
+
+    // ============================================================================
+    // UI MODULES - TEXT
+    // ============================================================================
+
+    {
+        type: "bevy_text_bundle",
+        message0: "TextBundle { %1 text: %2 , %3 style: %4 , %5 ..Default::default() %6 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "TEXT" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "STYLE" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Bundle",
+        colour: 270,
+        tooltip: "Text UI bundle",
+        helpUrl: "",
+        mode: "bevy",
+        template: "TextBundle { text: {{TEXT}}, style: {{STYLE}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                TEXT: ["Text"],
+                STYLE: ["Style"]
+            },
+            output: ["Bundle", "TextBundle"]
+        },
+        validation: {
+            required: ["TEXT"]
+        }
+    },
+
+    {
+        type: "bevy_text",
+        message0: "Text::from_section( %1 , %2 )",
+        args0: [
+            { type: "field_input", name: "CONTENT", text: "Hello, Bevy!" },
+            { type: "input_value", name: "STYLE" }
+        ],
+        output: "Text",
+        colour: 270,
+        tooltip: "Create text from section",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Text::from_section(\"{{CONTENT}}\", {{STYLE}})",
+        typeInfo: {
+            inputs: {
+                STYLE: ["TextStyle"]
+            },
+            output: ["Text"]
+        },
+        validation: {
+            required: ["CONTENT"]
+        }
+    },
+
+    {
+        type: "bevy_text_style",
+        message0: "TextStyle { %1 font_size: %2 , %3 color: %4 , %5 ..Default::default() %6 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "SIZE", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "TextStyle",
+        colour: 270,
+        tooltip: "Text style configuration",
+        helpUrl: "",
+        mode: "bevy",
+        template: "TextStyle { font_size: {{SIZE}}, color: {{COLOR}}, ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                SIZE: ["f32", "Number", "float"],
+                COLOR: ["Color"]
+            },
+            output: ["TextStyle"]
+        },
+        validation: {
+            required: ["SIZE", "COLOR"]
+        }
+    },
+
+    // ============================================================================
+    // UI MODULES - NODE
+    // ============================================================================
+
+    {
+        type: "bevy_node_bundle",
+        message0: "NodeBundle { %1 style: %2 , %3 background_color: %4 , %5 ..Default::default() %6 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "STYLE" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "COLOR", check: "Color" },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Bundle",
+        colour: 270,
+        tooltip: "UI node bundle",
+        helpUrl: "",
+        mode: "bevy",
+        template: "NodeBundle { style: {{STYLE}}, background_color: {{COLOR}}.into(), ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                STYLE: ["Style"],
+                COLOR: ["Color"]
+            },
+            output: ["Bundle", "NodeBundle"]
+        },
+        validation: {}
+    },
+
+    {
+        type: "bevy_ui_style",
+        message0: "Style { %1 width: Val::Px( %2 ), %3 height: Val::Px( %4 ), %5 ..Default::default() %6 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "WIDTH", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "HEIGHT", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_dummy" }
+        ],
+        output: "Style",
+        colour: 270,
+        tooltip: "UI style configuration",
+        helpUrl: "",
+        mode: "bevy",
+        template: "Style { width: Val::Px({{WIDTH}}), height: Val::Px({{HEIGHT}}), ..Default::default() }",
+        typeInfo: {
+            inputs: {
+                WIDTH: ["f32", "Number", "float"],
+                HEIGHT: ["f32", "Number", "float"]
+            },
+            output: ["Style"]
+        },
+        validation: {
+            required: ["WIDTH", "HEIGHT"]
+        }
     }
 ]);

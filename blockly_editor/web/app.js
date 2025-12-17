@@ -512,9 +512,6 @@ function setupEventListeners() {
     
     // Code tabs (if they exist)
     setupCodeTabListeners();
-    
-    // Toolbox search
-    setupToolboxSearch();
 }
 
 /**
@@ -561,119 +558,7 @@ function setupCodeTabListeners() {
     });
 }
 
-/**
- * Set up toolbox search functionality
- */
-function setupToolboxSearch() {
-    const searchInput = document.getElementById('toolboxSearchInput');
-    const clearButton = document.getElementById('clearSearch');
-    
-    if (!searchInput || !clearButton) {
-        console.warn('[App] Toolbox search elements not found');
-        return;
-    }
-    
-    let searchTimeout = null;
-    let originalToolbox = null;
-    
-    // Handle search input
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.trim();
-        
-        // Clear previous timeout
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
-        }
-        
-        // Debounce search
-        searchTimeout = setTimeout(() => {
-            if (query) {
-                performToolboxSearch(query);
-            } else {
-                restoreOriginalToolbox();
-            }
-        }, 300);
-    });
-    
-    // Handle clear button
-    clearButton.addEventListener('click', () => {
-        searchInput.value = '';
-        restoreOriginalToolbox();
-        searchInput.focus();
-    });
-    
-    // Handle Enter key
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const query = searchInput.value.trim();
-            if (query) {
-                performToolboxSearch(query);
-            }
-        } else if (e.key === 'Escape') {
-            searchInput.value = '';
-            restoreOriginalToolbox();
-            searchInput.blur();
-        }
-    });
-    
-    /**
-     * Perform toolbox search
-     */
-    function performToolboxSearch(query) {
-        if (!toolboxManager) {
-            console.warn('[App] Toolbox manager not initialized');
-            return;
-        }
-        
-        // Save original toolbox if not already saved
-        if (!originalToolbox) {
-            originalToolbox = toolboxManager.getCurrentToolbox();
-        }
-        
-        // Filter toolbox
-        const filteredToolbox = toolboxManager.filterToolbox(query);
-        
-        // Update workspace
-        if (workspace && filteredToolbox) {
-            try {
-                // Close flyout first
-                const flyout = workspace.getFlyout();
-                if (flyout && flyout.hide) {
-                    flyout.hide();
-                }
-                
-                workspace.updateToolbox(filteredToolbox);
-                console.log('[App] Toolbox filtered for query:', query);
-            } catch (error) {
-                console.error('[App] Error filtering toolbox:', error);
-            }
-        }
-    }
-    
-    /**
-     * Restore original toolbox
-     */
-    function restoreOriginalToolbox() {
-        if (!originalToolbox || !workspace) {
-            return;
-        }
-        
-        try {
-            // Close flyout first
-            const flyout = workspace.getFlyout();
-            if (flyout && flyout.hide) {
-                flyout.hide();
-            }
-            
-            workspace.updateToolbox(originalToolbox);
-            originalToolbox = null;
-            console.log('[App] Original toolbox restored');
-        } catch (error) {
-            console.error('[App] Error restoring toolbox:', error);
-        }
-    }
-}
+
 
 /**
  * Handle workspace changes with debouncing

@@ -121,57 +121,6 @@ button:disabled {
     position: relative;
 }
 
-#toolboxSearch {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 1000;
-    display: flex;
-    gap: 5px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 5px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-#toolboxSearchInput {
-    width: 200px;
-    padding: 6px 10px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    color: var(--text-primary);
-    font-size: 13px;
-    outline: none;
-}
-
-#toolboxSearchInput:focus {
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px rgba(78, 201, 176, 0.2);
-}
-
-#clearSearch {
-    padding: 4px 8px;
-    background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    transition: all 0.2s;
-}
-
-#clearSearch:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-
-#clearSearch:active {
-    transform: scale(0.95);
-}
-
 #blocklyDiv {
     flex: 1;
     height: 100%;

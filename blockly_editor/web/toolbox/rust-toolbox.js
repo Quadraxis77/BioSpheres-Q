@@ -311,23 +311,6 @@ const RustToolbox = {
                     ]
                 },
                 
-                // Bevy Systems
-                {
-                    kind: "category",
-                    name: "Bevy Systems",
-                    colour: 160,
-                    contents: [
-                        { kind: "block", type: "rust_bevy_system" },
-                        { kind: "block", type: "rust_query_param" },
-                        { kind: "block", type: "rust_query_filtered" },
-                        { kind: "block", type: "rust_res_param" },
-                        { kind: "block", type: "rust_resmut_param" },
-                        { kind: "block", type: "rust_commands_param" },
-                        { kind: "block", type: "rust_vec3" },
-                        { kind: "block", type: "rust_component" }
-                    ]
-                },
-                
                 // Comments
                 {
                     kind: "category",

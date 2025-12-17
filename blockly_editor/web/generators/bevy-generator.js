@@ -616,6 +616,500 @@ BevyGenerator.forBlock['bevy_reference_node'] = function(block) {
     return code;
 };
 
+// ============================================================================
+// VEC3 / VEC2 / QUAT CONSTRUCTORS
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_vec3_new'] = function(block) {
+    const x = BevyGenerator.valueToCode(block, 'X', BevyGenerator.ORDER_NONE) || '0.0';
+    const y = BevyGenerator.valueToCode(block, 'Y', BevyGenerator.ORDER_NONE) || '0.0';
+    const z = BevyGenerator.valueToCode(block, 'Z', BevyGenerator.ORDER_NONE) || '0.0';
+    
+    return [`Vec3::new(${x}, ${y}, ${z})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_vec3_const'] = function(block) {
+    const constant = block.getFieldValue('CONST');
+    
+    return [`Vec3::${constant}`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_vec2_new'] = function(block) {
+    const x = BevyGenerator.valueToCode(block, 'X', BevyGenerator.ORDER_NONE) || '0.0';
+    const y = BevyGenerator.valueToCode(block, 'Y', BevyGenerator.ORDER_NONE) || '0.0';
+    
+    return [`Vec2::new(${x}, ${y})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_quat_from_rotation'] = function(block) {
+    const axis = block.getFieldValue('AXIS');
+    const angle = BevyGenerator.valueToCode(block, 'ANGLE', BevyGenerator.ORDER_NONE) || '0.0';
+    
+    return [`Quat::from_rotation_${axis}(${angle})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// CAMERA BUNDLES
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_camera3d_bundle'] = function(block) {
+    const transform = BevyGenerator.valueToCode(block, 'TRANSFORM', BevyGenerator.ORDER_NONE) || 'Transform::default()';
+    
+    return [`Camera3dBundle { transform: ${transform}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_camera2d_bundle'] = function(block) {
+    return ['Camera2dBundle::default()', BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// LIGHT BUNDLES
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_point_light_bundle'] = function(block) {
+    const transform = BevyGenerator.valueToCode(block, 'TRANSFORM', BevyGenerator.ORDER_NONE) || 'Transform::default()';
+    
+    return [`PointLightBundle { transform: ${transform}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_directional_light_bundle'] = function(block) {
+    const transform = BevyGenerator.valueToCode(block, 'TRANSFORM', BevyGenerator.ORDER_NONE) || 'Transform::default()';
+    
+    return [`DirectionalLightBundle { transform: ${transform}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// MESH PRIMITIVES
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_mesh_primitive'] = function(block) {
+    const primitive = block.getFieldValue('PRIMITIVE');
+    
+    const primitiveMap = {
+        'CUBOID': 'Cuboid::default()',
+        'SPHERE': 'Sphere::default()',
+        'PLANE': 'Plane3d::default()',
+        'CAPSULE': 'Capsule3d::default()',
+        'CYLINDER': 'Cylinder::default()',
+        'TORUS': 'Torus::default()'
+    };
+    
+    return [`meshes.add(${primitiveMap[primitive]})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_mesh_primitive_sized'] = function(block) {
+    const primitive = block.getFieldValue('PRIMITIVE');
+    const size = BevyGenerator.valueToCode(block, 'SIZE', BevyGenerator.ORDER_NONE) || '1.0';
+    
+    const primitiveMap = {
+        'CUBOID': 'Cuboid::new',
+        'SPHERE': 'Sphere::new',
+        'CAPSULE': 'Capsule3d::new',
+        'CYLINDER': 'Cylinder::new'
+    };
+    
+    return [`meshes.add(${primitiveMap[primitive]}(${size}))`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// MATERIAL & COLOR
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_standard_material'] = function(block) {
+    const r = BevyGenerator.valueToCode(block, 'R', BevyGenerator.ORDER_NONE) || '1.0';
+    const g = BevyGenerator.valueToCode(block, 'G', BevyGenerator.ORDER_NONE) || '1.0';
+    const b = BevyGenerator.valueToCode(block, 'B', BevyGenerator.ORDER_NONE) || '1.0';
+    
+    return [`materials.add(Color::srgb(${r}, ${g}, ${b}))`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_standard_material_full'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    const metallic = BevyGenerator.valueToCode(block, 'METALLIC', BevyGenerator.ORDER_NONE) || '0.0';
+    const roughness = BevyGenerator.valueToCode(block, 'ROUGHNESS', BevyGenerator.ORDER_NONE) || '0.5';
+    
+    return [`materials.add(StandardMaterial { base_color: ${color}, metallic: ${metallic}, perceptual_roughness: ${roughness}, ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_material_emissive'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    
+    return [`materials.add(StandardMaterial { emissive: ${color}.into(), ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_material_textured'] = function(block) {
+    const texture = BevyGenerator.valueToCode(block, 'TEXTURE', BevyGenerator.ORDER_NONE) || 'texture_handle';
+    
+    return [`materials.add(StandardMaterial { base_color_texture: Some(${texture}), ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_material_normal_map'] = function(block) {
+    const texture = BevyGenerator.valueToCode(block, 'TEXTURE', BevyGenerator.ORDER_NONE) || 'texture_handle';
+    
+    return [`materials.add(StandardMaterial { normal_map_texture: Some(${texture}), ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_material_alpha_mode'] = function(block) {
+    const mode = block.getFieldValue('MODE');
+    
+    const modeMap = {
+        'Opaque': 'AlphaMode::Opaque',
+        'Blend': 'AlphaMode::Blend',
+        'Mask': 'AlphaMode::Mask(0.5)',
+        'Add': 'AlphaMode::Add',
+        'Multiply': 'AlphaMode::Multiply'
+    };
+    
+    return [`materials.add(StandardMaterial { alpha_mode: ${modeMap[mode]}, ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_material_unlit'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    
+    return [`materials.add(StandardMaterial { base_color: ${color}, unlit: true, ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_material_double_sided'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    
+    return [`materials.add(StandardMaterial { base_color: ${color}, double_sided: true, ..Default::default() })`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_color_const'] = function(block) {
+    const color = block.getFieldValue('COLOR');
+    
+    return [`Color::${color}`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_color_srgb'] = function(block) {
+    const r = BevyGenerator.valueToCode(block, 'R', BevyGenerator.ORDER_NONE) || '1.0';
+    const g = BevyGenerator.valueToCode(block, 'G', BevyGenerator.ORDER_NONE) || '1.0';
+    const b = BevyGenerator.valueToCode(block, 'B', BevyGenerator.ORDER_NONE) || '1.0';
+    
+    return [`Color::srgb(${r}, ${g}, ${b})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_color_srgba'] = function(block) {
+    const r = BevyGenerator.valueToCode(block, 'R', BevyGenerator.ORDER_NONE) || '1.0';
+    const g = BevyGenerator.valueToCode(block, 'G', BevyGenerator.ORDER_NONE) || '1.0';
+    const b = BevyGenerator.valueToCode(block, 'B', BevyGenerator.ORDER_NONE) || '1.0';
+    const a = BevyGenerator.valueToCode(block, 'A', BevyGenerator.ORDER_NONE) || '1.0';
+    
+    return [`Color::srgba(${r}, ${g}, ${b}, ${a})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// ASSET LOADING
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_asset_server'] = function(block) {
+    return ['Res<AssetServer>', BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_load_asset'] = function(block) {
+    const assetServer = BevyGenerator.valueToCode(block, 'ASSET_SERVER', BevyGenerator.ORDER_ATOMIC) || 'asset_server';
+    const path = block.getFieldValue('PATH');
+    
+    return [`${assetServer}.load("${path}")`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// INPUT HANDLING
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_keyboard_input'] = function(block) {
+    return ['Res<ButtonInput<KeyCode>>', BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_key_pressed'] = function(block) {
+    const input = BevyGenerator.valueToCode(block, 'INPUT', BevyGenerator.ORDER_ATOMIC) || 'keyboard';
+    const key = block.getFieldValue('KEY');
+    
+    return [`${input}.pressed(KeyCode::${key})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_key_just_pressed'] = function(block) {
+    const input = BevyGenerator.valueToCode(block, 'INPUT', BevyGenerator.ORDER_ATOMIC) || 'keyboard';
+    const key = block.getFieldValue('KEY');
+    
+    return [`${input}.just_pressed(KeyCode::${key})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// STATE MANAGEMENT
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_state'] = function(block) {
+    const type = block.getFieldValue('TYPE');
+    
+    return [`Res<State<${type}>>`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_next_state'] = function(block) {
+    const type = block.getFieldValue('TYPE');
+    
+    return [`ResMut<NextState<${type}>>`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_set_state'] = function(block) {
+    const nextState = BevyGenerator.valueToCode(block, 'NEXT_STATE', BevyGenerator.ORDER_ATOMIC) || 'next_state';
+    const type = block.getFieldValue('TYPE');
+    const variant = block.getFieldValue('VARIANT');
+    
+    return `${nextState}.set(${type}::${variant});\n`;
+};
+
+BevyGenerator.forBlock['bevy_in_state'] = function(block) {
+    const type = block.getFieldValue('TYPE');
+    const variant = block.getFieldValue('VARIANT');
+    
+    return [`in_state(${type}::${variant})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_on_enter'] = function(block) {
+    const type = block.getFieldValue('TYPE');
+    const variant = block.getFieldValue('VARIANT');
+    
+    return [`OnEnter(${type}::${variant})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_on_exit'] = function(block) {
+    const type = block.getFieldValue('TYPE');
+    const variant = block.getFieldValue('VARIANT');
+    
+    return [`OnExit(${type}::${variant})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// APP RUNNER
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_app_new'] = function(block) {
+    return ['App::new()', BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_app_run'] = function(block) {
+    const app = BevyGenerator.valueToCode(block, 'APP', BevyGenerator.ORDER_ATOMIC) || 'app';
+    
+    return `${app}.run();\n`;
+};
+
+// ============================================================================
+// COMMON PLUGINS
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_default_plugins'] = function(block) {
+    return ['DefaultPlugins', BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_minimal_plugins'] = function(block) {
+    return ['MinimalPlugins', BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// HIERARCHY
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_with_children'] = function(block) {
+    const entityCommands = BevyGenerator.valueToCode(block, 'ENTITY_COMMANDS', BevyGenerator.ORDER_ATOMIC) || 'entity';
+    const body = BevyGenerator.statementToCode(block, 'BODY');
+    
+    return [`${entityCommands}.with_children(|parent| {\n${body}})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_parent_spawn'] = function(block) {
+    const bundle = BevyGenerator.valueToCode(block, 'BUNDLE', BevyGenerator.ORDER_NONE) || '()';
+    
+    return `parent.spawn(${bundle});\n`;
+};
+
+// ============================================================================
+// RENDERING MODULES - FOG
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_fog_settings'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    const falloffType = block.getFieldValue('FALLOFF');
+    const falloffParams = BevyGenerator.valueToCode(block, 'FALLOFF_PARAMS', BevyGenerator.ORDER_NONE);
+    
+    if (falloffParams) {
+        return [`FogSettings { color: ${color}, falloff: ${falloffParams}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+    }
+    
+    return [`FogSettings { color: ${color}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_fog_falloff_linear'] = function(block) {
+    const start = BevyGenerator.valueToCode(block, 'START', BevyGenerator.ORDER_NONE) || '0.0';
+    const end = BevyGenerator.valueToCode(block, 'END', BevyGenerator.ORDER_NONE) || '100.0';
+    
+    return [`FogFalloff::Linear { start: ${start}, end: ${end} }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_fog_falloff_exponential'] = function(block) {
+    const density = BevyGenerator.valueToCode(block, 'DENSITY', BevyGenerator.ORDER_NONE) || '0.1';
+    
+    return [`FogFalloff::Exponential { density: ${density} }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - AMBIENT LIGHT
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_ambient_light'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    const brightness = BevyGenerator.valueToCode(block, 'BRIGHTNESS', BevyGenerator.ORDER_NONE) || '0.3';
+    
+    return [`AmbientLight { color: ${color}, brightness: ${brightness} }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - SHADOWS
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_cascaded_shadow_config'] = function(block) {
+    const numCascades = block.getFieldValue('NUM_CASCADES');
+    
+    return [`CascadeShadowConfig { num_cascades: ${numCascades}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_shadow_settings'] = function(block) {
+    const enabled = block.getFieldValue('ENABLED') === 'TRUE';
+    
+    return [`shadows_enabled: ${enabled}`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - SKYBOX
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_skybox'] = function(block) {
+    const image = BevyGenerator.valueToCode(block, 'IMAGE', BevyGenerator.ORDER_NONE) || 'image_handle';
+    const brightness = BevyGenerator.valueToCode(block, 'BRIGHTNESS', BevyGenerator.ORDER_NONE) || '1000.0';
+    
+    return [`Skybox { image: ${image}, brightness: ${brightness} }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - BLOOM
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_bloom_settings'] = function(block) {
+    const intensity = BevyGenerator.valueToCode(block, 'INTENSITY', BevyGenerator.ORDER_NONE) || '0.3';
+    
+    return [`BloomSettings { intensity: ${intensity}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - TONEMAPPING
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_tonemapping'] = function(block) {
+    const method = block.getFieldValue('METHOD');
+    
+    return [`Tonemapping::${method}`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - MSAA
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_msaa'] = function(block) {
+    const samples = block.getFieldValue('SAMPLES');
+    
+    return [`Msaa::${samples}`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - CLEAR COLOR
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_clear_color'] = function(block) {
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::BLACK';
+    
+    return [`ClearColor(${color})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - VISIBILITY
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_visibility'] = function(block) {
+    const state = block.getFieldValue('STATE');
+    
+    return [`Visibility::${state}`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// RENDERING MODULES - WIREFRAME
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_wireframe'] = function(block) {
+    return ['Wireframe', BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_no_wireframe'] = function(block) {
+    return ['NoWireframe', BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// PHYSICS MODULES - VELOCITY
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_velocity'] = function(block) {
+    const linear = BevyGenerator.valueToCode(block, 'LINEAR', BevyGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const angular = BevyGenerator.valueToCode(block, 'ANGULAR', BevyGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    
+    return [`Velocity { linvel: ${linear}, angvel: ${angular} }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// UI MODULES - TEXT
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_text_bundle'] = function(block) {
+    const text = BevyGenerator.valueToCode(block, 'TEXT', BevyGenerator.ORDER_NONE) || 'Text::default()';
+    const style = BevyGenerator.valueToCode(block, 'STYLE', BevyGenerator.ORDER_NONE);
+    
+    if (style) {
+        return [`TextBundle { text: ${text}, style: ${style}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+    }
+    
+    return [`TextBundle { text: ${text}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_text'] = function(block) {
+    const content = block.getFieldValue('CONTENT');
+    const style = BevyGenerator.valueToCode(block, 'STYLE', BevyGenerator.ORDER_NONE) || 'TextStyle::default()';
+    
+    return [`Text::from_section("${content}", ${style})`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_text_style'] = function(block) {
+    const size = BevyGenerator.valueToCode(block, 'SIZE', BevyGenerator.ORDER_NONE) || '30.0';
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    
+    return [`TextStyle { font_size: ${size}, color: ${color}, ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// UI MODULES - NODE
+// ============================================================================
+
+BevyGenerator.forBlock['bevy_node_bundle'] = function(block) {
+    const style = BevyGenerator.valueToCode(block, 'STYLE', BevyGenerator.ORDER_NONE) || 'Style::default()';
+    const color = BevyGenerator.valueToCode(block, 'COLOR', BevyGenerator.ORDER_NONE) || 'Color::WHITE';
+    
+    return [`NodeBundle { style: ${style}, background_color: ${color}.into(), ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
+BevyGenerator.forBlock['bevy_ui_style'] = function(block) {
+    const width = BevyGenerator.valueToCode(block, 'WIDTH', BevyGenerator.ORDER_NONE) || '100.0';
+    const height = BevyGenerator.valueToCode(block, 'HEIGHT', BevyGenerator.ORDER_NONE) || '100.0';
+    
+    return [`Style { width: Val::Px(${width}), height: Val::Px(${height}), ..Default::default() }`, BevyGenerator.ORDER_ATOMIC];
+};
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = BevyGenerator;
