@@ -136,7 +136,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 290,
+        "colour": 270,
         "tooltip": "Define a struct",
         "helpUrl": "",
         "mode": "wgsl",
@@ -159,7 +159,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 270,
         "tooltip": "Struct field",
         "helpUrl": "",
         "mode": "wgsl",
@@ -183,7 +183,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 270,
         "tooltip": "Struct field with location attribute",
         "helpUrl": "",
         "mode": "wgsl",
@@ -223,7 +223,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 270,
         "tooltip": "Struct field with builtin attribute",
         "helpUrl": "",
         "mode": "wgsl",
@@ -255,7 +255,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 270,
         "tooltip": "Struct field with explicit alignment (bytes)",
         "helpUrl": "",
         "mode": "wgsl",
@@ -291,7 +291,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 200,
+        "colour": 270,
         "tooltip": "Define a storage buffer binding",
         "helpUrl": "",
         "mode": "wgsl",
@@ -325,7 +325,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 200,
+        "colour": 270,
         "tooltip": "Storage buffer binding",
         "helpUrl": "",
         "mode": "wgsl",
@@ -356,7 +356,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 200,
+        "colour": 270,
         "tooltip": "Define a uniform buffer binding",
         "helpUrl": "",
         "mode": "wgsl",
@@ -386,7 +386,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 200,
+        "colour": 270,
         "tooltip": "Uniform buffer binding",
         "helpUrl": "",
         "mode": "wgsl",
@@ -420,7 +420,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 200,
+        "colour": 270,
         "tooltip": "2D texture binding",
         "helpUrl": "",
         "mode": "wgsl",
@@ -449,7 +449,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 200,
+        "colour": 270,
         "tooltip": "Sampler binding",
         "helpUrl": "",
         "mode": "wgsl",
@@ -480,7 +480,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 270,
         "tooltip": "Declare a variable",
         "helpUrl": "",
         "mode": "wgsl",
@@ -503,7 +503,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 270,
         "tooltip": "Immutable variable declaration",
         "helpUrl": "",
         "mode": "wgsl",
@@ -527,7 +527,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 270,
         "tooltip": "Mutable variable with type",
         "helpUrl": "",
         "mode": "wgsl",
@@ -550,7 +550,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 270,
         "tooltip": "Assignment statement",
         "helpUrl": "",
         "mode": "wgsl",
@@ -579,7 +579,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 270,
         "tooltip": "Compound assignment",
         "helpUrl": "",
         "mode": "wgsl",
@@ -607,7 +607,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 270,
         "tooltip": "Conditional statement",
         "helpUrl": "",
         "mode": "wgsl",
@@ -635,7 +635,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 270,
         "tooltip": "If-else statement",
         "helpUrl": "",
         "mode": "wgsl",
@@ -663,7 +663,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 270,
         "tooltip": "For loop iteration",
         "helpUrl": "",
         "mode": "wgsl",
@@ -690,7 +690,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 270,
         "tooltip": "For loop with full control",
         "helpUrl": "",
         "mode": "wgsl",
@@ -714,7 +714,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 270,
         "tooltip": "While loop",
         "helpUrl": "",
         "mode": "wgsl",
@@ -739,7 +739,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 270,
         "tooltip": "Infinite loop",
         "helpUrl": "",
         "mode": "wgsl",
@@ -758,7 +758,7 @@ Blockly.defineBlocksWithJsonArray([
         "message0": "break ;",
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 270,
         "tooltip": "Break from loop",
         "helpUrl": "",
         "mode": "wgsl",
@@ -775,7 +775,7 @@ Blockly.defineBlocksWithJsonArray([
         "message0": "continue ;",
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 270,
         "tooltip": "Continue to next iteration",
         "helpUrl": "",
         "mode": "wgsl",
@@ -794,7 +794,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "previousStatement": null,
-        "colour": 160,
+        "colour": 270,
         "tooltip": "Return statement",
         "helpUrl": "",
         "mode": "wgsl",
@@ -823,7 +823,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "Y" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "2D vector constructor",
         "helpUrl": "",
         "mode": "wgsl",
@@ -849,7 +849,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "Z" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Create a 3D vector",
         "helpUrl": "",
         "mode": "wgsl",
@@ -881,7 +881,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "Z" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "3D vector constructor",
         "helpUrl": "",
         "mode": "wgsl",
@@ -914,7 +914,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "W" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "4D vector constructor",
         "helpUrl": "",
         "mode": "wgsl",
@@ -940,7 +940,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUES" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "4x4 matrix constructor",
         "helpUrl": "",
         "mode": "wgsl",
@@ -974,7 +974,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARGS" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 270,
         "tooltip": "WGSL built-in function",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1027,7 +1027,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARGS" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 270,
         "tooltip": "WGSL math function",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1056,7 +1056,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARG2" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 270,
         "tooltip": "Texture sampling function",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1091,7 +1091,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 270,
         "tooltip": "Atomic operation",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1128,7 +1128,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "B" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Math operation",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1173,7 +1173,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "RIGHT" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Binary operation",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1204,7 +1204,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPR" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Unary operation",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1231,7 +1231,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Type cast",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1256,7 +1256,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_number", "name": "VALUE", "value": 0 }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Number value",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1275,7 +1275,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_number", "name": "VALUE", "value": 0.0, "precision": 0.01 }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Float literal",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1294,7 +1294,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_number", "name": "VALUE", "value": 0 }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 270,
         "tooltip": "Integer literal",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1316,7 +1316,7 @@ Blockly.defineBlocksWithJsonArray([
             ]}
         ],
         "output": null,
-        "colour": 210,
+        "colour": 270,
         "tooltip": "Boolean literal",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1339,7 +1339,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "NAME", "text": "variable" }
         ],
         "output": null,
-        "colour": 330,
+        "colour": 270,
         "tooltip": "Reference a variable",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1361,7 +1361,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "INDEX" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 270,
         "tooltip": "Access array element",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1378,6 +1378,54 @@ Blockly.defineBlocksWithJsonArray([
     },
 
     {
+        "type": "wgsl_index",
+        "message0": "%1 [ %2 ]",
+        "args0": [
+            { "type": "input_value", "name": "ARRAY" },
+            { "type": "input_value", "name": "INDEX" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Index into array",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "{{ARRAY}}[{{INDEX}}]",
+        "typeInfo": {
+            "inputs": {
+                "ARRAY": ["array"],
+                "INDEX": ["i32", "u32", "int"]
+            },
+            "output": null
+        },
+        "validation": {
+            "required": ["ARRAY", "INDEX"]
+        }
+    },
+
+    {
+        "type": "wgsl_array_length",
+        "message0": "arrayLength( & %1 )",
+        "args0": [
+            { "type": "input_value", "name": "ARRAY" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Get the length of a runtime-sized array",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "arrayLength(&{{ARRAY}})",
+        "typeInfo": {
+            "inputs": {
+                "ARRAY": ["array"]
+            },
+            "output": ["u32", "int"]
+        },
+        "validation": {
+            "required": ["ARRAY"]
+        }
+    },
+
+    {
         "type": "wgsl_field_access",
         "message0": "%1 . %2",
         "args0": [
@@ -1385,7 +1433,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "FIELD", "text": "position" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 270,
         "tooltip": "Access struct field",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1415,7 +1463,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 160,
+        "colour": 270,
         "tooltip": "Function definition",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1437,7 +1485,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARGS" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 270,
         "tooltip": "Function call",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1463,7 +1511,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 65,
+        "colour": 270,
         "tooltip": "Line comment",
         "helpUrl": "",
         "mode": "wgsl",
@@ -1473,6 +1521,410 @@ Blockly.defineBlocksWithJsonArray([
             "output": null
         },
         "validation": {}
+    },
+
+    // ============================================================================
+    // ADDITIONAL VARIABLE TYPES
+    // ============================================================================
+
+    {
+        "type": "wgsl_const",
+        "message0": "const %1 = %2 ;",
+        "args0": [
+            { "type": "field_input", "name": "NAME", "text": "CONSTANT" },
+            { "type": "input_value", "name": "VALUE" }
+        ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
+        "colour": 270,
+        "tooltip": "Compile-time constant declaration",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "const {{NAME}} = {{VALUE}};",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {
+            "required": ["NAME", "VALUE"]
+        }
+    },
+
+    {
+        "type": "wgsl_override",
+        "message0": "@id( %1 ) override %2 : %3 = %4 ;",
+        "args0": [
+            { "type": "field_number", "name": "ID", "value": 0, "min": 0 },
+            { "type": "field_input", "name": "NAME", "text": "override_value" },
+            { "type": "field_input", "name": "TYPE", "text": "f32" },
+            { "type": "input_value", "name": "DEFAULT" }
+        ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
+        "colour": 270,
+        "tooltip": "Pipeline-overridable constant",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "@id({{ID}}) override {{NAME}}: {{TYPE}} = {{DEFAULT}};",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {
+            "required": ["ID", "NAME", "TYPE"]
+        }
+    },
+
+    {
+        "type": "wgsl_workgroup_var",
+        "message0": "var< workgroup > %1 : %2 ;",
+        "args0": [
+            { "type": "field_input", "name": "NAME", "text": "shared_data" },
+            { "type": "field_input", "name": "TYPE", "text": "array<f32, 256>" }
+        ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
+        "colour": 270,
+        "tooltip": "Workgroup-shared variable",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "var<workgroup> {{NAME}}: {{TYPE}};",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {
+            "required": ["NAME", "TYPE"]
+        }
+    },
+
+    {
+        "type": "wgsl_private_var",
+        "message0": "var< private > %1 : %2 ;",
+        "args0": [
+            { "type": "field_input", "name": "NAME", "text": "private_var" },
+            { "type": "field_input", "name": "TYPE", "text": "f32" }
+        ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
+        "colour": 270,
+        "tooltip": "Private variable (per-invocation)",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "var<private> {{NAME}}: {{TYPE}};",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {
+            "required": ["NAME", "TYPE"]
+        }
+    },
+
+    // ============================================================================
+    // SYNCHRONIZATION
+    // ============================================================================
+
+    {
+        "type": "wgsl_workgroup_barrier",
+        "message0": "workgroupBarrier( ) ;",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 270,
+        "tooltip": "Synchronize all invocations in a workgroup",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "workgroupBarrier();",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {}
+    },
+
+    {
+        "type": "wgsl_storage_barrier",
+        "message0": "storageBarrier( ) ;",
+        "previousStatement": null,
+        "nextStatement": null,
+        "colour": 270,
+        "tooltip": "Memory barrier for storage operations",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "storageBarrier();",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {}
+    },
+
+    // ============================================================================
+    // VECTOR SWIZZLING
+    // ============================================================================
+
+    {
+        "type": "wgsl_swizzle",
+        "message0": "%1 . %2",
+        "args0": [
+            { "type": "input_value", "name": "VECTOR" },
+            { "type": "field_input", "name": "COMPONENTS", "text": "xyz" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Vector swizzle (e.g., .xyz, .xy, .rgb, .xxyy)",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "{{VECTOR}}.{{COMPONENTS}}",
+        "typeInfo": {
+            "inputs": {
+                "VECTOR": ["vec2", "vec3", "vec4"]
+            },
+            "output": null
+        },
+        "validation": {
+            "required": ["VECTOR", "COMPONENTS"]
+        }
+    },
+
+    // ============================================================================
+    // POINTER & ADDRESS OPERATIONS
+    // ============================================================================
+
+    {
+        "type": "wgsl_address_of",
+        "message0": "& %1",
+        "args0": [
+            { "type": "input_value", "name": "EXPR" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Get pointer/address of variable",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "&{{EXPR}}",
+        "typeInfo": {
+            "inputs": {},
+            "output": ["ptr"]
+        },
+        "validation": {
+            "required": ["EXPR"]
+        }
+    },
+
+    {
+        "type": "wgsl_dereference",
+        "message0": "* %1",
+        "args0": [
+            { "type": "input_value", "name": "PTR" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Dereference pointer",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "*{{PTR}}",
+        "typeInfo": {
+            "inputs": {
+                "PTR": ["ptr"]
+            },
+            "output": null
+        },
+        "validation": {
+            "required": ["PTR"]
+        }
+    },
+
+    // ============================================================================
+    // ADDITIONAL TEXTURE TYPES
+    // ============================================================================
+
+    {
+        "type": "wgsl_texture_storage_2d",
+        "message0": "@group( %1 ) @binding( %2 ) %3 var %4 : texture_storage_2d< %5 , %6 > ;",
+        "args0": [
+            { "type": "field_number", "name": "GROUP", "value": 0, "min": 0 },
+            { "type": "field_number", "name": "BINDING", "value": 0, "min": 0 },
+            { "type": "input_dummy" },
+            { "type": "field_input", "name": "NAME", "text": "output_texture" },
+            { "type": "field_dropdown", "name": "FORMAT", "options": [
+                ["rgba8unorm", "rgba8unorm"],
+                ["rgba8snorm", "rgba8snorm"],
+                ["rgba16float", "rgba16float"],
+                ["rgba32float", "rgba32float"],
+                ["r32float", "r32float"],
+                ["rg32float", "rg32float"]
+            ]},
+            { "type": "field_dropdown", "name": "ACCESS", "options": [
+                ["write", "write"],
+                ["read_write", "read_write"]
+            ]}
+        ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
+        "colour": 270,
+        "tooltip": "Storage texture binding for compute shaders",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "@group({{GROUP}}) @binding({{BINDING}})\nvar {{NAME}}: texture_storage_2d<{{FORMAT}}, {{ACCESS}}>;",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {
+            "required": ["GROUP", "BINDING", "NAME"],
+            "constraints": {
+                "GROUP": { "min": 0, "max": 3 },
+                "BINDING": { "min": 0, "max": 15 }
+            }
+        }
+    },
+
+    {
+        "type": "wgsl_texture_depth_2d",
+        "message0": "@group( %1 ) @binding( %2 ) %3 var %4 : texture_depth_2d ;",
+        "args0": [
+            { "type": "field_number", "name": "GROUP", "value": 0, "min": 0 },
+            { "type": "field_number", "name": "BINDING", "value": 0, "min": 0 },
+            { "type": "input_dummy" },
+            { "type": "field_input", "name": "NAME", "text": "depth_texture" }
+        ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
+        "colour": 270,
+        "tooltip": "Depth texture binding",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "@group({{GROUP}}) @binding({{BINDING}})\nvar {{NAME}}: texture_depth_2d;",
+        "typeInfo": {
+            "inputs": {},
+            "output": null
+        },
+        "validation": {
+            "required": ["GROUP", "BINDING", "NAME"],
+            "constraints": {
+                "GROUP": { "min": 0, "max": 3 },
+                "BINDING": { "min": 0, "max": 15 }
+            }
+        }
+    },
+
+    // ============================================================================
+    // ADDITIONAL MATH FUNCTIONS
+    // ============================================================================
+
+    {
+        "type": "wgsl_select",
+        "message0": "select( %1 , %2 , %3 )",
+        "args0": [
+            { "type": "input_value", "name": "FALSE_VALUE" },
+            { "type": "input_value", "name": "TRUE_VALUE" },
+            { "type": "input_value", "name": "CONDITION" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Select between two values based on condition (ternary-like)",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "select({{FALSE_VALUE}}, {{TRUE_VALUE}}, {{CONDITION}})",
+        "typeInfo": {
+            "inputs": {
+                "CONDITION": ["bool", "Boolean"]
+            },
+            "output": null
+        },
+        "validation": {
+            "required": ["FALSE_VALUE", "TRUE_VALUE", "CONDITION"]
+        }
+    },
+
+    {
+        "type": "wgsl_smoothstep",
+        "message0": "smoothstep( %1 , %2 , %3 )",
+        "args0": [
+            { "type": "input_value", "name": "LOW" },
+            { "type": "input_value", "name": "HIGH" },
+            { "type": "input_value", "name": "X" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Smooth Hermite interpolation",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "smoothstep({{LOW}}, {{HIGH}}, {{X}})",
+        "typeInfo": {
+            "inputs": {},
+            "output": ["f32", "Number", "float"]
+        },
+        "validation": {
+            "required": ["LOW", "HIGH", "X"]
+        }
+    },
+
+    {
+        "type": "wgsl_step",
+        "message0": "step( %1 , %2 )",
+        "args0": [
+            { "type": "input_value", "name": "EDGE" },
+            { "type": "input_value", "name": "X" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Step function (0 if x < edge, else 1)",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "step({{EDGE}}, {{X}})",
+        "typeInfo": {
+            "inputs": {},
+            "output": ["f32", "Number", "float"]
+        },
+        "validation": {
+            "required": ["EDGE", "X"]
+        }
+    },
+
+    {
+        "type": "wgsl_fma",
+        "message0": "fma( %1 , %2 , %3 )",
+        "args0": [
+            { "type": "input_value", "name": "A" },
+            { "type": "input_value", "name": "B" },
+            { "type": "input_value", "name": "C" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Fused multiply-add: a * b + c",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "fma({{A}}, {{B}}, {{C}})",
+        "typeInfo": {
+            "inputs": {},
+            "output": ["f32", "Number", "float"]
+        },
+        "validation": {
+            "required": ["A", "B", "C"]
+        }
+    },
+
+    {
+        "type": "wgsl_saturate",
+        "message0": "saturate( %1 )",
+        "args0": [
+            { "type": "input_value", "name": "VALUE" }
+        ],
+        "output": null,
+        "colour": 270,
+        "tooltip": "Clamp value to [0, 1] range",
+        "helpUrl": "",
+        "mode": "wgsl",
+        "template": "saturate({{VALUE}})",
+        "typeInfo": {
+            "inputs": {},
+            "output": ["f32", "Number", "float"]
+        },
+        "validation": {
+            "required": ["VALUE"]
+        }
     },
 
     // ============================================================================
@@ -1493,7 +1945,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 270,
         "tooltip": "Create a reference to code in another file or mode. Used for cross-mode imports and dependencies.",
         "helpUrl": "",
         "mode": "wgsl",

@@ -664,6 +664,19 @@ WgslGenerator.forBlock['wgsl_field_access'] = function(block) {
     return [`${object}.${field}`, WgslGenerator.ORDER_ATOMIC];
 };
 
+WgslGenerator.forBlock['wgsl_index'] = function(block) {
+    const array = WgslGenerator.valueToCode(block, 'ARRAY', WgslGenerator.ORDER_NONE) || 'array';
+    const index = WgslGenerator.valueToCode(block, 'INDEX', WgslGenerator.ORDER_NONE) || '0';
+    
+    return [`${array}[${index}]`, WgslGenerator.ORDER_ATOMIC];
+};
+
+WgslGenerator.forBlock['wgsl_array_length'] = function(block) {
+    const array = WgslGenerator.valueToCode(block, 'ARRAY', WgslGenerator.ORDER_NONE) || 'array';
+    
+    return [`arrayLength(&${array})`, WgslGenerator.ORDER_ATOMIC];
+};
+
 // ============================================================================
 // FUNCTION GENERATORS
 // ============================================================================
@@ -957,6 +970,148 @@ WgslGenerator.forBlock['wgsl_reference_node'] = function(block) {
     code += '\n';
     
     return code;
+};
+
+// ============================================================================
+// ADDITIONAL VARIABLE TYPES GENERATORS
+// ============================================================================
+
+WgslGenerator.forBlock['wgsl_const'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const value = WgslGenerator.valueToCode(block, 'VALUE', WgslGenerator.ORDER_NONE) || '0';
+    
+    return `const ${name} = ${value};\n`;
+};
+
+WgslGenerator.forBlock['wgsl_override'] = function(block) {
+    const id = block.getFieldValue('ID');
+    const name = block.getFieldValue('NAME');
+    const type = block.getFieldValue('TYPE');
+    const defaultValue = WgslGenerator.valueToCode(block, 'DEFAULT', WgslGenerator.ORDER_NONE) || '0';
+    
+    return `@id(${id}) override ${name}: ${type} = ${defaultValue};\n`;
+};
+
+WgslGenerator.forBlock['wgsl_workgroup_var'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const type = block.getFieldValue('TYPE');
+    
+    return `var<workgroup> ${name}: ${type};\n`;
+};
+
+WgslGenerator.forBlock['wgsl_private_var'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const type = block.getFieldValue('TYPE');
+    
+    return `var<private> ${name}: ${type};\n`;
+};
+
+// ============================================================================
+// SYNCHRONIZATION GENERATORS
+// ============================================================================
+
+WgslGenerator.forBlock['wgsl_workgroup_barrier'] = function(block) {
+    return `workgroupBarrier();\n`;
+};
+
+WgslGenerator.forBlock['wgsl_storage_barrier'] = function(block) {
+    return `storageBarrier();\n`;
+};
+
+// ============================================================================
+// VECTOR SWIZZLING GENERATOR
+// ============================================================================
+
+WgslGenerator.forBlock['wgsl_swizzle'] = function(block) {
+    const vector = WgslGenerator.valueToCode(block, 'VECTOR', WgslGenerator.ORDER_NONE) || 'vec';
+    const components = block.getFieldValue('COMPONENTS');
+    
+    return [`${vector}.${components}`, WgslGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// POINTER & ADDRESS OPERATIONS GENERATORS
+// ============================================================================
+
+WgslGenerator.forBlock['wgsl_address_of'] = function(block) {
+    const expr = WgslGenerator.valueToCode(block, 'EXPR', WgslGenerator.ORDER_NONE) || 'var';
+    
+    return [`&${expr}`, WgslGenerator.ORDER_ATOMIC];
+};
+
+WgslGenerator.forBlock['wgsl_dereference'] = function(block) {
+    const ptr = WgslGenerator.valueToCode(block, 'PTR', WgslGenerator.ORDER_NONE) || 'ptr';
+    
+    return [`*${ptr}`, WgslGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// ADDITIONAL TEXTURE TYPES GENERATORS
+// ============================================================================
+
+WgslGenerator.forBlock['wgsl_texture_storage_2d'] = function(block) {
+    const group = block.getFieldValue('GROUP');
+    const binding = block.getFieldValue('BINDING');
+    const name = block.getFieldValue('NAME');
+    const format = block.getFieldValue('FORMAT');
+    const access = block.getFieldValue('ACCESS');
+    
+    return `@group(${group}) @binding(${binding})
+var ${name}: texture_storage_2d<${format}, ${access}>;
+
+`;
+};
+
+WgslGenerator.forBlock['wgsl_texture_depth_2d'] = function(block) {
+    const group = block.getFieldValue('GROUP');
+    const binding = block.getFieldValue('BINDING');
+    const name = block.getFieldValue('NAME');
+    
+    return `@group(${group}) @binding(${binding})
+var ${name}: texture_depth_2d;
+
+`;
+};
+
+// ============================================================================
+// ADDITIONAL MATH FUNCTIONS GENERATORS
+// ============================================================================
+
+WgslGenerator.forBlock['wgsl_select'] = function(block) {
+    const falseValue = WgslGenerator.valueToCode(block, 'FALSE_VALUE', WgslGenerator.ORDER_NONE) || '0';
+    const trueValue = WgslGenerator.valueToCode(block, 'TRUE_VALUE', WgslGenerator.ORDER_NONE) || '1';
+    const condition = WgslGenerator.valueToCode(block, 'CONDITION', WgslGenerator.ORDER_NONE) || 'false';
+    
+    return [`select(${falseValue}, ${trueValue}, ${condition})`, WgslGenerator.ORDER_ATOMIC];
+};
+
+WgslGenerator.forBlock['wgsl_smoothstep'] = function(block) {
+    const low = WgslGenerator.valueToCode(block, 'LOW', WgslGenerator.ORDER_NONE) || '0.0';
+    const high = WgslGenerator.valueToCode(block, 'HIGH', WgslGenerator.ORDER_NONE) || '1.0';
+    const x = WgslGenerator.valueToCode(block, 'X', WgslGenerator.ORDER_NONE) || '0.5';
+    
+    return [`smoothstep(${low}, ${high}, ${x})`, WgslGenerator.ORDER_ATOMIC];
+};
+
+WgslGenerator.forBlock['wgsl_step'] = function(block) {
+    const edge = WgslGenerator.valueToCode(block, 'EDGE', WgslGenerator.ORDER_NONE) || '0.0';
+    const x = WgslGenerator.valueToCode(block, 'X', WgslGenerator.ORDER_NONE) || '0.0';
+    
+    return [`step(${edge}, ${x})`, WgslGenerator.ORDER_ATOMIC];
+};
+
+WgslGenerator.forBlock['wgsl_fma'] = function(block) {
+    const a = WgslGenerator.valueToCode(block, 'A', WgslGenerator.ORDER_NONE) || '0.0';
+    const b = WgslGenerator.valueToCode(block, 'B', WgslGenerator.ORDER_NONE) || '0.0';
+    const c = WgslGenerator.valueToCode(block, 'C', WgslGenerator.ORDER_NONE) || '0.0';
+    
+    return [`fma(${a}, ${b}, ${c})`, WgslGenerator.ORDER_ATOMIC];
+};
+
+WgslGenerator.forBlock['wgsl_saturate'] = function(block) {
+    const value = WgslGenerator.valueToCode(block, 'VALUE', WgslGenerator.ORDER_NONE) || '0.0';
+    
+    return [`saturate(${value})`, WgslGenerator.ORDER_ATOMIC];
 };
 
 // Export for testing
