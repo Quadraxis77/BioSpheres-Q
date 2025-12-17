@@ -33,7 +33,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "App & Plugins",
-                    colour: 160,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "App Setup" },
                         { kind: "block", type: "bevy_app_new" },
@@ -56,7 +56,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Systems",
-                    colour: 160,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_system" },
                         { kind: "block", type: "bevy_system_tuple" },
@@ -69,7 +69,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "System Parameters",
-                    colour: 230,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Queries" },
                         { kind: "block", type: "bevy_query" },
@@ -98,7 +98,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Query Operations",
-                    colour: 230,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_query_iter" },
                         { kind: "block", type: "bevy_query_iter_mut" },
@@ -113,7 +113,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Commands",
-                    colour: 160,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Entity Management" },
                         { kind: "block", type: "bevy_spawn" },
@@ -132,7 +132,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Bundles & Components",
-                    colour: 290,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Common Bundles" },
                         { kind: "block", type: "bevy_transform_bundle" },
@@ -155,7 +155,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Math & Vectors",
-                    colour: 290,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Vec3" },
                         { kind: "block", type: "bevy_vec3_new" },
@@ -176,7 +176,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Time",
-                    colour: 200,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_time_delta" },
                         { kind: "block", type: "bevy_time_elapsed" }
@@ -187,7 +187,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Events",
-                    colour: 210,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_read_events" },
                         { kind: "block", type: "bevy_send_event" }
@@ -198,7 +198,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Assets & Materials",
-                    colour: 290,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Asset Loading" },
                         { kind: "block", type: "bevy_load_asset" },
@@ -226,7 +226,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Input",
-                    colour: 200,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_key_pressed" },
                         { kind: "block", type: "bevy_key_just_pressed" }
@@ -237,7 +237,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "State Management",
-                    colour: 200,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_set_state" },
                         { kind: "block", type: "bevy_in_state" },
@@ -250,7 +250,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Resources",
-                    colour: 200,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_is_changed" }
                     ]
@@ -260,7 +260,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Rendering Effects",
-                    colour: 290,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Fog" },
                         { kind: "block", type: "bevy_fog_settings" },
@@ -288,7 +288,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Physics",
-                    colour: 330,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_velocity" }
                     ]
@@ -298,7 +298,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "UI",
-                    colour: 270,
+                    colour: 120,
                     contents: [
                         { kind: "label", text: "Text" },
                         { kind: "block", type: "bevy_text_bundle" },
@@ -314,7 +314,7 @@ const BevyToolbox = {
                 {
                     kind: "category",
                     name: "Entity & References",
-                    colour: 160,
+                    colour: 120,
                     contents: [
                         { kind: "block", type: "bevy_entity" },
                         { kind: "block", type: "bevy_reference_node" }

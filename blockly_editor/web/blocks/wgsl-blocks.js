@@ -47,6 +47,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "BODY" }
         ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 270,
         "tooltip": "Compute shader entry point with workgroup size",
         "helpUrl": "",
@@ -77,6 +79,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "BODY" }
         ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 270,
         "tooltip": "Vertex shader entry point",
         "helpUrl": "",
@@ -102,6 +106,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "BODY" }
         ],
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 270,
         "tooltip": "Fragment shader entry point",
         "helpUrl": "",
@@ -128,8 +134,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "FIELDS" }
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 290,
         "tooltip": "Define a struct",
         "helpUrl": "",
@@ -283,8 +289,8 @@ Blockly.defineBlocksWithJsonArray([
                 ["read_write", "read_write"]
             ]}
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 200,
         "tooltip": "Define a storage buffer binding",
         "helpUrl": "",
@@ -317,8 +323,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "NAME", "text": "buffer" },
             { "type": "field_input", "name": "TYPE", "text": "array<f32>" }
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 200,
         "tooltip": "Storage buffer binding",
         "helpUrl": "",
@@ -348,8 +354,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "NAME", "text": "params" },
             { "type": "field_input", "name": "TYPE", "text": "PhysicsParams" }
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 200,
         "tooltip": "Define a uniform buffer binding",
         "helpUrl": "",
@@ -378,8 +384,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "NAME", "text": "uniforms" },
             { "type": "field_input", "name": "TYPE", "text": "Uniforms" }
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 200,
         "tooltip": "Uniform buffer binding",
         "helpUrl": "",
@@ -412,8 +418,8 @@ Blockly.defineBlocksWithJsonArray([
                 ["u32", "u32"]
             ]}
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 200,
         "tooltip": "2D texture binding",
         "helpUrl": "",
@@ -441,8 +447,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "field_input", "name": "NAME", "text": "sampler" }
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 200,
         "tooltip": "Sampler binding",
         "helpUrl": "",
@@ -1407,8 +1413,8 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "BODY" }
         ],
-        "previousStatement": null,
-        "nextStatement": null,
+        "previousStatement": "TopLevel",
+        "nextStatement": "TopLevel",
         "colour": 160,
         "tooltip": "Function definition",
         "helpUrl": "",

@@ -35,6 +35,12 @@ class MultiModeCodeParser {
                 console.log(`[MultiModeCodeParser] Auto-detected mode: ${mode}`);
             }
             
+            // Check if code contains mixed modes
+            if (mode === 'mixed' || this.containsMixedModes(code)) {
+                console.log(`[MultiModeCodeParser] Detected mixed modes, using mixed parser`);
+                return this.parseMixed(code);
+            }
+            
             // Delegate to appropriate parser
             let blocks;
             switch (mode) {
@@ -66,27 +72,132 @@ class MultiModeCodeParser {
     
     // Detect code mode based on content
     detectMode(code) {
+        const modes = this.detectAllModes(code);
+        
+        // If multiple modes detected, return 'mixed'
+        if (modes.length > 1) {
+            return 'mixed';
+        }
+        
+        // Return single detected mode or default to rust
+        return modes.length === 1 ? modes[0] : 'rust';
+    }
+    
+    // Detect all modes present in code
+    detectAllModes(code) {
+        const modes = new Set();
+        
         // Check for WGSL-specific syntax
         if (code.includes('@compute') || code.includes('@vertex') || code.includes('@fragment') ||
             code.includes('var<storage>') || code.includes('var<uniform>')) {
-            return 'wgsl';
+            modes.add('wgsl');
         }
         
         // Check for Bevy-specific imports and types
         if (code.includes('use bevy::') || code.includes('Query<') || 
             code.includes('Commands') || code.includes('Res<') || code.includes('ResMut<')) {
-            return 'bevy';
+            modes.add('bevy');
         }
         
         // Check for Biospheres-specific types
         if (code.includes('CellType') || code.includes('Genome') || 
             code.includes('AdhesionZone') || code.includes('SignalChannel') ||
             code.includes('emit_signal') || code.includes('contract_adhesions')) {
-            return 'biospheres';
+            modes.add('biospheres');
         }
         
-        // Default to Rust
-        return 'rust';
+        // Always include rust as base if no specific modes detected
+        if (modes.size === 0) {
+            modes.add('rust');
+        }
+        
+        return Array.from(modes);
+    }
+    
+    // Check if code contains mixed modes
+    containsMixedModes(code) {
+        const modes = this.detectAllModes(code);
+        return modes.length > 1;
+    }
+    
+    // Parse code with mixed modes
+    parseMixed(code) {
+        console.log(`[MultiModeCodeParser] Parsing mixed-mode code`);
+        const blocks = [];
+        
+        // Try all parsers and collect blocks from each
+        // Priority order: Biospheres > Bevy > WGSL > Rust
+        
+        try {
+            // Parse Biospheres-specific constructs first (most specific)
+            const bioBlocks = this.biospheresParser.parse(code);
+            blocks.push(...bioBlocks);
+            console.log(`[MultiModeCodeParser] Found ${bioBlocks.length} Biospheres blocks`);
+        } catch (error) {
+            console.warn('[MultiModeCodeParser] Biospheres parser error:', error);
+        }
+        
+        try {
+            // Parse Bevy-specific constructs
+            const bevyBlocks = this.bevyParser.parse(code);
+            blocks.push(...bevyBlocks);
+            console.log(`[MultiModeCodeParser] Found ${bevyBlocks.length} Bevy blocks`);
+        } catch (error) {
+            console.warn('[MultiModeCodeParser] Bevy parser error:', error);
+        }
+        
+        try {
+            // Parse WGSL-specific constructs
+            const wgslBlocks = this.wgslParser.parse(code);
+            blocks.push(...wgslBlocks);
+            console.log(`[MultiModeCodeParser] Found ${wgslBlocks.length} WGSL blocks`);
+        } catch (error) {
+            console.warn('[MultiModeCodeParser] WGSL parser error:', error);
+        }
+        
+        try {
+            // Parse general Rust constructs (least specific, catches everything else)
+            const rustBlocks = this.rustParser.parse(code);
+            // Filter out blocks that were already captured by more specific parsers
+            const uniqueRustBlocks = this.filterDuplicateBlocks(rustBlocks, blocks);
+            blocks.push(...uniqueRustBlocks);
+            console.log(`[MultiModeCodeParser] Found ${uniqueRustBlocks.length} unique Rust blocks`);
+        } catch (error) {
+            console.warn('[MultiModeCodeParser] Rust parser error:', error);
+        }
+        
+        console.log(`[MultiModeCodeParser] Mixed mode parsing complete: ${blocks.length} total blocks`);
+        return blocks;
+    }
+    
+    // Filter out duplicate blocks based on type and position
+    filterDuplicateBlocks(newBlocks, existingBlocks) {
+        const existingSignatures = new Set();
+        
+        // Create signatures for existing blocks
+        for (const block of existingBlocks) {
+            const signature = this.getBlockSignature(block);
+            existingSignatures.add(signature);
+        }
+        
+        // Filter new blocks
+        return newBlocks.filter(block => {
+            const signature = this.getBlockSignature(block);
+            return !existingSignatures.has(signature);
+        });
+    }
+    
+    // Get a unique signature for a block
+    getBlockSignature(block) {
+        // Create signature based on type and key fields
+        let signature = block.type;
+        
+        if (block.fields) {
+            if (block.fields.NAME) signature += `_${block.fields.NAME}`;
+            if (block.fields.PATH) signature += `_${block.fields.PATH}`;
+        }
+        
+        return signature;
     }
     
     // Parse multiple files and preserve cross-file references

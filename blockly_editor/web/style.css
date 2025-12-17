@@ -1476,8 +1476,7 @@ button:disabled {
     margin: 4px 0;
 }
 
-.dropdown:hover .dropdown-content,
-.dropdown-content:hover {
+.dropdown-content.show {
     display: block;
 }
 

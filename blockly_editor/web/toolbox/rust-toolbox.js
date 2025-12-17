@@ -16,7 +16,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Files",
-                    colour: 120,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "file_container" }
                     ]
@@ -26,7 +26,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Functions",
-                    colour: 160,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_main" },
                         { kind: "block", type: "rust_function" },
@@ -42,7 +42,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Control Flow",
-                    colour: 210,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_if" },
                         { kind: "block", type: "rust_if_else" },
@@ -65,7 +65,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Variables",
-                    colour: 330,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_let" },
                         { kind: "block", type: "rust_let_binding" },
@@ -81,7 +81,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Expressions",
-                    colour: 230,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_binary_op" },
                         { kind: "block", type: "rust_unary_op" },
@@ -99,7 +99,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Literals",
-                    colour: 230,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_number" },
                         { kind: "block", type: "rust_float" },
@@ -112,7 +112,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Structs & Enums",
-                    colour: 290,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_struct" },
                         { kind: "block", type: "rust_field" },
@@ -130,7 +130,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Option & Result",
-                    colour: 210,
+                    colour: 20,
                     contents: [
                         { kind: "label", text: "Option" },
                         { kind: "block", type: "rust_option_some" },
@@ -154,7 +154,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Collections",
-                    colour: 260,
+                    colour: 20,
                     contents: [
                         { kind: "label", text: "Vectors" },
                         { kind: "block", type: "rust_vec_new" },
@@ -202,7 +202,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Strings",
-                    colour: 160,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_string_new" },
                         { kind: "block", type: "rust_string_from" },
@@ -245,7 +245,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Math",
-                    colour: 230,
+                    colour: 20,
                     contents: [
                         { kind: "label", text: "Basic Operations" },
                         { kind: "block", type: "rust_abs" },
@@ -297,7 +297,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Macros",
-                    colour: 160,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_println" },
                         { kind: "block", type: "rust_print" },
@@ -315,7 +315,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Comments",
-                    colour: 65,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_comment" },
                         { kind: "block", type: "rust_doc_comment" },
@@ -327,7 +327,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "Advanced",
-                    colour: 290,
+                    colour: 20,
                     contents: [
                         { kind: "label", text: "Async/Await" },
                         { kind: "block", type: "rust_async_function" },
@@ -351,7 +351,7 @@ const RustToolbox = {
                 {
                     kind: "category",
                     name: "References",
-                    colour: 290,
+                    colour: 20,
                     contents: [
                         { kind: "block", type: "rust_reference_node" }
                     ]

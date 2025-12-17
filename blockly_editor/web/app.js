@@ -515,6 +515,9 @@ function setupEventListeners() {
     
     // Code tabs (if they exist)
     setupCodeTabListeners();
+    
+    // Dropdown toggle
+    setupDropdownToggle();
 }
 
 /**
@@ -558,6 +561,34 @@ function setupCodeTabListeners() {
                 showCodeTab(filename);
             }
         }
+    });
+}
+
+/**
+ * Set up dropdown toggle functionality
+ */
+function setupDropdownToggle() {
+    const dropdownButton = document.getElementById('showExamplesMenu');
+    const dropdownContent = document.getElementById('examplesDropdown');
+    
+    if (!dropdownButton || !dropdownContent) return;
+    
+    // Toggle dropdown on button click
+    dropdownButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdownContent.classList.toggle('show');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.dropdown')) {
+            dropdownContent.classList.remove('show');
+        }
+    });
+    
+    // Close dropdown when clicking a menu item
+    dropdownContent.addEventListener('click', () => {
+        dropdownContent.classList.remove('show');
     });
 }
 

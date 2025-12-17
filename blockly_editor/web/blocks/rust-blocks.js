@@ -17,7 +17,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Main function - program entry point",
         "helpUrl": "",
         "mode": "rust",
@@ -44,7 +44,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Define a standard Rust function",
         "helpUrl": "",
         "mode": "rust",
@@ -71,7 +71,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Define a public Rust function",
         "helpUrl": "",
         "mode": "rust",
@@ -101,7 +101,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "RETURN_TYPE", "check": "ReturnType" },
             { "type": "input_statement", "name": "BODY" }
         ],
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Define a method with self parameter",
         "helpUrl": "",
         "mode": "rust",
@@ -122,7 +122,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "PARAMS", "text": "x: f32, y: f32" }
         ],
         "output": "Parameters",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Function parameters",
         "helpUrl": "",
         "mode": "rust",
@@ -141,7 +141,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TYPE", "text": "f32" }
         ],
         "output": "ReturnType",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Function return type",
         "helpUrl": "",
         "mode": "rust",
@@ -165,7 +165,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "METHODS" }
         ],
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Implementation block for a type",
         "helpUrl": "",
         "mode": "rust",
@@ -189,7 +189,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "METHODS" }
         ],
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Implement a trait for a type",
         "helpUrl": "",
         "mode": "rust",
@@ -218,7 +218,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "If statement",
         "helpUrl": "",
         "mode": "rust",
@@ -247,7 +247,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "If-else statement",
         "helpUrl": "",
         "mode": "rust",
@@ -274,7 +274,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Match expression",
         "helpUrl": "",
         "mode": "rust",
@@ -298,7 +298,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Match arm",
         "helpUrl": "",
         "mode": "rust",
@@ -323,7 +323,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "While loop",
         "helpUrl": "",
         "mode": "rust",
@@ -349,7 +349,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Infinite loop",
         "helpUrl": "",
         "mode": "rust",
@@ -373,7 +373,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "For loop over range",
         "helpUrl": "",
         "mode": "rust",
@@ -402,7 +402,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "For loop over iterator",
         "helpUrl": "",
         "mode": "rust",
@@ -444,7 +444,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "RIGHT" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Binary operation",
         "helpUrl": "",
         "mode": "rust",
@@ -475,7 +475,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPR" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Unary operation",
         "helpUrl": "",
         "mode": "rust",
@@ -497,7 +497,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARGS" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Function call",
         "helpUrl": "",
         "mode": "rust",
@@ -521,7 +521,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARGS" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Method call",
         "helpUrl": "",
         "mode": "rust",
@@ -544,7 +544,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "FIELD", "text": "field" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Field access",
         "helpUrl": "",
         "mode": "rust",
@@ -567,7 +567,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "INDEX" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Array/slice indexing",
         "helpUrl": "",
         "mode": "rust",
@@ -592,7 +592,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_number", "name": "INDEX", "value": 0, "min": 0 }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Tuple field access",
         "helpUrl": "",
         "mode": "rust",
@@ -615,7 +615,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TYPE", "text": "f32" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Type cast",
         "helpUrl": "",
         "mode": "rust",
@@ -641,7 +641,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_number", "name": "VALUE", "value": 0 }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Number literal",
         "helpUrl": "",
         "mode": "rust",
@@ -660,7 +660,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_number", "name": "VALUE", "value": 0.0, "precision": 0.01 }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Float literal",
         "helpUrl": "",
         "mode": "rust",
@@ -679,7 +679,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "VALUE", "text": "text" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "String literal",
         "helpUrl": "",
         "mode": "rust",
@@ -701,7 +701,7 @@ Blockly.defineBlocksWithJsonArray([
             ]}
         ],
         "output": "Boolean",
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Boolean literal",
         "helpUrl": "",
         "mode": "rust",
@@ -719,7 +719,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "NAME", "text": "variable" }
         ],
         "output": null,
-        "colour": 330,
+        "colour": 20,
         "tooltip": "Variable reference",
         "helpUrl": "",
         "mode": "rust",
@@ -748,7 +748,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 20,
         "tooltip": "Let binding (check for mut)",
         "helpUrl": "",
         "mode": "rust",
@@ -773,7 +773,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 20,
         "tooltip": "Let binding with type annotation",
         "helpUrl": "",
         "mode": "rust",
@@ -794,7 +794,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TYPE", "text": "f32" }
         ],
         "output": "TypeAnnotation",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Type annotation",
         "helpUrl": "",
         "mode": "rust",
@@ -815,7 +815,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 20,
         "tooltip": "Assign value to variable",
         "helpUrl": "",
         "mode": "rust",
@@ -839,7 +839,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 20,
         "tooltip": "Assignment",
         "helpUrl": "",
         "mode": "rust",
@@ -870,7 +870,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 330,
+        "colour": 20,
         "tooltip": "Compound assignment",
         "helpUrl": "",
         "mode": "rust",
@@ -891,7 +891,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "previousStatement": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Return statement",
         "helpUrl": "",
         "mode": "rust",
@@ -907,7 +907,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_break",
         "message0": "break",
         "previousStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Break from loop",
         "helpUrl": "",
         "mode": "rust",
@@ -923,7 +923,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_continue",
         "message0": "continue",
         "previousStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Continue to next iteration",
         "helpUrl": "",
         "mode": "rust",
@@ -943,7 +943,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Expression statement",
         "helpUrl": "",
         "mode": "rust",
@@ -975,7 +975,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": "TopLevel",
         "nextStatement": "TopLevel",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Define a Rust struct",
         "helpUrl": "",
         "mode": "rust",
@@ -998,7 +998,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Struct field definition",
         "helpUrl": "",
         "mode": "rust",
@@ -1021,7 +1021,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_statement", "name": "FIELDS" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Struct instantiation",
         "helpUrl": "",
         "mode": "rust",
@@ -1044,7 +1044,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Struct field initialization",
         "helpUrl": "",
         "mode": "rust",
@@ -1067,7 +1067,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUES" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Tuple struct instantiation",
         "helpUrl": "",
         "mode": "rust",
@@ -1090,7 +1090,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "VARIANT", "text": "Some" }
         ],
         "output": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Enum variant",
         "helpUrl": "",
         "mode": "rust",
@@ -1114,7 +1114,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Enum variant with value",
         "helpUrl": "",
         "mode": "rust",
@@ -1142,7 +1142,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "Z", "check": ["Number", "f32", "float"] }
         ],
         "output": "Vec3",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Create a Vec3",
         "helpUrl": "",
         "mode": "rust",
@@ -1176,7 +1176,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "BODY" }
         ],
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Define a Bevy system function",
         "helpUrl": "",
         "mode": "rust",
@@ -1201,7 +1201,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Query parameter for system",
         "helpUrl": "",
         "mode": "rust",
@@ -1228,7 +1228,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Query with component filter (e.g., With<T>, Without<T>)",
         "helpUrl": "",
         "mode": "rust",
@@ -1252,7 +1252,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Resource parameter for system",
         "helpUrl": "",
         "mode": "rust",
@@ -1276,7 +1276,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Mutable resource parameter",
         "helpUrl": "",
         "mode": "rust",
@@ -1299,7 +1299,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Commands for spawning/despawning entities",
         "helpUrl": "",
         "mode": "rust",
@@ -1324,7 +1324,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Iterate over query results",
         "helpUrl": "",
         "mode": "rust",
@@ -1349,7 +1349,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Pattern matching with if let",
         "helpUrl": "",
         "mode": "rust",
@@ -1371,7 +1371,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_value", "name": "STRUCT", "check": "Struct" }
         ],
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Mark struct as Bevy component",
         "helpUrl": "",
         "mode": "rust",
@@ -1393,7 +1393,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Wrap value in Some",
         "helpUrl": "",
         "mode": "rust",
@@ -1412,7 +1412,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_option_none",
         "message0": "None",
         "output": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "None value",
         "helpUrl": "",
         "mode": "rust",
@@ -1431,7 +1431,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": "Result",
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Create Ok variant of Result",
         "helpUrl": "",
         "mode": "rust",
@@ -1498,7 +1498,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "DEFAULT" }
         ],
         "output": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Unwrap or use default value",
         "helpUrl": "",
         "mode": "rust",
@@ -1524,7 +1524,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Pattern match on Option::Some",
         "helpUrl": "",
         "mode": "rust",
@@ -1550,7 +1550,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Pattern match on Result::Ok",
         "helpUrl": "",
         "mode": "rust",
@@ -1573,7 +1573,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_vec_new",
         "message0": "Vec :: new ( )",
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Create empty vector",
         "helpUrl": "",
         "mode": "rust",
@@ -1594,7 +1594,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Push value to vector",
         "helpUrl": "",
         "mode": "rust",
@@ -1616,7 +1616,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "VEC", "text": "vec" }
         ],
         "output": "Number",
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Get vector length",
         "helpUrl": "",
         "mode": "rust",
@@ -1638,7 +1638,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "COLLECTION" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Create iterator over collection",
         "helpUrl": "",
         "mode": "rust",
@@ -1662,7 +1662,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPR" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Transform each element",
         "helpUrl": "",
         "mode": "rust",
@@ -1686,7 +1686,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "CONDITION", "check": "Boolean" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Filter elements by condition",
         "helpUrl": "",
         "mode": "rust",
@@ -1710,7 +1710,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Collect iterator into collection",
         "helpUrl": "",
         "mode": "rust",
@@ -1733,7 +1733,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_string_new",
         "message0": "String::new()",
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Create empty String",
         "helpUrl": "",
         "mode": "rust",
@@ -1752,7 +1752,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "String" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Create String from &str",
         "helpUrl": "",
         "mode": "rust",
@@ -1777,7 +1777,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "RIGHT", "check": "String" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Concatenate strings",
         "helpUrl": "",
         "mode": "rust",
@@ -1807,7 +1807,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Print line macro",
         "helpUrl": "",
         "mode": "rust",
@@ -1826,7 +1826,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "FORMAT" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Format string macro",
         "helpUrl": "",
         "mode": "rust",
@@ -1845,7 +1845,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ELEMENTS" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Vec macro",
         "helpUrl": "",
         "mode": "rust",
@@ -1931,7 +1931,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Absolute value",
         "helpUrl": "",
         "mode": "rust",
@@ -1955,7 +1955,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Square root",
         "helpUrl": "",
         "mode": "rust",
@@ -1980,7 +1980,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "B", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Minimum of two values",
         "helpUrl": "",
         "mode": "rust",
@@ -2006,7 +2006,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "B", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Maximum of two values",
         "helpUrl": "",
         "mode": "rust",
@@ -2033,7 +2033,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "MAX", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Clamp value between min and max",
         "helpUrl": "",
         "mode": "rust",
@@ -2072,7 +2072,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Create a reference to code in another file or mode. Used for cross-mode imports and dependencies.",
         "helpUrl": "",
         "mode": "rust",
@@ -2100,7 +2100,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Print macro (without newline)",
         "helpUrl": "",
         "mode": "rust"
@@ -2145,7 +2145,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPR" }
         ],
         "output": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Debug print and return value",
         "helpUrl": "",
         "mode": "rust"
@@ -2160,7 +2160,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARGS" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Format string with arguments",
         "helpUrl": "",
         "mode": "rust"
@@ -2175,7 +2175,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARG" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Format string with single argument",
         "helpUrl": "",
         "mode": "rust"
@@ -2193,7 +2193,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Convert value to String",
         "helpUrl": "",
         "mode": "rust"
@@ -2207,7 +2207,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TEXT", "text": "" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "String literal",
         "helpUrl": "",
         "mode": "rust"
@@ -2223,7 +2223,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Append string slice to String",
         "helpUrl": "",
         "mode": "rust"
@@ -2239,7 +2239,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Append character to String",
         "helpUrl": "",
         "mode": "rust"
@@ -2253,7 +2253,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "Number",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Get string length in bytes",
         "helpUrl": "",
         "mode": "rust"
@@ -2267,7 +2267,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "Boolean",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Check if string is empty",
         "helpUrl": "",
         "mode": "rust"
@@ -2282,7 +2282,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "PATTERN" }
         ],
         "output": "Boolean",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Check if string contains pattern",
         "helpUrl": "",
         "mode": "rust"
@@ -2297,7 +2297,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "PATTERN" }
         ],
         "output": "Boolean",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Check if string starts with pattern",
         "helpUrl": "",
         "mode": "rust"
@@ -2312,7 +2312,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "PATTERN" }
         ],
         "output": "Boolean",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Check if string ends with pattern",
         "helpUrl": "",
         "mode": "rust"
@@ -2326,7 +2326,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Remove leading and trailing whitespace",
         "helpUrl": "",
         "mode": "rust"
@@ -2340,7 +2340,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Remove leading whitespace",
         "helpUrl": "",
         "mode": "rust"
@@ -2354,7 +2354,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Remove trailing whitespace",
         "helpUrl": "",
         "mode": "rust"
@@ -2368,7 +2368,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Convert string to lowercase",
         "helpUrl": "",
         "mode": "rust"
@@ -2382,7 +2382,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Convert string to uppercase",
         "helpUrl": "",
         "mode": "rust"
@@ -2398,7 +2398,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "TO" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Replace all occurrences",
         "helpUrl": "",
         "mode": "rust"
@@ -2415,7 +2415,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "COUNT" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Replace first N occurrences",
         "helpUrl": "",
         "mode": "rust"
@@ -2430,7 +2430,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "PATTERN" }
         ],
         "output": "Iterator",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Split string by pattern",
         "helpUrl": "",
         "mode": "rust"
@@ -2444,7 +2444,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "Iterator",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Split string by whitespace",
         "helpUrl": "",
         "mode": "rust"
@@ -2458,7 +2458,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "Iterator",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Iterate over lines",
         "helpUrl": "",
         "mode": "rust"
@@ -2472,7 +2472,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "Iterator",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Iterate over characters",
         "helpUrl": "",
         "mode": "rust"
@@ -2486,7 +2486,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "Iterator",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Iterate over bytes",
         "helpUrl": "",
         "mode": "rust"
@@ -2500,7 +2500,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Parse string to type",
         "helpUrl": "",
         "mode": "rust"
@@ -2515,7 +2515,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TYPE", "text": "i32" }
         ],
         "output": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Parse string to specific type",
         "helpUrl": "",
         "mode": "rust"
@@ -2531,7 +2531,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "END" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Get string slice",
         "helpUrl": "",
         "mode": "rust"
@@ -2545,7 +2545,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "STRING" }
         ],
         "output": "String",
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Convert String to &str",
         "helpUrl": "",
         "mode": "rust"
@@ -2560,7 +2560,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Clear string contents",
         "helpUrl": "",
         "mode": "rust"
@@ -2581,7 +2581,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPONENT", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Raise to power",
         "helpUrl": "",
         "mode": "rust"
@@ -2595,7 +2595,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Cube root",
         "helpUrl": "",
         "mode": "rust"
@@ -2609,7 +2609,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Round down to integer",
         "helpUrl": "",
         "mode": "rust"
@@ -2623,7 +2623,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Round up to integer",
         "helpUrl": "",
         "mode": "rust"
@@ -2637,7 +2637,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Round to nearest integer",
         "helpUrl": "",
         "mode": "rust"
@@ -2651,7 +2651,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Truncate decimal part",
         "helpUrl": "",
         "mode": "rust"
@@ -2665,7 +2665,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Get fractional part",
         "helpUrl": "",
         "mode": "rust"
@@ -2679,7 +2679,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ANGLE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Sine (radians)",
         "helpUrl": "",
         "mode": "rust"
@@ -2693,7 +2693,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ANGLE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Cosine (radians)",
         "helpUrl": "",
         "mode": "rust"
@@ -2707,7 +2707,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ANGLE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Tangent (radians)",
         "helpUrl": "",
         "mode": "rust"
@@ -2721,7 +2721,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Arc sine",
         "helpUrl": "",
         "mode": "rust"
@@ -2735,7 +2735,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Arc cosine",
         "helpUrl": "",
         "mode": "rust"
@@ -2749,7 +2749,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Arc tangent",
         "helpUrl": "",
         "mode": "rust"
@@ -2764,7 +2764,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "X", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Arc tangent of y/x",
         "helpUrl": "",
         "mode": "rust"
@@ -2778,7 +2778,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "DEGREES", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Convert degrees to radians",
         "helpUrl": "",
         "mode": "rust"
@@ -2792,7 +2792,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "RADIANS", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Convert radians to degrees",
         "helpUrl": "",
         "mode": "rust"
@@ -2806,7 +2806,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "e raised to power",
         "helpUrl": "",
         "mode": "rust"
@@ -2820,7 +2820,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "2 raised to power",
         "helpUrl": "",
         "mode": "rust"
@@ -2834,7 +2834,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Natural logarithm",
         "helpUrl": "",
         "mode": "rust"
@@ -2848,7 +2848,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Base-2 logarithm",
         "helpUrl": "",
         "mode": "rust"
@@ -2862,7 +2862,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Base-10 logarithm",
         "helpUrl": "",
         "mode": "rust"
@@ -2877,7 +2877,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "BASE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Logarithm with custom base",
         "helpUrl": "",
         "mode": "rust"
@@ -2888,7 +2888,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_pi",
         "message0": "π (PI)",
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Pi constant (3.14159...)",
         "helpUrl": "",
         "mode": "rust"
@@ -2899,7 +2899,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_e",
         "message0": "e (E)",
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Euler's number (2.71828...)",
         "helpUrl": "",
         "mode": "rust"
@@ -2910,7 +2910,7 @@ Blockly.defineBlocksWithJsonArray([
         "type": "rust_tau",
         "message0": "τ (TAU)",
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Tau constant (2π)",
         "helpUrl": "",
         "mode": "rust"
@@ -2924,7 +2924,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Number",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Sign of number (-1, 0, or 1)",
         "helpUrl": "",
         "mode": "rust"
@@ -2938,7 +2938,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Boolean",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Check if positive",
         "helpUrl": "",
         "mode": "rust"
@@ -2952,7 +2952,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Boolean",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Check if negative",
         "helpUrl": "",
         "mode": "rust"
@@ -2966,7 +2966,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Boolean",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Check if finite",
         "helpUrl": "",
         "mode": "rust"
@@ -2980,7 +2980,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Boolean",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Check if infinite",
         "helpUrl": "",
         "mode": "rust"
@@ -2994,7 +2994,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE", "check": "Number" }
         ],
         "output": "Boolean",
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Check if NaN",
         "helpUrl": "",
         "mode": "rust"
@@ -3014,7 +3014,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ELEMENTS" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Array literal",
         "helpUrl": "",
         "mode": "rust"
@@ -3029,7 +3029,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "SIZE" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Array with repeated value",
         "helpUrl": "",
         "mode": "rust"
@@ -3045,7 +3045,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "END" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Slice of array",
         "helpUrl": "",
         "mode": "rust"
@@ -3060,7 +3060,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "END" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Range (exclusive end)",
         "helpUrl": "",
         "mode": "rust"
@@ -3075,7 +3075,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "END" }
         ],
         "output": null,
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Range (inclusive end)",
         "helpUrl": "",
         "mode": "rust"
@@ -3089,7 +3089,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARRAY" }
         ],
         "output": "Number",
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Get array length",
         "helpUrl": "",
         "mode": "rust"
@@ -3103,7 +3103,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ARRAY" }
         ],
         "output": "Boolean",
-        "colour": 260,
+        "colour": 20,
         "tooltip": "Check if array is empty",
         "helpUrl": "",
         "mode": "rust"
@@ -3123,7 +3123,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "COLLECTION" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Create mutable iterator",
         "helpUrl": "",
         "mode": "rust"
@@ -3137,7 +3137,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "COLLECTION" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Create consuming iterator",
         "helpUrl": "",
         "mode": "rust"
@@ -3152,7 +3152,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TYPE", "text": "Vec<_>" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Collect into specific type",
         "helpUrl": "",
         "mode": "rust"
@@ -3170,7 +3170,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPR" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Fold iterator with accumulator",
         "helpUrl": "",
         "mode": "rust"
@@ -3184,7 +3184,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": "Number",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Sum all elements",
         "helpUrl": "",
         "mode": "rust"
@@ -3198,7 +3198,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": "Number",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Count elements",
         "helpUrl": "",
         "mode": "rust"
@@ -3214,7 +3214,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "CONDITION", "check": "Boolean" }
         ],
         "output": "Boolean",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Check if any element matches",
         "helpUrl": "",
         "mode": "rust"
@@ -3230,7 +3230,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "CONDITION", "check": "Boolean" }
         ],
         "output": "Boolean",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Check if all elements match",
         "helpUrl": "",
         "mode": "rust"
@@ -3246,7 +3246,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "CONDITION", "check": "Boolean" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Find first matching element",
         "helpUrl": "",
         "mode": "rust"
@@ -3261,7 +3261,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "N" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Take first N elements",
         "helpUrl": "",
         "mode": "rust"
@@ -3276,7 +3276,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "N" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Skip first N elements",
         "helpUrl": "",
         "mode": "rust"
@@ -3290,7 +3290,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Add index to each element",
         "helpUrl": "",
         "mode": "rust"
@@ -3305,7 +3305,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR2" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Zip two iterators together",
         "helpUrl": "",
         "mode": "rust"
@@ -3320,7 +3320,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR2" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Chain two iterators",
         "helpUrl": "",
         "mode": "rust"
@@ -3334,7 +3334,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Find maximum element",
         "helpUrl": "",
         "mode": "rust"
@@ -3348,7 +3348,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Find minimum element",
         "helpUrl": "",
         "mode": "rust"
@@ -3362,7 +3362,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "ITERATOR" }
         ],
         "output": "Iterator",
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Reverse iterator",
         "helpUrl": "",
         "mode": "rust"
@@ -3383,7 +3383,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "MESSAGE" }
         ],
         "output": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Unwrap with custom error message",
         "helpUrl": "",
         "mode": "rust"
@@ -3397,7 +3397,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": "Boolean",
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Check if Result is Ok",
         "helpUrl": "",
         "mode": "rust"
@@ -3411,7 +3411,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": "Boolean",
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Check if Result is Err",
         "helpUrl": "",
         "mode": "rust"
@@ -3425,7 +3425,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": "Boolean",
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Check if Option is Some",
         "helpUrl": "",
         "mode": "rust"
@@ -3439,7 +3439,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": "Boolean",
-        "colour": 210,
+        "colour": 20,
         "tooltip": "Check if Option is None",
         "helpUrl": "",
         "mode": "rust"
@@ -3453,7 +3453,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "VALUE" }
         ],
         "output": null,
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Question mark operator for error propagation",
         "helpUrl": "",
         "mode": "rust"
@@ -3476,7 +3476,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "RETURN_TYPE", "check": "ReturnType" },
             { "type": "input_statement", "name": "BODY" }
         ],
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Define an async function",
         "helpUrl": "",
         "mode": "rust"
@@ -3490,7 +3490,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_value", "name": "EXPR" }
         ],
         "output": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Await a future",
         "helpUrl": "",
         "mode": "rust"
@@ -3505,7 +3505,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_statement", "name": "BODY" }
         ],
         "output": null,
-        "colour": 160,
+        "colour": 20,
         "tooltip": "Async block",
         "helpUrl": "",
         "mode": "rust"
@@ -3525,7 +3525,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "NAME", "text": "a" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Lifetime parameter",
         "helpUrl": "",
         "mode": "rust"
@@ -3540,7 +3540,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "field_input", "name": "TYPE", "text": "str" }
         ],
         "output": null,
-        "colour": 230,
+        "colour": 20,
         "tooltip": "Reference with lifetime",
         "helpUrl": "",
         "mode": "rust"
@@ -3561,7 +3561,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "METHODS" }
         ],
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Define a trait",
         "helpUrl": "",
         "mode": "rust"
@@ -3578,7 +3578,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Trait method signature",
         "helpUrl": "",
         "mode": "rust"
@@ -3599,7 +3599,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "CONTENTS", "check": "TopLevel" }
         ],
-        "colour": 120,
+        "colour": 20,
         "tooltip": "Organize blocks into a specific file. All blocks inside will generate into this file.",
         "helpUrl": "",
         "mode": "rust"
@@ -3620,7 +3620,7 @@ Blockly.defineBlocksWithJsonArray([
             { "type": "input_dummy" },
             { "type": "input_statement", "name": "BODY" }
         ],
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Define a module",
         "helpUrl": "",
         "mode": "rust"
@@ -3635,7 +3635,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Import items into scope",
         "helpUrl": "",
         "mode": "rust"
@@ -3650,7 +3650,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Re-export items",
         "helpUrl": "",
         "mode": "rust"
@@ -3665,7 +3665,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         "previousStatement": null,
         "nextStatement": null,
-        "colour": 290,
+        "colour": 20,
         "tooltip": "Import external crate",
         "helpUrl": "",
         "mode": "rust"
@@ -3692,3 +3692,4 @@ Blockly.defineBlocksWithJsonArray([
         "mode": "rust"
     }
 ]);
+

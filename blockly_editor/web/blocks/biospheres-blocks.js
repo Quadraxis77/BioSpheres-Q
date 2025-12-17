@@ -16,6 +16,8 @@ Blockly.defineBlocksWithJsonArray([
             { type: "input_dummy" },
             { type: "input_statement", name: "FIELDS" }
         ],
+        previousStatement: "TopLevel",
+        nextStatement: "TopLevel",
         colour: 180,
         tooltip: "Define a new cell type component with custom fields",
         helpUrl: "",
@@ -90,6 +92,8 @@ Blockly.defineBlocksWithJsonArray([
             { type: "input_dummy" },
             { type: "input_statement", name: "BODY" }
         ],
+        previousStatement: "TopLevel",
+        nextStatement: "TopLevel",
         colour: 180,
         tooltip: "System that implements cell type behavior",
         helpUrl: "",
