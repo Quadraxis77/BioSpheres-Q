@@ -7,12 +7,42 @@
  * - Code syntax validation
  * - Fallback to custom generator functions
  * - Support for cross-mode type compatibility
+ * - Shared Rust block generators for cross-compatibility
  * 
  * Requirements: 2.3, 2.5, 3.1, 3.2, 10.3
  */
 
 // Initialize Biospheres Generator
 const BiospheresGenerator = new Blockly.Generator('Biospheres');
+
+// Import shared Rust generator functions if available
+if (typeof RustGenerator !== 'undefined') {
+    // Copy all Rust block generators to Biospheres generator for cross-compatibility
+    for (const blockType in RustGenerator.forBlock) {
+        if (blockType.startsWith('rust_') && !BiospheresGenerator.forBlock[blockType]) {
+            BiospheresGenerator.forBlock[blockType] = function(block) {
+                // Use the Rust generator but with Biospheres's context
+                const originalGenerator = RustGenerator.forBlock[blockType];
+                const code = originalGenerator.call({
+                    valueToCode: BiospheresGenerator.valueToCode.bind(BiospheresGenerator),
+                    statementToCode: BiospheresGenerator.statementToCode.bind(BiospheresGenerator),
+                    ORDER_NONE: BiospheresGenerator.ORDER_NONE,
+                    ORDER_ATOMIC: BiospheresGenerator.ORDER_ATOMIC,
+                    ORDER_UNARY: BiospheresGenerator.ORDER_UNARY,
+                    ORDER_ADDITIVE: BiospheresGenerator.ORDER_ADDITIVE,
+                    ORDER_MULTIPLICATIVE: BiospheresGenerator.ORDER_MULTIPLICATIVE,
+                    ORDER_RELATIONAL: BiospheresGenerator.ORDER_RELATIONAL,
+                    ORDER_EQUALITY: BiospheresGenerator.ORDER_EQUALITY,
+                    ORDER_LOGICAL_AND: BiospheresGenerator.ORDER_LOGICAL_AND,
+                    ORDER_LOGICAL_OR: BiospheresGenerator.ORDER_LOGICAL_OR,
+                    ORDER_RANGE: BiospheresGenerator.ORDER_RANGE,
+                    ORDER_ASSIGNMENT: BiospheresGenerator.ORDER_ASSIGNMENT
+                }, block);
+                return code;
+            };
+        }
+    }
+}
 
 // Set operator precedence (same as Rust since Biospheres uses Rust)
 BiospheresGenerator.PRECEDENCE = 0;
@@ -581,6 +611,342 @@ BiospheresGenerator.forBlock['bio_get_mode'] = function(block) {
 };
 
 // ============================================================================
+// NEW COMPONENT ACCESS BLOCKS
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_get_force'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.force`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_acceleration'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.acceleration`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_radius'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.radius`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_genome_id'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.genome_id`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_mode_index'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.mode_index`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_rotation'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.rotation`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_angular_velocity'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.angular_velocity`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_stiffness'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.stiffness`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_set_mass'] = function(block) {
+    const cellVar = block.getFieldValue('CELL_VAR');
+    const mass = BiospheresGenerator.valueToCode(block, 'MASS', BiospheresGenerator.ORDER_NONE) || '1.0';
+    
+    return `${cellVar}.mass = ${mass};\n`;
+};
+
+// ============================================================================
+// SIGNALING COMPONENT ACCESS
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_get_signal'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    const channel = block.getFieldValue('CHANNEL');
+    
+    return [`${varName}.${channel}`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_set_signal'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    const channel = block.getFieldValue('CHANNEL');
+    const value = BiospheresGenerator.valueToCode(block, 'VALUE', BiospheresGenerator.ORDER_NONE) || '0.0';
+    
+    return `${varName}.${channel} = ${value};\n`;
+};
+
+// ============================================================================
+// ADHESION SETTINGS
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_adhesion_settings'] = function(block) {
+    const canBreak = block.getFieldValue('CAN_BREAK') === 'TRUE';
+    const breakForce = BiospheresGenerator.valueToCode(block, 'BREAK_FORCE', BiospheresGenerator.ORDER_NONE) || '10.0';
+    const restLength = BiospheresGenerator.valueToCode(block, 'REST_LENGTH', BiospheresGenerator.ORDER_NONE) || '1.0';
+    const stiffness = BiospheresGenerator.valueToCode(block, 'STIFFNESS', BiospheresGenerator.ORDER_NONE) || '150.0';
+    const damping = BiospheresGenerator.valueToCode(block, 'DAMPING', BiospheresGenerator.ORDER_NONE) || '5.0';
+    
+    return [`AdhesionSettings {
+        can_break: ${canBreak},
+        break_force: ${breakForce},
+        rest_length: ${restLength},
+        linear_spring_stiffness: ${stiffness},
+        linear_spring_damping: ${damping},
+        ..Default::default()
+    }`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_adhesion_setting'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    const property = block.getFieldValue('PROPERTY');
+    
+    return [`${varName}.${property}`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// GENOME LIBRARY ACCESS
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_get_genome_from_library'] = function(block) {
+    const genomeId = BiospheresGenerator.valueToCode(block, 'GENOME_ID', BiospheresGenerator.ORDER_NONE) || '0';
+    const libraryVar = block.getFieldValue('LIBRARY_VAR');
+    
+    return [`&${libraryVar}.genomes[${genomeId}]`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_mode_count'] = function(block) {
+    const genomeVar = block.getFieldValue('GENOME_VAR');
+    
+    return [`${genomeVar}.modes.len()`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+// ============================================================================
+// DIVISION TIMER
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_get_division_timer'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.time_until_division`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_set_division_timer'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    const time = BiospheresGenerator.valueToCode(block, 'TIME', BiospheresGenerator.ORDER_NONE) || '0.0';
+    
+    return `${varName}.time_until_division = ${time};\n`;
+};
+
+// ============================================================================
+// QUERY PARAMETER BLOCKS
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_query_param_position'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const mutability = block.getFieldValue('MUTABILITY');
+    const mutPrefix = mutability === 'MUT' ? '&mut ' : '&';
+    
+    return `${name}: Query<(Entity, ${mutPrefix}CellPosition)>`;
+};
+
+BiospheresGenerator.forBlock['bio_query_param_orientation'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const mutability = block.getFieldValue('MUTABILITY');
+    const mutPrefix = mutability === 'MUT' ? '&mut ' : '&';
+    
+    return `${name}: Query<(Entity, ${mutPrefix}CellOrientation)>`;
+};
+
+BiospheresGenerator.forBlock['bio_query_param_forces'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const mutability = block.getFieldValue('MUTABILITY');
+    const mutPrefix = mutability === 'MUT' ? '&mut ' : '&';
+    
+    return `${name}: Query<(Entity, ${mutPrefix}CellForces)>`;
+};
+
+BiospheresGenerator.forBlock['bio_query_param_signaling'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const mutability = block.getFieldValue('MUTABILITY');
+    const mutPrefix = mutability === 'MUT' ? '&mut ' : '&';
+    
+    return `${name}: Query<(Entity, ${mutPrefix}CellSignaling)>`;
+};
+
+BiospheresGenerator.forBlock['bio_query_param_cytoskeleton'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const mutability = block.getFieldValue('MUTABILITY');
+    const mutPrefix = mutability === 'MUT' ? '&mut ' : '&';
+    
+    return `${name}: Query<(Entity, ${mutPrefix}Cytoskeleton)>`;
+};
+
+// ============================================================================
+// RESOURCE PARAMETER BLOCKS
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_res_genome_library'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    
+    return `${name}: Res<GenomeLibrary>`;
+};
+
+BiospheresGenerator.forBlock['bio_res_division_queue'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    
+    return `${name}: ResMut<DivisionQueue>`;
+};
+
+// ============================================================================
+// OCTREE DATA STRUCTURE
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_octree_node'] = function(block) {
+    const bounds = BiospheresGenerator.valueToCode(block, 'BOUNDS', BiospheresGenerator.ORDER_NONE) || 'BoundingBox::default()';
+    const children = BiospheresGenerator.valueToCode(block, 'CHILDREN', BiospheresGenerator.ORDER_NONE) || 'Vec::new()';
+    const entities = BiospheresGenerator.valueToCode(block, 'ENTITIES', BiospheresGenerator.ORDER_NONE) || 'Vec::new()';
+    
+    return [`OctreeNode {
+        bounds: ${bounds},
+        children: ${children},
+        entities: ${entities},
+    }`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_bounding_box'] = function(block) {
+    const min = BiospheresGenerator.valueToCode(block, 'MIN', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const max = BiospheresGenerator.valueToCode(block, 'MAX', BiospheresGenerator.ORDER_NONE) || 'Vec3::ONE';
+    
+    return [`BoundingBox { min: ${min}, max: ${max} }`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_octree_insert'] = function(block) {
+    const entity = BiospheresGenerator.valueToCode(block, 'ENTITY', BiospheresGenerator.ORDER_NONE) || 'entity';
+    const position = BiospheresGenerator.valueToCode(block, 'POSITION', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const octreeVar = block.getFieldValue('OCTREE_VAR');
+    
+    return `${octreeVar}.insert(${entity}, ${position});\n`;
+};
+
+BiospheresGenerator.forBlock['bio_octree_query_sphere'] = function(block) {
+    const octreeVar = block.getFieldValue('OCTREE_VAR');
+    const radius = BiospheresGenerator.valueToCode(block, 'RADIUS', BiospheresGenerator.ORDER_NONE) || '10.0';
+    const center = BiospheresGenerator.valueToCode(block, 'CENTER', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    
+    return [`${octreeVar}.query_sphere(${center}, ${radius})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_octree_query_box'] = function(block) {
+    const octreeVar = block.getFieldValue('OCTREE_VAR');
+    const bounds = BiospheresGenerator.valueToCode(block, 'BOUNDS', BiospheresGenerator.ORDER_NONE) || 'bounds';
+    
+    return [`${octreeVar}.query_box(&${bounds})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_octree_subdivide'] = function(block) {
+    const nodeVar = block.getFieldValue('NODE_VAR');
+    const maxDepth = BiospheresGenerator.valueToCode(block, 'MAX_DEPTH', BiospheresGenerator.ORDER_NONE) || '8';
+    const maxEntities = BiospheresGenerator.valueToCode(block, 'MAX_ENTITIES', BiospheresGenerator.ORDER_NONE) || '8';
+    
+    return `${nodeVar}.subdivide(${maxDepth}, ${maxEntities});\n`;
+};
+
+BiospheresGenerator.forBlock['bio_point_in_bounds'] = function(block) {
+    const point = BiospheresGenerator.valueToCode(block, 'POINT', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const bounds = BiospheresGenerator.valueToCode(block, 'BOUNDS', BiospheresGenerator.ORDER_NONE) || 'bounds';
+    
+    return [`${bounds}.contains_point(${point})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_sphere_intersects_bounds'] = function(block) {
+    const center = BiospheresGenerator.valueToCode(block, 'CENTER', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const radius = BiospheresGenerator.valueToCode(block, 'RADIUS', BiospheresGenerator.ORDER_NONE) || '1.0';
+    const bounds = BiospheresGenerator.valueToCode(block, 'BOUNDS', BiospheresGenerator.ORDER_NONE) || 'bounds';
+    
+    return [`${bounds}.intersects_sphere(${center}, ${radius})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_get_octant_index'] = function(block) {
+    const point = BiospheresGenerator.valueToCode(block, 'POINT', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const bounds = BiospheresGenerator.valueToCode(block, 'BOUNDS', BiospheresGenerator.ORDER_NONE) || 'bounds';
+    
+    return [`${bounds}.get_octant_index(${point})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_create_octree'] = function(block) {
+    const bounds = BiospheresGenerator.valueToCode(block, 'BOUNDS', BiospheresGenerator.ORDER_NONE) || 'BoundingBox::default()';
+    const maxDepth = BiospheresGenerator.valueToCode(block, 'MAX_DEPTH', BiospheresGenerator.ORDER_NONE) || '8';
+    const maxEntities = BiospheresGenerator.valueToCode(block, 'MAX_ENTITIES', BiospheresGenerator.ORDER_NONE) || '8';
+    
+    return [`Octree::new(${bounds}, ${maxDepth}, ${maxEntities})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_clear_octree'] = function(block) {
+    const octreeVar = block.getFieldValue('OCTREE_VAR');
+    
+    return `${octreeVar}.clear();\n`;
+};
+
+BiospheresGenerator.forBlock['bio_rebuild_octree'] = function(block) {
+    const octreeVar = block.getFieldValue('OCTREE_VAR');
+    const queryVar = block.getFieldValue('QUERY_VAR');
+    
+    return `${octreeVar}.clear();
+for (entity, cell_pos) in ${queryVar}.iter() {
+    ${octreeVar}.insert(entity, cell_pos.position);
+}\n`;
+};
+
+// ============================================================================
+// SPATIAL GRID CONFIGURATION
+// ============================================================================
+
+BiospheresGenerator.forBlock['bio_get_grid_density'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.grid_density`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_set_grid_density'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    const density = BiospheresGenerator.valueToCode(block, 'DENSITY', BiospheresGenerator.ORDER_NONE) || '64';
+    
+    return `${varName}.grid_density = ${density};\n`;
+};
+
+BiospheresGenerator.forBlock['bio_clamp_grid_density'] = function(block) {
+    const varName = block.getFieldValue('VAR');
+    
+    return [`${varName}.clamped_density()`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_grid_density_constant'] = function(block) {
+    const constant = block.getFieldValue('CONSTANT');
+    
+    return [`SpatialGridConfig::${constant}`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_res_spatial_grid_config'] = function(block) {
+    const name = block.getFieldValue('NAME');
+    const mutability = block.getFieldValue('MUTABILITY');
+    
+    return `${name}: ${mutability}<SpatialGridConfig>`;
+};
+
+// ============================================================================
 // QUERY BLOCKS
 // ============================================================================
 
@@ -607,8 +973,19 @@ BiospheresGenerator.forBlock['bio_query_without'] = function(block) {
 BiospheresGenerator.forBlock['bio_spatial_query'] = function(block) {
     const center = BiospheresGenerator.valueToCode(block, 'CENTER', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
     const radius = BiospheresGenerator.valueToCode(block, 'RADIUS', BiospheresGenerator.ORDER_NONE) || '10.0';
+    const queryVar = block.getFieldValue('QUERY_VAR');
     
-    return [`spatial_query(${center}, ${radius})`, BiospheresGenerator.ORDER_ATOMIC];
+    return [`${queryVar}.iter().filter(|(_, pos)| (pos.position - ${center}).length() <= ${radius})`, BiospheresGenerator.ORDER_ATOMIC];
+};
+
+BiospheresGenerator.forBlock['bio_spatial_query_foreach'] = function(block) {
+    const center = BiospheresGenerator.valueToCode(block, 'CENTER', BiospheresGenerator.ORDER_NONE) || 'Vec3::ZERO';
+    const radius = BiospheresGenerator.valueToCode(block, 'RADIUS', BiospheresGenerator.ORDER_NONE) || '10.0';
+    const queryVar = block.getFieldValue('QUERY_VAR');
+    const vars = block.getFieldValue('VARS');
+    const body = BiospheresGenerator.statementToCode(block, 'BODY');
+    
+    return `for (${vars}) in ${queryVar}.iter().filter(|(_, pos)| (pos.position - ${center}).length() <= ${radius}) {\n${body}}\n`;
 };
 
 BiospheresGenerator.forBlock['bio_query_by_mode'] = function(block) {

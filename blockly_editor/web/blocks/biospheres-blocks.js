@@ -196,10 +196,10 @@ Blockly.defineBlocksWithJsonArray([
         }
     },
 
-    // Apply Force to Cell
+    // Apply Force to Cell (CellForces component)
     {
         type: "bio_apply_force",
-        message0: "Apply force %1 to cell %2",
+        message0: "Apply force %1 to %2",
         args0: [
             { type: "input_value", name: "FORCE", check: ["Vec3", "vec3<f32>"] },
             { type: "field_input", name: "CELL_VAR", text: "forces" }
@@ -207,10 +207,10 @@ Blockly.defineBlocksWithJsonArray([
         previousStatement: null,
         nextStatement: null,
         colour: 180,
-        tooltip: "Apply a force vector to a cell",
+        tooltip: "Apply a force vector to a cell (CellForces component)",
         helpUrl: "",
         mode: "biospheres",
-        template: "{{CELL_VAR}}.force += {{FORCE}}",
+        template: "{{CELL_VAR}}.force += {{FORCE}};",
         typeInfo: {
             inputs: {
                 FORCE: ["Vec3", "vec3<f32>"]
@@ -222,7 +222,51 @@ Blockly.defineBlocksWithJsonArray([
         }
     },
 
-    // Get Cell Position
+    // Get Cell Force
+    {
+        type: "bio_get_force",
+        message0: "%1 . force",
+        args0: [
+            { type: "field_input", name: "VAR", text: "forces" }
+        ],
+        output: "Vec3",
+        colour: 180,
+        tooltip: "Get accumulated force (from CellForces component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.force",
+        typeInfo: {
+            inputs: {},
+            output: ["Vec3", "vec3<f32>"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Acceleration
+    {
+        type: "bio_get_acceleration",
+        message0: "%1 . acceleration",
+        args0: [
+            { type: "field_input", name: "VAR", text: "forces" }
+        ],
+        output: "Vec3",
+        colour: 180,
+        tooltip: "Get current acceleration (from CellForces component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.acceleration",
+        typeInfo: {
+            inputs: {},
+            output: ["Vec3", "vec3<f32>"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Position (from CellPosition component)
     {
         type: "bio_get_position",
         message0: "%1 . position",
@@ -231,7 +275,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         output: "Vec3",
         colour: 180,
-        tooltip: "Get cell position vector",
+        tooltip: "Get cell position vector (from CellPosition component)",
         helpUrl: "",
         mode: "biospheres",
         template: "{{VAR}}.position",
@@ -244,7 +288,7 @@ Blockly.defineBlocksWithJsonArray([
         }
     },
 
-    // Get Cell Velocity
+    // Get Cell Velocity (from CellPosition component)
     {
         type: "bio_get_velocity",
         message0: "%1 . velocity",
@@ -253,7 +297,7 @@ Blockly.defineBlocksWithJsonArray([
         ],
         output: "Vec3",
         colour: 180,
-        tooltip: "Get cell velocity vector",
+        tooltip: "Get cell velocity vector (from CellPosition component)",
         helpUrl: "",
         mode: "biospheres",
         template: "{{VAR}}.velocity",
@@ -266,7 +310,7 @@ Blockly.defineBlocksWithJsonArray([
         }
     },
 
-    // Get Cell Mass
+    // Get Cell Mass (from Cell component)
     {
         type: "bio_get_mass",
         message0: "%1 . mass",
@@ -275,10 +319,142 @@ Blockly.defineBlocksWithJsonArray([
         ],
         output: "Number",
         colour: 180,
-        tooltip: "Get cell mass",
+        tooltip: "Get cell mass (from Cell component)",
         helpUrl: "",
         mode: "biospheres",
         template: "{{VAR}}.mass",
+        typeInfo: {
+            inputs: {},
+            output: ["f32", "Number", "float"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Radius (from Cell component)
+    {
+        type: "bio_get_radius",
+        message0: "%1 . radius",
+        args0: [
+            { type: "field_input", name: "VAR", text: "cell" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get cell radius (from Cell component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.radius",
+        typeInfo: {
+            inputs: {},
+            output: ["f32", "Number", "float"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Genome ID
+    {
+        type: "bio_get_genome_id",
+        message0: "%1 . genome_id",
+        args0: [
+            { type: "field_input", name: "VAR", text: "cell" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get genome ID from cell",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.genome_id",
+        typeInfo: {
+            inputs: {},
+            output: ["usize", "Number", "int"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Mode Index
+    {
+        type: "bio_get_mode_index",
+        message0: "%1 . mode_index",
+        args0: [
+            { type: "field_input", name: "VAR", text: "cell" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get current mode index from cell",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.mode_index",
+        typeInfo: {
+            inputs: {},
+            output: ["usize", "Number", "int"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Rotation (from CellOrientation component)
+    {
+        type: "bio_get_rotation",
+        message0: "%1 . rotation",
+        args0: [
+            { type: "field_input", name: "VAR", text: "cell_orient" }
+        ],
+        output: "Quat",
+        colour: 180,
+        tooltip: "Get cell rotation quaternion (from CellOrientation component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.rotation",
+        typeInfo: {
+            inputs: {},
+            output: ["Quat"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cell Angular Velocity (from CellOrientation component)
+    {
+        type: "bio_get_angular_velocity",
+        message0: "%1 . angular_velocity",
+        args0: [
+            { type: "field_input", name: "VAR", text: "cell_orient" }
+        ],
+        output: "Vec3",
+        colour: 180,
+        tooltip: "Get cell angular velocity (from CellOrientation component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.angular_velocity",
+        typeInfo: {
+            inputs: {},
+            output: ["Vec3", "vec3<f32>"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Get Cytoskeleton Stiffness
+    {
+        type: "bio_get_stiffness",
+        message0: "%1 . stiffness",
+        args0: [
+            { type: "field_input", name: "VAR", text: "cytoskeleton" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get cytoskeleton stiffness (from Cytoskeleton component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.stiffness",
         typeInfo: {
             inputs: {},
             output: ["f32", "Number", "float"]
@@ -1109,28 +1285,29 @@ Blockly.defineBlocksWithJsonArray([
     // CELL STATE & PROPERTIES
     // ============================================================================
 
-    // Change Cell Mode
+    // Change Cell Mode (updates Cell.mode_index)
     {
         type: "bio_change_mode",
-        message0: "Change to mode %1",
+        message0: "Change %1 to mode %2",
         args0: [
-            { type: "input_value", name: "MODE", check: ["Number", "u32", "int"] }
+            { type: "field_input", name: "CELL_VAR", text: "cell" },
+            { type: "input_value", name: "MODE", check: ["Number", "usize", "int"] }
         ],
         previousStatement: null,
         nextStatement: null,
         colour: 180,
-        tooltip: "Switch cell to different genome mode",
+        tooltip: "Switch cell to different genome mode (updates Cell.mode_index)",
         helpUrl: "",
         mode: "biospheres",
-        template: "genome.current_mode = {{MODE}}",
+        template: "{{CELL_VAR}}.mode_index = {{MODE}};",
         typeInfo: {
             inputs: {
-                MODE: ["u32", "Number", "int"]
+                MODE: ["usize", "Number", "int"]
             },
             output: null
         },
         validation: {
-            required: ["MODE"]
+            required: ["CELL_VAR", "MODE"]
         }
     },
 
@@ -1166,17 +1343,18 @@ Blockly.defineBlocksWithJsonArray([
     // Set Cell Size
     {
         type: "bio_set_size",
-        message0: "Set radius to %1",
+        message0: "Set %1 radius to %2",
         args0: [
+            { type: "field_input", name: "CELL_VAR", text: "cell" },
             { type: "input_value", name: "RADIUS", check: ["Number", "f32", "float"] }
         ],
         previousStatement: null,
         nextStatement: null,
         colour: 180,
-        tooltip: "Change cell size",
+        tooltip: "Change cell radius",
         helpUrl: "",
         mode: "biospheres",
-        template: "cell.radius = {{RADIUS}}",
+        template: "{{CELL_VAR}}.radius = {{RADIUS}};",
         typeInfo: {
             inputs: {
                 RADIUS: ["f32", "Number", "float"]
@@ -1184,25 +1362,34 @@ Blockly.defineBlocksWithJsonArray([
             output: null
         },
         validation: {
-            required: ["RADIUS"]
+            required: ["CELL_VAR", "RADIUS"]
         }
     },
 
-    // Get Cell Age
+    // Set Cell Mass
     {
-        type: "bio_get_age",
-        message0: "Cell age (seconds)",
-        output: "Number",
+        type: "bio_set_mass",
+        message0: "Set %1 mass to %2",
+        args0: [
+            { type: "field_input", name: "CELL_VAR", text: "cell" },
+            { type: "input_value", name: "MASS", check: ["Number", "f32", "float"] }
+        ],
+        previousStatement: null,
+        nextStatement: null,
         colour: 180,
-        tooltip: "Time since cell was created",
+        tooltip: "Change cell mass",
         helpUrl: "",
         mode: "biospheres",
-        template: "cell.age",
+        template: "{{CELL_VAR}}.mass = {{MASS}};",
         typeInfo: {
-            inputs: {},
-            output: ["f32", "Number", "float"]
+            inputs: {
+                MASS: ["f32", "Number", "float"]
+            },
+            output: null
         },
-        validation: {}
+        validation: {
+            required: ["CELL_VAR", "MASS"]
+        }
     },
 
     // Kill Cell
@@ -1345,17 +1532,20 @@ Blockly.defineBlocksWithJsonArray([
         }
     },
 
-    // Spatial Query
+    // Spatial Query (Manual Implementation)
     {
         type: "bio_spatial_query",
-        message0: "Find cells within radius %1 of %2 units",
+        message0: "Find cells within radius %1 %2 of center %3 %4 using query %5",
         args0: [
+            { type: "input_value", name: "RADIUS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
             { type: "input_value", name: "CENTER", check: ["Vec3", "vec3<f32>"] },
-            { type: "input_value", name: "RADIUS", check: ["Number", "f32", "float"] }
+            { type: "input_dummy" },
+            { type: "field_input", name: "QUERY_VAR", text: "cell_positions" }
         ],
-        output: "Array",
+        output: "Iterator",
         colour: 180,
-        tooltip: "Spatial query for nearby cells",
+        tooltip: "Filter cells by distance (manual spatial query using iterator)",
         helpUrl: "",
         mode: "biospheres",
         typeInfo: {
@@ -1363,10 +1553,42 @@ Blockly.defineBlocksWithJsonArray([
                 CENTER: ["Vec3", "vec3<f32>"],
                 RADIUS: ["f32", "Number", "float"]
             },
-            output: ["Array", "Vec"]
+            output: ["Iterator"]
         },
         validation: {
-            required: ["CENTER", "RADIUS"]
+            required: ["CENTER", "RADIUS", "QUERY_VAR"]
+        }
+    },
+
+    // Spatial Query with Body
+    {
+        type: "bio_spatial_query_foreach",
+        message0: "For each cell within radius %1 %2 of center %3 %4 using query %5 %6 as ( %7 ) do %8",
+        args0: [
+            { type: "input_value", name: "RADIUS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "CENTER", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_dummy" },
+            { type: "field_input", name: "QUERY_VAR", text: "cell_positions" },
+            { type: "input_dummy" },
+            { type: "field_input", name: "VARS", text: "entity, cell_pos" },
+            { type: "input_statement", name: "BODY" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Iterate over cells within radius (manual spatial query)",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                CENTER: ["Vec3", "vec3<f32>"],
+                RADIUS: ["f32", "Number", "float"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["CENTER", "RADIUS", "QUERY_VAR", "VARS"]
         }
     },
 
@@ -1819,6 +2041,877 @@ Blockly.defineBlocksWithJsonArray([
         },
         validation: {
             required: ["CELL"]
+        }
+    },
+
+    // ============================================================================
+    // OCTREE DATA STRUCTURE
+    // ============================================================================
+
+    // Octree Node Definition
+    {
+        type: "bio_octree_node",
+        message0: "OctreeNode { %1 bounds: %2 %3 children: %4 %5 entities: %6 %7 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "BOUNDS", check: ["BoundingBox"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "CHILDREN" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "ENTITIES" },
+            { type: "input_dummy" }
+        ],
+        output: "OctreeNode",
+        colour: 180,
+        tooltip: "Create an octree node with bounds, children, and entities",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                BOUNDS: ["BoundingBox"],
+                CHILDREN: ["Vec", "Array"],
+                ENTITIES: ["Vec", "Array"]
+            },
+            output: ["OctreeNode"]
+        },
+        validation: {}
+    },
+
+    // Bounding Box
+    {
+        type: "bio_bounding_box",
+        message0: "BoundingBox { %1 min: %2 %3 max: %4 %5 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "MIN", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "MAX", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_dummy" }
+        ],
+        output: "BoundingBox",
+        colour: 180,
+        tooltip: "Create a bounding box with min and max corners",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                MIN: ["Vec3", "vec3<f32>"],
+                MAX: ["Vec3", "vec3<f32>"]
+            },
+            output: ["BoundingBox"]
+        },
+        validation: {
+            required: ["MIN", "MAX"]
+        }
+    },
+
+    // Octree Insert
+    {
+        type: "bio_octree_insert",
+        message0: "Insert entity %1 at position %2 %3 into octree %4",
+        args0: [
+            { type: "input_value", name: "ENTITY", check: "Entity" },
+            { type: "input_value", name: "POSITION", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_dummy" },
+            { type: "field_input", name: "OCTREE_VAR", text: "octree" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Insert an entity into the octree at given position",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                ENTITY: ["Entity"],
+                POSITION: ["Vec3", "vec3<f32>"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["ENTITY", "POSITION", "OCTREE_VAR"]
+        }
+    },
+
+    // Octree Query Sphere
+    {
+        type: "bio_octree_query_sphere",
+        message0: "Query octree %1 %2 for entities within radius %3 %4 of center %5",
+        args0: [
+            { type: "field_input", name: "OCTREE_VAR", text: "octree" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "RADIUS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "CENTER", check: ["Vec3", "vec3<f32>"] }
+        ],
+        output: "Array",
+        colour: 180,
+        tooltip: "Query octree for entities within a sphere",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                RADIUS: ["f32", "Number", "float"],
+                CENTER: ["Vec3", "vec3<f32>"]
+            },
+            output: ["Vec", "Array"]
+        },
+        validation: {
+            required: ["OCTREE_VAR", "RADIUS", "CENTER"]
+        }
+    },
+
+    // Octree Query Box
+    {
+        type: "bio_octree_query_box",
+        message0: "Query octree %1 %2 for entities in bounding box %3",
+        args0: [
+            { type: "field_input", name: "OCTREE_VAR", text: "octree" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "BOUNDS", check: ["BoundingBox"] }
+        ],
+        output: "Array",
+        colour: 180,
+        tooltip: "Query octree for entities within a bounding box",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                BOUNDS: ["BoundingBox"]
+            },
+            output: ["Vec", "Array"]
+        },
+        validation: {
+            required: ["OCTREE_VAR", "BOUNDS"]
+        }
+    },
+
+    // Octree Subdivide
+    {
+        type: "bio_octree_subdivide",
+        message0: "Subdivide octree node %1 %2 max_depth: %3 %4 max_entities: %5",
+        args0: [
+            { type: "field_input", name: "NODE_VAR", text: "node" },
+            { type: "input_dummy" },
+            { type: "input_value", name: "MAX_DEPTH", check: ["Number", "usize", "int"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "MAX_ENTITIES", check: ["Number", "usize", "int"] }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Subdivide an octree node into 8 children if it exceeds max entities",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                MAX_DEPTH: ["usize", "Number", "int"],
+                MAX_ENTITIES: ["usize", "Number", "int"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["NODE_VAR", "MAX_DEPTH", "MAX_ENTITIES"]
+        }
+    },
+
+    // Check Point in Bounds
+    {
+        type: "bio_point_in_bounds",
+        message0: "Is point %1 inside bounds %2",
+        args0: [
+            { type: "input_value", name: "POINT", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_value", name: "BOUNDS", check: ["BoundingBox"] }
+        ],
+        output: "Boolean",
+        colour: 180,
+        tooltip: "Check if a point is inside a bounding box",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                POINT: ["Vec3", "vec3<f32>"],
+                BOUNDS: ["BoundingBox"]
+            },
+            output: ["bool", "Boolean"]
+        },
+        validation: {
+            required: ["POINT", "BOUNDS"]
+        }
+    },
+
+    // Sphere Intersects Bounds
+    {
+        type: "bio_sphere_intersects_bounds",
+        message0: "Does sphere at %1 %2 with radius %3 %4 intersect bounds %5",
+        args0: [
+            { type: "input_value", name: "CENTER", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "RADIUS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "BOUNDS", check: ["BoundingBox"] }
+        ],
+        output: "Boolean",
+        colour: 180,
+        tooltip: "Check if a sphere intersects a bounding box",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                CENTER: ["Vec3", "vec3<f32>"],
+                RADIUS: ["f32", "Number", "float"],
+                BOUNDS: ["BoundingBox"]
+            },
+            output: ["bool", "Boolean"]
+        },
+        validation: {
+            required: ["CENTER", "RADIUS", "BOUNDS"]
+        }
+    },
+
+    // Get Octant Index
+    {
+        type: "bio_get_octant_index",
+        message0: "Get octant index for point %1 %2 in bounds %3",
+        args0: [
+            { type: "input_value", name: "POINT", check: ["Vec3", "vec3<f32>"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "BOUNDS", check: ["BoundingBox"] }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get which octant (0-7) a point belongs to",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                POINT: ["Vec3", "vec3<f32>"],
+                BOUNDS: ["BoundingBox"]
+            },
+            output: ["usize", "Number", "int"]
+        },
+        validation: {
+            required: ["POINT", "BOUNDS"]
+        }
+    },
+
+    // Create Octree
+    {
+        type: "bio_create_octree",
+        message0: "Create Octree %1 bounds: %2 %3 max_depth: %4 %5 max_entities_per_node: %6",
+        args0: [
+            { type: "input_dummy" },
+            { type: "input_value", name: "BOUNDS", check: ["BoundingBox"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "MAX_DEPTH", check: ["Number", "usize", "int"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "MAX_ENTITIES", check: ["Number", "usize", "int"] }
+        ],
+        output: "Octree",
+        colour: 180,
+        tooltip: "Create a new octree with specified parameters",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                BOUNDS: ["BoundingBox"],
+                MAX_DEPTH: ["usize", "Number", "int"],
+                MAX_ENTITIES: ["usize", "Number", "int"]
+            },
+            output: ["Octree"]
+        },
+        validation: {
+            required: ["BOUNDS", "MAX_DEPTH", "MAX_ENTITIES"]
+        }
+    },
+
+    // Clear Octree
+    {
+        type: "bio_clear_octree",
+        message0: "Clear octree %1",
+        args0: [
+            { type: "field_input", name: "OCTREE_VAR", text: "octree" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Remove all entities from the octree",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["OCTREE_VAR"]
+        }
+    },
+
+    // Rebuild Octree
+    {
+        type: "bio_rebuild_octree",
+        message0: "Rebuild octree %1 %2 from query %3",
+        args0: [
+            { type: "field_input", name: "OCTREE_VAR", text: "octree" },
+            { type: "input_dummy" },
+            { type: "field_input", name: "QUERY_VAR", text: "cell_positions" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Rebuild octree from current cell positions",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["OCTREE_VAR", "QUERY_VAR"]
+        }
+    },
+
+    // ============================================================================
+    // SPATIAL GRID CONFIGURATION
+    // ============================================================================
+
+    // Get Spatial Grid Density
+    {
+        type: "bio_get_grid_density",
+        message0: "%1 . grid_density",
+        args0: [
+            { type: "field_input", name: "VAR", text: "spatial_grid_config" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get spatial grid density (NxNxN cells, range: 16-128)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.grid_density",
+        typeInfo: {
+            inputs: {},
+            output: ["u32", "Number", "int"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Set Spatial Grid Density
+    {
+        type: "bio_set_grid_density",
+        message0: "Set %1 grid_density to %2",
+        args0: [
+            { type: "field_input", name: "VAR", text: "spatial_grid_config" },
+            { type: "input_value", name: "DENSITY", check: ["Number", "u32", "int"] }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Set spatial grid density (16-128, requires scene reset)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.grid_density = {{DENSITY}};",
+        typeInfo: {
+            inputs: {
+                DENSITY: ["u32", "Number", "int"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["VAR", "DENSITY"]
+        }
+    },
+
+    // Clamp Grid Density
+    {
+        type: "bio_clamp_grid_density",
+        message0: "%1 . clamped_density()",
+        args0: [
+            { type: "field_input", name: "VAR", text: "spatial_grid_config" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get clamped grid density (ensures 16-128 range)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.clamped_density()",
+        typeInfo: {
+            inputs: {},
+            output: ["u32", "Number", "int"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Spatial Grid Constants
+    {
+        type: "bio_grid_density_constant",
+        message0: "SpatialGridConfig :: %1",
+        args0: [
+            { type: "field_dropdown", name: "CONSTANT", options: [
+                ["MIN_DENSITY (16)", "MIN_DENSITY"],
+                ["MAX_DENSITY (128)", "MAX_DENSITY"]
+            ]}
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Spatial grid density constants",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: ["u32", "Number", "int"]
+        },
+        validation: {}
+    },
+
+    // ============================================================================
+    // SIGNALING COMPONENT ACCESS
+    // ============================================================================
+
+    // Get Signal Value
+    {
+        type: "bio_get_signal",
+        message0: "%1 . %2",
+        args0: [
+            { type: "field_input", name: "VAR", text: "signaling" },
+            { type: "field_dropdown", name: "CHANNEL", options: [
+                ["s1", "s1"],
+                ["s2", "s2"],
+                ["s3", "s3"],
+                ["s4", "s4"]
+            ]}
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get signal value from CellSignaling component",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.{{CHANNEL}}",
+        typeInfo: {
+            inputs: {},
+            output: ["f32", "Number", "float"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Set Signal Value
+    {
+        type: "bio_set_signal",
+        message0: "Set %1 . %2 to %3",
+        args0: [
+            { type: "field_input", name: "VAR", text: "signaling" },
+            { type: "field_dropdown", name: "CHANNEL", options: [
+                ["s1", "s1"],
+                ["s2", "s2"],
+                ["s3", "s3"],
+                ["s4", "s4"]
+            ]},
+            { type: "input_value", name: "VALUE", check: ["Number", "f32", "float"] }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Set signal value in CellSignaling component",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.{{CHANNEL}} = {{VALUE}};",
+        typeInfo: {
+            inputs: {
+                VALUE: ["f32", "Number", "float"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["VAR", "VALUE"]
+        }
+    },
+
+    // ============================================================================
+    // ADHESION SETTINGS BLOCKS
+    // ============================================================================
+
+    // Create Adhesion Settings
+    {
+        type: "bio_adhesion_settings",
+        message0: "AdhesionSettings { %1 can_break: %2 %3 break_force: %4 %5 rest_length: %6 %7 spring_stiffness: %8 %9 spring_damping: %10 %11 }",
+        args0: [
+            { type: "input_dummy" },
+            { type: "field_checkbox", name: "CAN_BREAK", checked: true },
+            { type: "input_dummy" },
+            { type: "input_value", name: "BREAK_FORCE", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "REST_LENGTH", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "STIFFNESS", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" },
+            { type: "input_value", name: "DAMPING", check: ["Number", "f32", "float"] },
+            { type: "input_dummy" }
+        ],
+        output: "AdhesionSettings",
+        colour: 180,
+        tooltip: "Create adhesion settings for a genome mode",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {
+                BREAK_FORCE: ["f32", "Number", "float"],
+                REST_LENGTH: ["f32", "Number", "float"],
+                STIFFNESS: ["f32", "Number", "float"],
+                DAMPING: ["f32", "Number", "float"]
+            },
+            output: ["AdhesionSettings"]
+        },
+        validation: {}
+    },
+
+    // Get Adhesion Setting
+    {
+        type: "bio_get_adhesion_setting",
+        message0: "%1 . %2",
+        args0: [
+            { type: "field_input", name: "VAR", text: "adhesion_settings" },
+            { type: "field_dropdown", name: "PROPERTY", options: [
+                ["can_break", "can_break"],
+                ["break_force", "break_force"],
+                ["rest_length", "rest_length"],
+                ["linear_spring_stiffness", "linear_spring_stiffness"],
+                ["linear_spring_damping", "linear_spring_damping"],
+                ["orientation_spring_stiffness", "orientation_spring_stiffness"],
+                ["orientation_spring_damping", "orientation_spring_damping"],
+                ["max_angular_deviation", "max_angular_deviation"],
+                ["twist_constraint_stiffness", "twist_constraint_stiffness"],
+                ["twist_constraint_damping", "twist_constraint_damping"],
+                ["enable_twist_constraint", "enable_twist_constraint"]
+            ]}
+        ],
+        output: null,
+        colour: 180,
+        tooltip: "Get adhesion setting property",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.{{PROPERTY}}",
+        typeInfo: {
+            inputs: {},
+            output: ["f32", "bool", "Number", "Boolean"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // ============================================================================
+    // GENOME LIBRARY ACCESS
+    // ============================================================================
+
+    // Get Genome from Library
+    {
+        type: "bio_get_genome_from_library",
+        message0: "Get genome %1 from %2",
+        args0: [
+            { type: "input_value", name: "GENOME_ID", check: ["Number", "usize", "int"] },
+            { type: "field_input", name: "LIBRARY_VAR", text: "genome_library" }
+        ],
+        output: "GenomeData",
+        colour: 180,
+        tooltip: "Get genome data from GenomeLibrary resource",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "&{{LIBRARY_VAR}}.genomes[{{GENOME_ID}}]",
+        typeInfo: {
+            inputs: {
+                GENOME_ID: ["usize", "Number", "int"]
+            },
+            output: ["GenomeData"]
+        },
+        validation: {
+            required: ["GENOME_ID", "LIBRARY_VAR"]
+        }
+    },
+
+    // Get Mode Count from Genome
+    {
+        type: "bio_get_mode_count",
+        message0: "%1 . modes . len()",
+        args0: [
+            { type: "field_input", name: "GENOME_VAR", text: "genome" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get number of modes in genome",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{GENOME_VAR}}.modes.len()",
+        typeInfo: {
+            inputs: {},
+            output: ["usize", "Number", "int"]
+        },
+        validation: {
+            required: ["GENOME_VAR"]
+        }
+    },
+
+    // ============================================================================
+    // DIVISION TIMER COMPONENT
+    // ============================================================================
+
+    // Get Division Timer
+    {
+        type: "bio_get_division_timer",
+        message0: "%1 . time_until_division",
+        args0: [
+            { type: "field_input", name: "VAR", text: "division_timer" }
+        ],
+        output: "Number",
+        colour: 180,
+        tooltip: "Get time until division (from DivisionTimer component)",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.time_until_division",
+        typeInfo: {
+            inputs: {},
+            output: ["f32", "Number", "float"]
+        },
+        validation: {
+            required: ["VAR"]
+        }
+    },
+
+    // Set Division Timer
+    {
+        type: "bio_set_division_timer",
+        message0: "Set %1 time_until_division to %2",
+        args0: [
+            { type: "field_input", name: "VAR", text: "division_timer" },
+            { type: "input_value", name: "TIME", check: ["Number", "f32", "float"] }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Set time until division",
+        helpUrl: "",
+        mode: "biospheres",
+        template: "{{VAR}}.time_until_division = {{TIME}};",
+        typeInfo: {
+            inputs: {
+                TIME: ["f32", "Number", "float"]
+            },
+            output: null
+        },
+        validation: {
+            required: ["VAR", "TIME"]
+        }
+    },
+
+    // ============================================================================
+    // QUERY PARAMETER BLOCKS (for system definitions)
+    // ============================================================================
+
+    // Query Parameter - CellPosition
+    {
+        type: "bio_query_param_position",
+        message0: "%1 : Query<(Entity, %2CellPosition)>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "positions" },
+            { type: "field_dropdown", name: "MUTABILITY", options: [
+                ["&", "REF"],
+                ["&mut ", "MUT"]
+            ]}
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Query parameter for CellPosition component",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // Query Parameter - CellOrientation
+    {
+        type: "bio_query_param_orientation",
+        message0: "%1 : Query<(Entity, %2CellOrientation)>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "orientations" },
+            { type: "field_dropdown", name: "MUTABILITY", options: [
+                ["&", "REF"],
+                ["&mut ", "MUT"]
+            ]}
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Query parameter for CellOrientation component",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // Query Parameter - CellForces
+    {
+        type: "bio_query_param_forces",
+        message0: "%1 : Query<(Entity, %2CellForces)>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "forces" },
+            { type: "field_dropdown", name: "MUTABILITY", options: [
+                ["&", "REF"],
+                ["&mut ", "MUT"]
+            ]}
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Query parameter for CellForces component",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // Query Parameter - CellSignaling
+    {
+        type: "bio_query_param_signaling",
+        message0: "%1 : Query<(Entity, %2CellSignaling)>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "signaling" },
+            { type: "field_dropdown", name: "MUTABILITY", options: [
+                ["&", "REF"],
+                ["&mut ", "MUT"]
+            ]}
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Query parameter for CellSignaling component",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // Query Parameter - Cytoskeleton
+    {
+        type: "bio_query_param_cytoskeleton",
+        message0: "%1 : Query<(Entity, %2Cytoskeleton)>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "cytoskeletons" },
+            { type: "field_dropdown", name: "MUTABILITY", options: [
+                ["&", "REF"],
+                ["&mut ", "MUT"]
+            ]}
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Query parameter for Cytoskeleton component",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // ============================================================================
+    // RESOURCE PARAMETER BLOCKS
+    // ============================================================================
+
+    // Resource Parameter - GenomeLibrary
+    {
+        type: "bio_res_genome_library",
+        message0: "%1 : Res<GenomeLibrary>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "genome_library" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Resource parameter for GenomeLibrary",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // Resource Parameter - DivisionQueue
+    {
+        type: "bio_res_division_queue",
+        message0: "%1 : ResMut<DivisionQueue>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "division_queue" }
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Mutable resource parameter for DivisionQueue",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
+        }
+    },
+
+    // Resource Parameter - SpatialGridConfig
+    {
+        type: "bio_res_spatial_grid_config",
+        message0: "%1 : %2<SpatialGridConfig>",
+        args0: [
+            { type: "field_input", name: "NAME", text: "spatial_grid_config" },
+            { type: "field_dropdown", name: "MUTABILITY", options: [
+                ["Res", "Res"],
+                ["ResMut", "ResMut"]
+            ]}
+        ],
+        previousStatement: null,
+        nextStatement: null,
+        colour: 180,
+        tooltip: "Resource parameter for SpatialGridConfig",
+        helpUrl: "",
+        mode: "biospheres",
+        typeInfo: {
+            inputs: {},
+            output: null
+        },
+        validation: {
+            required: ["NAME"]
         }
     },
 

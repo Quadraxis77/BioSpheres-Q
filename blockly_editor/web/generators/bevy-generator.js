@@ -7,12 +7,44 @@
  * - Code syntax validation
  * - Fallback to custom generator functions
  * - Support for cross-mode type compatibility
+ * - Shared Rust block generators for cross-compatibility
  * 
  * Requirements: 2.2, 2.5, 3.1, 3.2, 10.3
  */
 
 // Initialize Bevy Generator
 const BevyGenerator = new Blockly.Generator('Bevy');
+
+// Import shared Rust generator functions if available
+if (typeof RustGenerator !== 'undefined') {
+    // Copy all Rust block generators to Bevy generator for cross-compatibility
+    for (const blockType in RustGenerator.forBlock) {
+        if (blockType.startsWith('rust_') && !BevyGenerator.forBlock[blockType]) {
+            BevyGenerator.forBlock[blockType] = function(block) {
+                // Use the Rust generator but with Bevy's context
+                const originalGenerator = RustGenerator.forBlock[blockType];
+                // Temporarily swap generator context
+                const savedGenerator = RustGenerator;
+                const code = originalGenerator.call({
+                    valueToCode: BevyGenerator.valueToCode.bind(BevyGenerator),
+                    statementToCode: BevyGenerator.statementToCode.bind(BevyGenerator),
+                    ORDER_NONE: BevyGenerator.ORDER_NONE,
+                    ORDER_ATOMIC: BevyGenerator.ORDER_ATOMIC,
+                    ORDER_UNARY: BevyGenerator.ORDER_UNARY,
+                    ORDER_ADDITIVE: BevyGenerator.ORDER_ADDITIVE,
+                    ORDER_MULTIPLICATIVE: BevyGenerator.ORDER_MULTIPLICATIVE,
+                    ORDER_RELATIONAL: BevyGenerator.ORDER_RELATIONAL,
+                    ORDER_EQUALITY: BevyGenerator.ORDER_EQUALITY,
+                    ORDER_LOGICAL_AND: BevyGenerator.ORDER_LOGICAL_AND,
+                    ORDER_LOGICAL_OR: BevyGenerator.ORDER_LOGICAL_OR,
+                    ORDER_RANGE: BevyGenerator.ORDER_RANGE,
+                    ORDER_ASSIGNMENT: BevyGenerator.ORDER_ASSIGNMENT
+                }, block);
+                return code;
+            };
+        }
+    }
+}
 
 // Set operator precedence (same as Rust since Bevy uses Rust)
 BevyGenerator.PRECEDENCE = 0;
