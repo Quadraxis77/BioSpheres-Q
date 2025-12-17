@@ -496,6 +496,7 @@ function setupEventListeners() {
         'parseCode': parseCode,
         'importCode': importCode,
         'exportCode': exportCode,
+        'saveWorkspace': exportWorkspace,
         'loadBlocks': loadWorkspace,
         'clearWorkspace': clearWorkspace,
         'copyCode': copyCode,

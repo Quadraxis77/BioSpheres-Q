@@ -1448,7 +1448,9 @@ button:disabled {
     z-index: 1000;
     border: 1px solid #3e3e42;
     border-radius: 4px;
-    margin-top: 4px;
+    margin-top: 2px;
+    top: 100%;
+    left: 0;
 }
 
 .dropdown-content a {
@@ -1474,7 +1476,8 @@ button:disabled {
     margin: 4px 0;
 }
 
-.dropdown:hover .dropdown-content {
+.dropdown:hover .dropdown-content,
+.dropdown-content:hover {
     display: block;
 }
 
