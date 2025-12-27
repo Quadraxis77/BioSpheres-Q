@@ -1,8 +1,0 @@
-# Core modules directory
-# This directory contains core application logic modules:
-# - workspace-manager.js
-# - mode-manager.js
-# - validator.js
-# - error-handler.js
-# - reference-manager.js
-# - multi-file-generator.js
