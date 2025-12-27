@@ -37,6 +37,8 @@ pub struct GenomeEditorState {
     pub enable_snapping: bool,
     // Time slider
     pub time_value: f32,
+    pub max_preview_duration: f32,
+    pub time_slider_dragging: bool,
 }
 
 impl Default for GenomeEditorState {
@@ -54,6 +56,8 @@ impl Default for GenomeEditorState {
             qball2_initial_distance: 0.0,
             enable_snapping: true,
             time_value: 0.0,
+            max_preview_duration: 60.0,
+            time_slider_dragging: false,
         }
     }
 }
@@ -68,6 +72,7 @@ pub fn ui_system(
     mut global_ui_state: ResMut<GlobalUiState>,
     mut ui_capture: ResMut<crate::ui::camera::UiWantCapture>,
     mut last_scale: Local<LastAppliedScale>,
+    sim_state: Res<crate::simulation::SimulationState>,
 ) {
     for mut egui_context in contexts.iter_mut() {
         let ctx = egui_context.get_mut();
@@ -131,6 +136,7 @@ pub fn ui_system(
                     viewport_rect: &mut viewport_rect,
                     current_genome: &mut current_genome,
                     genome_editor_state: &mut genome_editor_state,
+                    sim_state: &sim_state,
                 });
         } else {
             // When hidden, set viewport to entire available screen area
@@ -157,6 +163,7 @@ struct TabViewer<'a> {
     viewport_rect: &'a mut ViewportRect,
     current_genome: &'a mut CurrentGenome,
     genome_editor_state: &'a mut GenomeEditorState,
+    sim_state: &'a crate::simulation::SimulationState,
 }
 
 impl<'a> egui_dock::TabViewer for TabViewer<'a> {
@@ -199,7 +206,7 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                 crate::ui::genome_editor::render_quaternion_ball(ui, self.current_genome, self.genome_editor_state);
             }
             Panel::TimeSlider => {
-                crate::ui::genome_editor::render_time_slider(ui, self.genome_editor_state);
+                crate::ui::genome_editor::render_time_slider(ui, self.genome_editor_state, self.sim_state);
             }
             // Unused stub panels - show placeholder message
             _ => {

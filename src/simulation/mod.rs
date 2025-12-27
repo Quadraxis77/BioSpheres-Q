@@ -12,6 +12,7 @@ pub mod preview_sim;
 pub mod adhesion_inheritance;
 pub mod nutrient_system;
 pub mod synchronized_nutrients;
+pub mod time_scrubber_bridge;
 
 pub use cpu_physics::{CanonicalState, DeterministicSpatialGrid, physics_step, deterministic_random};
 pub use physics_config::{PhysicsConfig, SpatialGridConfig};
@@ -69,7 +70,17 @@ impl Plugin for SimulationPlugin {
             .init_resource::<SimulationState>()
             .init_resource::<SimulationConfig>()
             .init_resource::<SimulationThreadingConfig>()
-            .add_systems(Startup, initialize_default_scene);
+            .add_systems(Startup, initialize_default_scene)
+            // Add time scrubber bridge systems
+            .add_systems(
+                Update,
+                (
+                    time_scrubber_bridge::sync_time_slider_to_simulation,
+                    time_scrubber_bridge::sync_simulation_to_time_slider,
+                )
+                    .chain()
+                    .run_if(in_state(PreviewSceneState::Active))
+            );
     }
 }
 

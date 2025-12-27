@@ -28,6 +28,7 @@ pub struct AnchorGizmo {
 #[derive(Component)]
 pub struct SplitPlaneRing {
     pub cell_entity: Entity,
+    pub creation_radius: f32, // Cell radius when ring was created
 }
 
 /// Render orientation gizmos for all cells
@@ -104,13 +105,27 @@ fn update_split_plane_gizmos(
     ring_query: Query<(Entity, &SplitPlaneRing)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut last_genome_hash: Local<Option<u64>>,
 ) {
     if !config.show_split_plane_gizmos {
         // Remove all rings if disabled
         for (entity, _) in ring_query.iter() {
             commands.entity(entity).despawn();
         }
+        *last_genome_hash = None;
         return;
+    }
+
+    // Compute hash of genome to detect actual changes
+    let current_hash = compute_genome_split_hash(&current_genome.genome);
+    let genome_changed = last_genome_hash.map_or(true, |last| last != current_hash);
+    
+    if genome_changed {
+        // Genome changed - despawn all rings so they get recreated with new split directions
+        for (entity, _) in ring_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        *last_genome_hash = Some(current_hash);
     }
 
     // Track which cells have rings
@@ -145,8 +160,8 @@ fn update_split_plane_gizmos(
         let split_direction_local = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0) * Vec3::Z;
 
         // Create two rings perpendicular to the split direction IN LOCAL SPACE
-        let outer_radius = cell.radius * 1.2;
-        let inner_radius = cell.radius * 1.4;
+        let inner_radius = cell.radius * 1.2;
+        let outer_radius = cell.radius * 1.4;
         let offset_distance = 0.001;
         let segments = 32;
 
@@ -163,7 +178,10 @@ fn update_split_plane_gizmos(
             })),
             Transform::from_translation(position.position).with_rotation(orientation.rotation),
             Visibility::default(),
-            SplitPlaneRing { cell_entity },
+            SplitPlaneRing {
+                cell_entity,
+                creation_radius: cell.radius,
+            },
         ));
 
         // Create green ring (other side) - mesh with LOCAL offset, will be rotated by Transform
@@ -179,7 +197,10 @@ fn update_split_plane_gizmos(
             })),
             Transform::from_translation(position.position).with_rotation(orientation.rotation),
             Visibility::default(),
-            SplitPlaneRing { cell_entity },
+            SplitPlaneRing {
+                cell_entity,
+                creation_radius: cell.radius,
+            },
         ));
     }
 
@@ -193,10 +214,23 @@ fn update_split_plane_gizmos(
     }
 }
 
+/// Compute hash of genome split directions to detect changes
+fn compute_genome_split_hash(genome: &crate::genome::GenomeData) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    for mode in &genome.modes {
+        mode.parent_split_direction.x.to_bits().hash(&mut hasher);
+        mode.parent_split_direction.y.to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
 /// Update split plane ring transforms to follow their parent cells
 fn update_split_plane_transforms(
     config: Res<RenderingConfig>,
-    cells_query: Query<(Entity, &CellPosition, &CellOrientation, &Visibility), Without<SplitPlaneRing>>,
+    cells_query: Query<(Entity, &Cell, &CellPosition, &CellOrientation, &Visibility), Without<SplitPlaneRing>>,
     mut ring_query: Query<(&SplitPlaneRing, &mut Transform, &mut Visibility), Without<Cell>>,
 ) {
     if !config.show_split_plane_gizmos {
@@ -205,12 +239,16 @@ fn update_split_plane_transforms(
 
     // Update each ring's transform to match its parent cell
     for (ring, mut transform, mut ring_visibility) in ring_query.iter_mut() {
-        // Find the parent cell and update position and rotation
-        if let Ok((_, position, orientation, cell_visibility)) = cells_query.get(ring.cell_entity) {
+        // Find the parent cell and update position, rotation, and scale
+        if let Ok((_, cell, position, orientation, cell_visibility)) = cells_query.get(ring.cell_entity) {
             // Update position and rotation to follow the cell
             transform.translation = position.position;
             transform.rotation = orientation.rotation;
-            
+
+            // Scale the ring based on current cell radius vs creation radius
+            let scale_factor = cell.radius / ring.creation_radius;
+            transform.scale = Vec3::splat(scale_factor);
+
             // Match parent cell's visibility (for focal plane)
             let new_visibility = if *cell_visibility == Visibility::Hidden {
                 Visibility::Hidden

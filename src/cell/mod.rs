@@ -49,6 +49,7 @@ pub struct Cell {
     pub radius: f32,
     pub genome_id: usize,
     pub mode_index: usize,
+    pub cell_type: i32, // Cache cell type for detecting changes
 }
 
 /// Cell position in 3D space

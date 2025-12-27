@@ -13,22 +13,20 @@ pub fn update_nutrient_growth_st(
     for i in 0..masses.len() {
         let mode_index = mode_indices[i];
         if let Some(mode) = genome.modes.get(mode_index) {
-            // Only apply nutrient growth to Test cells (cell_type == 0)
-            if mode.cell_type == 0 {
-                // Nutrient storage cap: 2x split_mass (allows storage for division plus buffer)
-                let storage_cap = mode.split_mass * 2.0;
-                
-                // Only gain mass if below storage cap
-                if masses[i] < storage_cap {
-                    let mass_gain = mode.nutrient_gain_rate * dt;
-                    masses[i] = (masses[i] + mass_gain).min(storage_cap);
-                }
-                
-                // Calculate target radius based on mass (linear relationship)
-                // Clamp to max_cell_size
-                let target_radius = masses[i].min(mode.max_cell_size);
-                radii[i] = target_radius.clamp(0.5, 2.0);
+            // Apply nutrient growth to all cell types
+            // Nutrient storage cap: 2x split_mass (allows storage for division plus buffer)
+            let storage_cap = mode.split_mass * 2.0;
+            
+            // Only gain mass if below storage cap
+            if masses[i] < storage_cap {
+                let mass_gain = mode.nutrient_gain_rate * dt;
+                masses[i] = (masses[i] + mass_gain).min(storage_cap);
             }
+            
+            // Calculate target radius based on mass (linear relationship)
+            // Clamp to max_cell_size
+            let target_radius = masses[i].min(mode.max_cell_size);
+            radii[i] = target_radius.clamp(0.5, 2.0);
         }
     }
 }

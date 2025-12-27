@@ -404,7 +404,7 @@ fn handle_divisions(
         let entity_a = if let Some(pooled_entity) = main_state.entity_pool.pop() {
             // Reuse pooled entity - just update components
             commands.entity(pooled_entity).insert((
-            Cell { mass: child_a_mass, radius: child_a_radius, genome_id: 0, mode_index: child_a_mode_idx },
+            Cell { mass: child_a_mass, radius: child_a_radius, genome_id: 0, mode_index: child_a_mode_idx, cell_type: child_a_mode.map(|m| m.cell_type).unwrap_or(0) },
             CellPosition { position: child_a_pos, velocity: child_a_vel },
             CellOrientation { rotation: child_a_rotation, angular_velocity: Vec3::ZERO },
             CellSignaling::default(),
@@ -420,7 +420,7 @@ fn handle_divisions(
         } else {
             // No pooled entity available - spawn new one
             commands.spawn((
-                Cell { mass: child_a_mass, radius: child_a_radius, genome_id: 0, mode_index: child_a_mode_idx },
+                Cell { mass: child_a_mass, radius: child_a_radius, genome_id: 0, mode_index: child_a_mode_idx, cell_type: child_a_mode.map(|m| m.cell_type).unwrap_or(0) },
                 CellPosition { position: child_a_pos, velocity: child_a_vel },
                 CellOrientation { rotation: child_a_rotation, angular_velocity: Vec3::ZERO },
                 CellSignaling::default(),
@@ -452,7 +452,7 @@ fn handle_divisions(
         let entity_b = if let Some(pooled_entity) = main_state.entity_pool.pop() {
             // Reuse pooled entity - just update components
             commands.entity(pooled_entity).insert((
-            Cell { mass: child_b_mass, radius: child_b_radius, genome_id: 0, mode_index: child_b_mode_idx },
+            Cell { mass: child_b_mass, radius: child_b_radius, genome_id: 0, mode_index: child_b_mode_idx, cell_type: child_b_mode.map(|m| m.cell_type).unwrap_or(0) },
             CellPosition { position: child_b_pos, velocity: child_b_vel },
             CellOrientation { rotation: child_b_rotation, angular_velocity: Vec3::ZERO },
             CellSignaling::default(),
@@ -468,7 +468,7 @@ fn handle_divisions(
         } else {
             // No pooled entity available - spawn new one
             commands.spawn((
-                Cell { mass: child_b_mass, radius: child_b_radius, genome_id: 0, mode_index: child_b_mode_idx },
+                Cell { mass: child_b_mass, radius: child_b_radius, genome_id: 0, mode_index: child_b_mode_idx, cell_type: child_b_mode.map(|m| m.cell_type).unwrap_or(0) },
                 CellPosition { position: child_b_pos, velocity: child_b_vel },
                 CellOrientation { rotation: child_b_rotation, angular_velocity: Vec3::ZERO },
                 CellSignaling::default(),
@@ -652,6 +652,7 @@ fn setup_cpu_scene(
             radius: cell_radius,
             genome_id: 0,
             mode_index: initial_mode_index,
+            cell_type: initial_mode.map(|m| m.cell_type).unwrap_or(0),
         },
         CellPosition {
             position: Vec3::ZERO,
@@ -765,6 +766,9 @@ fn cleanup_cpu_scene(
         commands.entity(entity).despawn();
     }
 }
+
+
+
 
 
 

@@ -150,6 +150,7 @@ fn check_and_divide_cells(
                 radius: cell.radius,
                 genome_id: cell.genome_id,
                 mode_index: child_a_mode_idx,
+                cell_type: child_a_mode.map(|m| m.cell_type).unwrap_or(0),
             },
             CellPosition {
                 position: child_a_pos,
@@ -190,6 +191,7 @@ fn check_and_divide_cells(
                 radius: cell.radius,
                 genome_id: cell.genome_id,
                 mode_index: child_b_mode_idx,
+                cell_type: child_b_mode.map(|m| m.cell_type).unwrap_or(0),
             },
             CellPosition {
                 position: child_b_pos,

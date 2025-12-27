@@ -35,10 +35,10 @@ impl Plugin for PreviewSimPlugin {
                 (
                     sync_preview_visuals,
                     crate::rendering::sync_transforms,
-                    update_cell_materials_on_genome_change,
                     highlight_selected_mode_cells,
                 )
                     .chain()
+                    .after(respawn_preview_cells_after_resimulation)
                     .after(crate::input::CellDraggingSet)
                     .run_if(in_state(PreviewSceneState::Active))
                     .run_if(|state: Res<crate::simulation::SimulationState>| {
@@ -106,33 +106,78 @@ impl Default for PreviewSimState {
 }
 
 impl PreviewSimState {
-    /// Compute a simple hash of the genome for change detection
+    /// Compute a comprehensive hash of the genome for change detection
+    /// This hashes ALL fields that affect simulation behavior
     fn compute_genome_hash(genome: &crate::genome::GenomeData) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
-        
-        // Hash key genome properties that affect simulation
+
+        // Hash genome-level properties
+        genome.name.hash(&mut hasher);
         genome.initial_mode.hash(&mut hasher);
         genome.initial_orientation.to_array().iter().for_each(|v| {
             v.to_bits().hash(&mut hasher);
         });
-        
-        // Hash all modes
+
+        // Hash ALL mode fields that affect simulation
         for mode in &genome.modes {
-            mode.split_mass.to_bits().hash(&mut hasher);
-            mode.split_interval.to_bits().hash(&mut hasher);
+            // Identity
+            mode.name.hash(&mut hasher);
+            mode.default_name.hash(&mut hasher);
+            mode.color.x.to_bits().hash(&mut hasher);
+            mode.color.y.to_bits().hash(&mut hasher);
+            mode.color.z.to_bits().hash(&mut hasher);
+            mode.opacity.to_bits().hash(&mut hasher);
+            mode.emissive.to_bits().hash(&mut hasher);
+
+            // Cell type
             mode.cell_type.hash(&mut hasher);
             mode.swim_force.to_bits().hash(&mut hasher);
-            mode.child_a.mode_number.hash(&mut hasher);
-            mode.child_b.mode_number.hash(&mut hasher);
-            mode.parent_make_adhesion.hash(&mut hasher);
+
+            // Parent settings
+            mode.split_mass.to_bits().hash(&mut hasher);
+            mode.split_interval.to_bits().hash(&mut hasher);
+            mode.nutrient_gain_rate.to_bits().hash(&mut hasher);
+            mode.max_cell_size.to_bits().hash(&mut hasher);
+            mode.split_ratio.to_bits().hash(&mut hasher);
+            mode.nutrient_priority.to_bits().hash(&mut hasher);
+            mode.parent_split_direction.x.to_bits().hash(&mut hasher);
+            mode.parent_split_direction.y.to_bits().hash(&mut hasher);
             mode.max_adhesions.hash(&mut hasher);
             mode.min_adhesions.hash(&mut hasher);
-            // Add other critical fields as needed
+            mode.max_splits.hash(&mut hasher);
+            mode.parent_make_adhesion.hash(&mut hasher);
+
+            // Child settings
+            mode.child_a.mode_number.hash(&mut hasher);
+            mode.child_a.orientation.x.to_bits().hash(&mut hasher);
+            mode.child_a.orientation.y.to_bits().hash(&mut hasher);
+            mode.child_a.orientation.z.to_bits().hash(&mut hasher);
+            mode.child_a.orientation.w.to_bits().hash(&mut hasher);
+            mode.child_a.keep_adhesion.hash(&mut hasher);
+            mode.child_b.mode_number.hash(&mut hasher);
+            mode.child_b.orientation.x.to_bits().hash(&mut hasher);
+            mode.child_b.orientation.y.to_bits().hash(&mut hasher);
+            mode.child_b.orientation.z.to_bits().hash(&mut hasher);
+            mode.child_b.orientation.w.to_bits().hash(&mut hasher);
+            mode.child_b.keep_adhesion.hash(&mut hasher);
+
+            // Adhesion settings
+            mode.adhesion_settings.can_break.hash(&mut hasher);
+            mode.adhesion_settings.break_force.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.rest_length.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.linear_spring_stiffness.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.linear_spring_damping.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.orientation_spring_stiffness.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.orientation_spring_damping.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.max_angular_deviation.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.enable_twist_constraint.hash(&mut hasher);
+            mode.adhesion_settings.twist_constraint_stiffness.to_bits().hash(&mut hasher);
+            mode.adhesion_settings.twist_constraint_damping.to_bits().hash(&mut hasher);
         }
-        
+
         hasher.finish()
     }
     
@@ -349,6 +394,7 @@ fn setup_preview_scene(
             radius: cell_radius,
             genome_id: 0,
             mode_index: initial_mode_index,
+            cell_type: mode.map(|m| m.cell_type).unwrap_or(0),
         },
         CellPosition {
             position: Vec3::ZERO,
@@ -412,10 +458,10 @@ fn run_preview_resimulation(
     if let Some(mut task) = preview_request.background_task.take() {
         if let Some(result) = block_on(poll_once(&mut task)) {
             // Task completed - apply results
-            let old_cell_count = preview_state.canonical_state.cell_count;
+            let _old_cell_count = preview_state.canonical_state.cell_count;
             preview_state.canonical_state = result.canonical_state;
             preview_state.current_time = result.target_time;
-            let new_cell_count = preview_state.canonical_state.cell_count;
+            let _new_cell_count = preview_state.canonical_state.cell_count;
             
             // Add new checkpoints created during simulation
             for (time, state) in result.new_checkpoints {
@@ -425,11 +471,9 @@ fn run_preview_resimulation(
             sim_state.target_time = None;
             sim_state.is_resimulating = false;
             
-            // Only trigger respawn if cell count changed
-            // Otherwise, sync_preview_visuals will handle position updates
-            if old_cell_count != new_cell_count {
-                sim_state.needs_respawn = true;
-            }
+            // Always trigger respawn after resimulation to ensure meshes are updated
+            // This handles cell type changes, mode changes, etc.
+            sim_state.needs_respawn = true;
         } else {
             // Task still running - put it back and keep waiting
             preview_request.background_task = Some(task);
@@ -438,22 +482,22 @@ fn run_preview_resimulation(
         }
     }
 
-    // Check if we need to start a new resimulation
-    let Some(target_time) = sim_state.target_time else {
-        sim_state.is_resimulating = false;
-        return;
-    };
-
-    // Check if genome changed
+    // Check if genome actually changed by comparing hash
+    // Note: We can't use genome.is_changed() because the UI system uses ResMut
+    // which marks it as changed every frame even with no actual edits
     let current_genome_hash = PreviewSimState::compute_genome_hash(&genome.genome);
     let genome_changed = current_genome_hash != preview_state.genome_hash;
-    
+
     if genome_changed {
-        // Genome changed - clear checkpoints and reset
+        // Genome changed - clear checkpoints and trigger resimulation from current time
         preview_state.clear_checkpoints();
         preview_state.genome_hash = current_genome_hash;
-        preview_state.current_time = 0.0;
-        
+        // DON'T reset time - keep current time and resimulate from there
+        // preview_state.current_time = 0.0;  // REMOVED
+
+        // Trigger resimulation from current time with new genome
+        sim_state.target_time = Some(preview_state.current_time);
+
         // Update initial state with new genome values
         if let Some(initial_cell) = preview_state.initial_state.initial_cells.first_mut() {
             let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
@@ -467,10 +511,17 @@ fn run_preview_resimulation(
                 initial_cell.rotation = genome.genome.initial_orientation;
             }
         }
-        
-        // Reset canonical state
-        preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
+
+        // DON'T reset canonical state here - keep the old state visible until resimulation completes
+        // This prevents cells from disappearing during resimulation
+        // preview_state.canonical_state = preview_state.initial_state.to_canonical_state();
     }
+
+    // Check if we need to start a new resimulation
+    let Some(target_time) = sim_state.target_time else {
+        sim_state.is_resimulating = false;
+        return;
+    };
 
     // Determine best starting point using checkpoints
     let (start_time, start_step, mut canonical_state) = if target_time > preview_state.current_time && !genome_changed {
@@ -602,23 +653,28 @@ fn respawn_preview_cells_after_resimulation(
                     // Update existing entity
                     if let Ok((_, mut cell, mut cell_pos, mut cell_orient, material_handle, mut mesh_handle)) = cells_query.get_mut(entity) {
                         let mode_index = preview_state.canonical_state.mode_indices[i];
-                        let old_mode_index = cell.mode_index;
-                        
+
+                        // Get old cell type from cached value
+                        let old_cell_type = cell.cell_type;
+
+                        // Get new cell type from genome
+                        let new_mode = genome.genome.modes.get(mode_index);
+                        let new_cell_type = new_mode.map(|m| m.cell_type).unwrap_or(0);
+
+                        // Now update cell data
                         cell.mass = preview_state.canonical_state.masses[i];
                         cell.radius = preview_state.canonical_state.radii[i];
                         cell.genome_id = preview_state.canonical_state.genome_ids[i];
                         cell.mode_index = mode_index;
+                        cell.cell_type = new_cell_type;
                         
                         cell_pos.position = preview_state.canonical_state.positions[i];
                         cell_pos.velocity = preview_state.canonical_state.velocities[i];
                         cell_orient.rotation = preview_state.canonical_state.rotations[i];
                         cell_orient.angular_velocity = preview_state.canonical_state.angular_velocities[i];
                         
-                        // Update material and mesh if mode changed
-                        let mode = genome.genome.modes.get(mode_index);
-                        let old_mode = genome.genome.modes.get(old_mode_index);
-                        
-                        let (color, opacity, emissive) = if let Some(mode) = mode {
+                        // Update material
+                        let (color, opacity, emissive) = if let Some(mode) = new_mode {
                             (mode.color, mode.opacity, mode.emissive)
                         } else {
                             (Vec3::ONE, 1.0, 0.0)
@@ -630,13 +686,10 @@ fn respawn_preview_cells_after_resimulation(
                         }
                         
                         // Check if cell type changed (need to update mesh)
-                        let old_cell_type = old_mode.map(|m| m.cell_type).unwrap_or(0);
-                        let new_cell_type = mode.map(|m| m.cell_type).unwrap_or(0);
-                        
                         if old_cell_type != new_cell_type {
                             // Cell type changed - update mesh
                             let is_flagellocyte = new_cell_type == 1;
-                            let swim_force = mode.map(|m| m.swim_force).unwrap_or(0.0);
+                            let swim_force = new_mode.map(|m| m.swim_force).unwrap_or(0.0);
                             
                             let new_mesh = if is_flagellocyte {
                                 meshes.add(crate::rendering::flagellocyte_mesh::generate_flagellocyte_mesh(1.0, swim_force, 5))
@@ -734,6 +787,7 @@ fn respawn_preview_cells_after_resimulation(
                     radius,
                     genome_id,
                     mode_index,
+                    cell_type: mode.map(|m| m.cell_type).unwrap_or(0),
                 },
                 CellPosition {
                     position,
@@ -829,47 +883,6 @@ fn spawn_preview_skybox(
 }
 
 
-/// Update cell materials when genome color/opacity/emissive changes
-/// This runs before highlight_selected_mode_cells to ensure base materials are correct
-fn update_cell_materials_on_genome_change(
-    genome: Res<CurrentGenome>,
-    cells_query: Query<(&Cell, &MeshMaterial3d<StandardMaterial>), With<PreviewSceneEntity>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // Only update if genome changed
-    if !genome.is_changed() {
-        return;
-    }
-    
-    // Update all cell materials to match current genome settings
-    for (cell, material_handle) in cells_query.iter() {
-        if let Some(material) = materials.get_mut(&material_handle.0) {
-            let mode = genome.genome.modes.get(cell.mode_index);
-            let (color, opacity, emissive) = if let Some(mode) = mode {
-                (mode.color, mode.opacity, mode.emissive)
-            } else {
-                (Vec3::ONE, 1.0, 0.0)
-            };
-            
-            // Update base color (includes opacity)
-            material.base_color = Color::srgba(color.x, color.y, color.z, opacity);
-            
-            // Update alpha mode based on opacity
-            material.alpha_mode = if opacity < 0.99 {
-                bevy::prelude::AlphaMode::AlphaToCoverage
-            } else {
-                bevy::prelude::AlphaMode::Opaque
-            };
-            
-            // Update emissive (will be overridden by highlight if needed)
-            material.emissive = LinearRgba::rgb(
-                color.x * emissive,
-                color.y * emissive,
-                color.z * emissive,
-            );
-        }
-    }
-}
 
 
 /// Highlight cells of the selected mode with a pulsing yellow emissive glow

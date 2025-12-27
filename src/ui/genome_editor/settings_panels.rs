@@ -59,7 +59,7 @@ pub fn render_name_type_editor(ui: &mut egui::Ui, current_genome: &mut CurrentGe
         // Type dropdown and checkbox on the same line
         ui.horizontal(|ui| {
             ui.label("Type:");
-            let cell_types = ["Photocyte", "Phagocyte", "Flagellocyte", "Devorocyte", "Lipocyte"];
+            let cell_types = ["Test Cell", "Flagellocyte"];
             egui::ComboBox::from_id_salt("cell_type")
                 .selected_text(cell_types[mode.cell_type as usize])
                 .show_ui(ui, |ui| {
@@ -224,6 +224,16 @@ pub fn render_parent_settings(ui: &mut egui::Ui, current_genome: &mut CurrentGen
             ui.add(egui::Slider::new(&mut mode.split_interval, 1.0..=60.0).show_value(false));
             ui.add(egui::DragValue::new(&mut mode.split_interval).speed(0.1).range(1.0..=60.0).suffix("s"));
         });
+        
+        // Split Ratio (0.0 to 1.0) - determines what fraction goes to Child A
+        ui.label("Split Ratio (A/B):");
+        ui.horizontal(|ui| {
+            let available = ui.available_width();
+            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+            ui.style_mut().spacing.slider_width = slider_width;
+            ui.add(egui::Slider::new(&mut mode.split_ratio, 0.0..=1.0).show_value(false));
+            ui.add(egui::DragValue::new(&mut mode.split_ratio).speed(0.01).range(0.0..=1.0));
+        });
 
         // Nutrient Priority (0.1 to 10.0)
         ui.label("Nutrient Priority:");
@@ -296,30 +306,26 @@ pub fn render_circle_sliders(ui: &mut egui::Ui, current_genome: &mut CurrentGeno
 
                 ui.vertical(|ui| {
                     ui.label("Pitch:");
-                    let mut pitch = mode.parent_split_direction.x;
                     widgets::circular_slider_float(
                         ui,
-                        &mut pitch,
+                        &mut mode.parent_split_direction.x,
                         -180.0,
                         180.0,
                         radius,
                         genome_editor_state.enable_snapping,
                     );
-                    mode.parent_split_direction.x = pitch;
                 });
 
                 ui.vertical(|ui| {
                     ui.label("Yaw:");
-                    let mut yaw = mode.parent_split_direction.y;
                     widgets::circular_slider_float(
                         ui,
-                        &mut yaw,
+                        &mut mode.parent_split_direction.y,
                         -180.0,
                         180.0,
                         radius,
                         genome_editor_state.enable_snapping,
                     );
-                    mode.parent_split_direction.y = yaw;
                 });
             });
         }
@@ -508,11 +514,31 @@ pub fn render_quaternion_ball(ui: &mut egui::Ui, current_genome: &mut CurrentGen
     });
 }
 
-pub fn render_time_slider(ui: &mut egui::Ui, genome_editor_state: &mut GenomeEditorState) {
+pub fn render_time_slider(
+    ui: &mut egui::Ui,
+    genome_editor_state: &mut GenomeEditorState,
+    sim_state: &crate::simulation::SimulationState,
+) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
         ui.add_space(10.0);
+
+        // Show status text with fixed height to prevent layout shifting
+        let is_preview_mode = sim_state.mode == crate::simulation::SimulationMode::Preview;
+
+        // Always allocate space for status text to prevent shifting
+        if !is_preview_mode {
+            ui.colored_label(
+                egui::Color32::GRAY,
+                "Time scrubbing only available in Preview mode"
+            );
+        } else {
+            // Reserve space even when no status message to prevent layout shift
+            ui.label("");
+        }
+
+        ui.add_space(5.0);
 
         ui.horizontal(|ui| {
             ui.label("Time:");
@@ -520,8 +546,26 @@ pub fn render_time_slider(ui: &mut egui::Ui, genome_editor_state: &mut GenomeEdi
             let available = ui.available_width();
             let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
             ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut genome_editor_state.time_value, 0.0..=100.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut genome_editor_state.time_value).speed(0.1).range(0.0..=100.0));
+
+            // Track dragging state
+            let slider_response = ui.add_enabled(
+                is_preview_mode,
+                egui::Slider::new(&mut genome_editor_state.time_value, 0.0..=100.0)
+                    .show_value(false)
+            );
+            genome_editor_state.time_slider_dragging = slider_response.dragged();
+
+            // Show actual time value in drag value widget
+            ui.add_enabled(
+                is_preview_mode,
+                egui::DragValue::new(&mut genome_editor_state.time_value)
+                    .speed(0.1)
+                    .range(0.0..=100.0)
+                    .custom_formatter(|n, _| {
+                        let time_sec = (n as f32 / 100.0) * genome_editor_state.max_preview_duration;
+                        format!("{:.1}s", time_sec)
+                    })
+            );
         });
     });
 }
