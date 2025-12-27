@@ -4,6 +4,23 @@ use crate::genome::CurrentGenome;
 use crate::ui::GenomeEditorState;
 use crate::ui::widgets;
 
+/// Helper function to create a color-coded group container
+fn group_container(ui: &mut egui::Ui, title: &str, color: egui::Color32, content: impl FnOnce(&mut egui::Ui)) {
+    let frame = egui::Frame::default()
+        .fill(egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 30u8))
+        .stroke(egui::Stroke::new(1.5, color))
+        .corner_radius(egui::CornerRadius::same(4u8))
+        .inner_margin(egui::Margin::same(8i8));
+
+    frame.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.label(egui::RichText::new(title).strong().color(color));
+        ui.add_space(4.0);
+        content(ui);
+    });
+    ui.add_space(6.0);
+}
+
 pub fn render_name_type_editor(ui: &mut egui::Ui, current_genome: &mut CurrentGenome) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -89,102 +106,104 @@ pub fn render_adhesion_settings(ui: &mut egui::Ui, current_genome: &mut CurrentG
         }
         let mode = &mut current_genome.genome.modes[selected_idx];
 
-        // Adhesion Can Break checkbox
-        ui.checkbox(&mut mode.adhesion_settings.can_break, "Adhesion Can Break");
+        // Breaking Properties Group (Red)
+        group_container(ui, "Breaking Properties", egui::Color32::from_rgb(200, 100, 100), |ui| {
+            ui.checkbox(&mut mode.adhesion_settings.can_break, "Adhesion Can Break");
 
-        // Adhesion Break Force (0.1 to 100.0)
-        ui.label("Adhesion Break Force:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.break_force, 0.1..=100.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.break_force).speed(0.1).range(0.1..=100.0));
+            ui.label("Adhesion Break Force:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.break_force, 0.1..=100.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.break_force).speed(0.1).range(0.1..=100.0));
+            });
         });
 
-        // Adhesion Rest Length (0.5 to 5.0)
-        ui.label("Adhesion Rest Length:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.rest_length, 0.5..=5.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.rest_length).speed(0.01).range(0.5..=5.0));
+        // Physical Properties Group (Orange)
+        group_container(ui, "Physical Properties", egui::Color32::from_rgb(200, 150, 80), |ui| {
+            ui.label("Adhesion Rest Length:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.rest_length, 0.5..=5.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.rest_length).speed(0.01).range(0.5..=5.0));
+            });
         });
 
-        // Linear Spring Stiffness (0.1 to 500.0)
-        ui.label("Linear Spring Stiffness:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.linear_spring_stiffness, 0.1..=500.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.linear_spring_stiffness).speed(0.1).range(0.1..=500.0));
+        // Linear Spring Group (Blue)
+        group_container(ui, "Linear Spring", egui::Color32::from_rgb(100, 150, 200), |ui| {
+            ui.label("Linear Spring Stiffness:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.linear_spring_stiffness, 0.1..=500.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.linear_spring_stiffness).speed(0.1).range(0.1..=500.0));
+            });
+
+            ui.label("Linear Spring Damping:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.linear_spring_damping, 0.0..=10.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.linear_spring_damping).speed(0.01).range(0.0..=10.0));
+            });
         });
 
-        // Linear Spring Damping (0.0 to 10.0)
-        ui.label("Linear Spring Damping:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.linear_spring_damping, 0.0..=10.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.linear_spring_damping).speed(0.01).range(0.0..=10.0));
+        // Orientation Spring Group (Green)
+        group_container(ui, "Orientation Spring", egui::Color32::from_rgb(100, 180, 120), |ui| {
+            ui.label("Orientation Spring Stiffness:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.orientation_spring_stiffness, 0.1..=100.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.orientation_spring_stiffness).speed(0.1).range(0.1..=100.0));
+            });
+
+            ui.label("Orientation Spring Damping:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.orientation_spring_damping, 0.0..=10.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.orientation_spring_damping).speed(0.01).range(0.0..=10.0));
+            });
+
+            ui.label("Max Angular Deviation:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.max_angular_deviation, 0.0..=180.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.max_angular_deviation).speed(0.1).range(0.0..=180.0));
+            });
         });
 
-        // Orientation Spring Stiffness (0.1 to 100.0)
-        ui.label("Orientation Spring Stiffness:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.orientation_spring_stiffness, 0.1..=100.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.orientation_spring_stiffness).speed(0.1).range(0.1..=100.0));
-        });
+        // Twist Constraint Group (Purple)
+        group_container(ui, "Twist Constraint", egui::Color32::from_rgb(160, 120, 180), |ui| {
+            ui.checkbox(&mut mode.adhesion_settings.enable_twist_constraint, "Enable Twist Constraint");
 
-        // Orientation Spring Damping (0.0 to 10.0)
-        ui.label("Orientation Spring Damping:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.orientation_spring_damping, 0.0..=10.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.orientation_spring_damping).speed(0.01).range(0.0..=10.0));
-        });
+            ui.label("Twist Constraint Stiffness:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.twist_constraint_stiffness, 0.0..=2.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.twist_constraint_stiffness).speed(0.01).range(0.0..=2.0));
+            });
 
-        // Max Angular Deviation (0.0 to 180.0)
-        ui.label("Max Angular Deviation:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.max_angular_deviation, 0.0..=180.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.max_angular_deviation).speed(0.1).range(0.0..=180.0));
-        });
-
-        ui.add_space(10.0);
-
-        // Enable Twist Constraint checkbox
-        ui.checkbox(&mut mode.adhesion_settings.enable_twist_constraint, "Enable Twist Constraint");
-
-        // Twist Constraint Stiffness (0.0 to 2.0)
-        ui.label("Twist Constraint Stiffness:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.twist_constraint_stiffness, 0.0..=2.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.twist_constraint_stiffness).speed(0.01).range(0.0..=2.0));
-        });
-
-        // Twist Constraint Damping (0.0 to 10.0)
-        ui.label("Twist Constraint Damping:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.adhesion_settings.twist_constraint_damping, 0.0..=10.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.adhesion_settings.twist_constraint_damping).speed(0.01).range(0.0..=10.0));
+            ui.label("Twist Constraint Damping:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.adhesion_settings.twist_constraint_damping, 0.0..=10.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.adhesion_settings.twist_constraint_damping).speed(0.01).range(0.0..=10.0));
+            });
         });
     });
 }
@@ -205,111 +224,112 @@ pub fn render_parent_settings(ui: &mut egui::Ui, current_genome: &mut CurrentGen
         }
         let mode = &mut current_genome.genome.modes[selected_idx];
 
-        // Split Mass (1.0 to 3.0)
-        ui.label("Split Mass:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.split_mass, 1.0..=3.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.split_mass).speed(0.01).range(1.0..=3.0));
-        });
-
-        // Split Interval (1.0 to 60.0 seconds)
-        ui.label("Split Interval:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.split_interval, 1.0..=60.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.split_interval).speed(0.1).range(1.0..=60.0).suffix("s"));
-        });
-        
-        // Split Ratio (0.0 to 1.0) - determines what fraction goes to Child A
-        ui.label("Split Ratio (A/B):");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.split_ratio, 0.0..=1.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.split_ratio).speed(0.01).range(0.0..=1.0));
-        });
-
-        // Nutrient Priority (0.1 to 10.0)
-        ui.label("Nutrient Priority:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.nutrient_priority, 0.1..=10.0).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.nutrient_priority).speed(0.01).range(0.1..=10.0));
-        });
-
-        // Prioritize When Low checkbox
-        ui.checkbox(&mut mode.prioritize_when_low, "Prioritize When Low");
-
-        ui.add_space(10.0);
-
-        // Max Connections (0 to 20)
-        ui.label("Max Connections:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.max_adhesions, 0..=20).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.max_adhesions).speed(1).range(0..=20));
-        });
-
-        // Min Connections (0 to 20)
-        ui.label("Min Connections:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.min_adhesions, 0..=20).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.min_adhesions).speed(1).range(0..=20));
-        });
-
-        // Max Splits (-1 to 20, where -1 = infinite)
-        ui.label("Max Splits:");
-        ui.horizontal(|ui| {
-            let available = ui.available_width();
-            let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-            ui.style_mut().spacing.slider_width = slider_width;
-            ui.add(egui::Slider::new(&mut mode.max_splits, -1..=20).show_value(false));
-            ui.add(egui::DragValue::new(&mut mode.max_splits).speed(0.1).range(-1.0..=20.0));
-        });
-
-        ui.add_space(10.0);
-
-        // Cell-type-specific sliders
+        // Cell-type-specific sliders (at top)
         match mode.cell_type {
             0 => {
                 // Test Cell - show nutrient gain rate
-                ui.label("Nutrient Gain Rate:");
-                ui.horizontal(|ui| {
-                    let available = ui.available_width();
-                    let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-                    ui.style_mut().spacing.slider_width = slider_width;
-                    ui.add(egui::Slider::new(&mut mode.nutrient_gain_rate, 0.0..=2.0).show_value(false));
-                    ui.add(egui::DragValue::new(&mut mode.nutrient_gain_rate).speed(0.01).range(0.0..=2.0).suffix("/s"));
+                group_container(ui, "Special Settings", egui::Color32::from_rgb(180, 140, 200), |ui| {
+                    ui.label("Nutrient Gain Rate:");
+                    ui.horizontal(|ui| {
+                        let available = ui.available_width();
+                        let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                        ui.style_mut().spacing.slider_width = slider_width;
+                        ui.add(egui::Slider::new(&mut mode.nutrient_gain_rate, 0.0..=2.0).show_value(false));
+                        ui.add(egui::DragValue::new(&mut mode.nutrient_gain_rate).speed(0.01).range(0.0..=2.0).suffix("/s"));
+                    });
                 });
             },
             1 => {
                 // Flagellocyte - show swim force
-                ui.label("Swim Force:");
-                ui.horizontal(|ui| {
-                    let available = ui.available_width();
-                    let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
-                    ui.style_mut().spacing.slider_width = slider_width;
-                    ui.add(egui::Slider::new(&mut mode.swim_force, 0.0..=1.0).show_value(false));
-                    ui.add(egui::DragValue::new(&mut mode.swim_force).speed(0.01).range(0.0..=1.0));
+                group_container(ui, "Special Settings", egui::Color32::from_rgb(180, 140, 200), |ui| {
+                    ui.label("Swim Force:");
+                    ui.horizontal(|ui| {
+                        let available = ui.available_width();
+                        let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                        ui.style_mut().spacing.slider_width = slider_width;
+                        ui.add(egui::Slider::new(&mut mode.swim_force, 0.0..=1.0).show_value(false));
+                        ui.add(egui::DragValue::new(&mut mode.swim_force).speed(0.01).range(0.0..=1.0));
+                    });
                 });
             },
             _ => {
                 // Other cell types - no additional sliders
             }
         }
+
+        // Division Settings Group (Yellow)
+        group_container(ui, "Division Settings", egui::Color32::from_rgb(200, 180, 80), |ui| {
+            ui.label("Split Mass:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.split_mass, 1.0..=3.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.split_mass).speed(0.01).range(1.0..=3.0));
+            });
+
+            ui.label("Split Interval:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.split_interval, 1.0..=60.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.split_interval).speed(0.1).range(1.0..=60.0).suffix("s"));
+            });
+
+            ui.label("Split Ratio (A/B):");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.split_ratio, 0.0..=1.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.split_ratio).speed(0.01).range(0.0..=1.0));
+            });
+        });
+
+        // Nutrient Settings Group (Green)
+        group_container(ui, "Nutrient Settings", egui::Color32::from_rgb(100, 180, 120), |ui| {
+            ui.label("Nutrient Priority:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.nutrient_priority, 0.1..=10.0).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.nutrient_priority).speed(0.01).range(0.1..=10.0));
+            });
+
+            ui.checkbox(&mut mode.prioritize_when_low, "Prioritize When Low");
+        });
+
+        // Connection Settings Group (Cyan)
+        group_container(ui, "Connection Settings", egui::Color32::from_rgb(100, 180, 200), |ui| {
+            ui.label("Max Connections:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.max_adhesions, 0..=20).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.max_adhesions).speed(1).range(0..=20));
+            });
+
+            ui.label("Min Connections:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.min_adhesions, 0..=20).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.min_adhesions).speed(1).range(0..=20));
+            });
+
+            ui.label("Max Splits:");
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                ui.style_mut().spacing.slider_width = slider_width;
+                ui.add(egui::Slider::new(&mut mode.max_splits, -1..=20).show_value(false));
+                ui.add(egui::DragValue::new(&mut mode.max_splits).speed(0.1).range(-1.0..=20.0));
+            });
+        });
     });
 }
 
