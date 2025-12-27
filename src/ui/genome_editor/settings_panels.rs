@@ -279,6 +279,37 @@ pub fn render_parent_settings(ui: &mut egui::Ui, current_genome: &mut CurrentGen
             ui.add(egui::Slider::new(&mut mode.max_splits, -1..=20).show_value(false));
             ui.add(egui::DragValue::new(&mut mode.max_splits).speed(0.1).range(-1.0..=20.0));
         });
+
+        ui.add_space(10.0);
+
+        // Cell-type-specific sliders
+        match mode.cell_type {
+            0 => {
+                // Test Cell - show nutrient gain rate
+                ui.label("Nutrient Gain Rate:");
+                ui.horizontal(|ui| {
+                    let available = ui.available_width();
+                    let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                    ui.style_mut().spacing.slider_width = slider_width;
+                    ui.add(egui::Slider::new(&mut mode.nutrient_gain_rate, 0.0..=2.0).show_value(false));
+                    ui.add(egui::DragValue::new(&mut mode.nutrient_gain_rate).speed(0.01).range(0.0..=2.0).suffix("/s"));
+                });
+            },
+            1 => {
+                // Flagellocyte - show swim force
+                ui.label("Swim Force:");
+                ui.horizontal(|ui| {
+                    let available = ui.available_width();
+                    let slider_width = if available > 80.0 { available - 70.0 } else { 50.0 };
+                    ui.style_mut().spacing.slider_width = slider_width;
+                    ui.add(egui::Slider::new(&mut mode.swim_force, 0.0..=1.0).show_value(false));
+                    ui.add(egui::DragValue::new(&mut mode.swim_force).speed(0.01).range(0.0..=1.0));
+                });
+            },
+            _ => {
+                // Other cell types - no additional sliders
+            }
+        }
     });
 }
 
@@ -522,8 +553,6 @@ pub fn render_time_slider(
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
-        ui.add_space(10.0);
-
         // Show status text with fixed height to prevent layout shifting
         let is_preview_mode = sim_state.mode == crate::simulation::SimulationMode::Preview;
 
@@ -537,8 +566,6 @@ pub fn render_time_slider(
             // Reserve space even when no status message to prevent layout shift
             ui.label("");
         }
-
-        ui.add_space(5.0);
 
         ui.horizontal(|ui| {
             ui.label("Time:");
