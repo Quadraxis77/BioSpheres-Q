@@ -302,7 +302,6 @@ impl UiSettings {
 }
 
 /// Local resource to track last saved settings
-#[allow(dead_code)]
 #[derive(Default)]
 pub(crate) struct LastSavedSettings {
     pub(crate) windows_locked: bool,
@@ -321,7 +320,7 @@ pub(crate) struct LastSavedSettings {
 // TODO: Re-enable after egui migration complete
 /*
 #[allow(private_interfaces)]
-pub fn save_ui_settings_on_change(
+/* Temporarily disabled\npub fn save_ui_settings_on_change(
     global_ui_state: Res<crate::ui::GlobalUiState>,
     // theme_state: Res<crate::ui::imgui_style::ImguiThemeState>,
     // theme_editor_state: Res<crate::ui::theme_editor::ThemeEditorState>,
@@ -602,7 +601,7 @@ pub fn save_ui_settings_on_change(
         });
     }
 }
-*/
+
 
 /// System to load fog settings from saved UI settings on startup
 pub fn load_fog_settings_on_startup(

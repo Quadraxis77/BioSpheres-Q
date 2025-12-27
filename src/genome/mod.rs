@@ -81,6 +81,19 @@ pub struct ChildSettings {
     pub orientation: Quat,
     pub keep_adhesion: bool,
     pub enable_angle_snapping: bool,
+    // Lat/lon tracking for quaternion ball widget (UI feedback only)
+    #[serde(default)]
+    pub x_axis_lat: f32,
+    #[serde(default)]
+    pub x_axis_lon: f32,
+    #[serde(default)]
+    pub y_axis_lat: f32,
+    #[serde(default)]
+    pub y_axis_lon: f32,
+    #[serde(default)]
+    pub z_axis_lat: f32,
+    #[serde(default)]
+    pub z_axis_lon: f32,
 }
 
 impl Default for ChildSettings {
@@ -90,6 +103,12 @@ impl Default for ChildSettings {
             orientation: Quat::IDENTITY,
             keep_adhesion: true,
             enable_angle_snapping: true,
+            x_axis_lat: 0.0,
+            x_axis_lon: 0.0,
+            y_axis_lat: 0.0,
+            y_axis_lon: 0.0,
+            z_axis_lat: 0.0,
+            z_axis_lon: 0.0,
         }
     }
 }

@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::window::{WindowMode, WindowResolution};
 use bevy::render::{RenderPlugin, settings::{Backends, WgpuSettings}};
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
+use bevy_egui::EguiPlugin;
 use biospheres_bevy::*;
-use biospheres_bevy::ui::{CellInspectorPlugin, GenomeEditorPlugin, SceneManagerPlugin, TimeScrubberPlugin};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::panic;
@@ -115,18 +115,15 @@ fn main() {
         )
         // Apply saved window state after startup (PostStartup ensures window is ready)
         .add_systems(PostStartup, apply_window_state)
+        // Egui plugin (must be added before UiPlugin)
+        .add_plugins(EguiPlugin::default())
         // Core simulation plugins
         .add_plugins(SimulationPlugin)
         .add_plugins(CellPlugin)
         .add_plugins(GenomePlugin)
          // Rendering and UI plugins
         .add_plugins(RenderingPlugin)
-        .add_plugins(UiPlugin)
+        .add_plugins(UiPlugin)  // Now uses egui instead of imgui
         .add_plugins(InputPlugin)
-        // Optional UI plugins
-        .add_plugins(CellInspectorPlugin)
-        .add_plugins(GenomeEditorPlugin)
-        .add_plugins(SceneManagerPlugin)
-        .add_plugins(TimeScrubberPlugin)
         .run();
 }

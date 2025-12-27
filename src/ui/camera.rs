@@ -20,7 +20,8 @@ impl Plugin for CameraPlugin {
                 update_focal_plane_visibility,
                 follow_entity_system,
                 update_camera_fov,
-                render_mode_notification,
+                // TODO: Re-implement with egui
+                // render_mode_notification,
             ).chain());
     }
 }
@@ -623,72 +624,13 @@ fn update_focal_plane_visibility(
 }
 
 /// System to render the mode notification as a centered fading overlay
+/// TODO: Re-implement with egui after migration is complete
+#[allow(dead_code)]
 fn render_mode_notification(
-    time: Res<Time>,
-    mut notification: ResMut<ModeNotification>,
-    mut imgui_context: NonSendMut<bevy_mod_imgui::ImguiContext>,
-    window_query: Query<&Window, With<PrimaryWindow>>,
+    _time: Res<Time>,
+    _notification: ResMut<ModeNotification>,
+    _window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    // Update timer
-    if notification.time_remaining > 0.0 {
-        notification.time_remaining -= time.delta_secs();
-    }
-    
-    // Don't render if no message or time expired
-    if notification.time_remaining <= 0.0 || notification.message.is_empty() {
-        return;
-    }
-    
-    let ui = imgui_context.ui();
-    
-    // Get window size for centering
-    let Ok(window) = window_query.single() else {
-        return;
-    };
-    let window_width = window.width();
-    let window_height = window.height();
-    
-    // Calculate fade alpha (fade out in last 0.5 seconds)
-    let fade_start = 0.5;
-    let alpha = if notification.time_remaining < fade_start {
-        notification.time_remaining / fade_start
-    } else {
-        1.0
-    };
-    
-    // Calculate text size for centering
-    let text_size = ui.calc_text_size(&notification.message);
-    let padding = 20.0;
-    let box_width = text_size[0] + padding * 2.0;
-    let box_height = text_size[1] + padding * 2.0;
-    
-    // Center position
-    let pos_x = (window_width - box_width) / 2.0;
-    let pos_y = (window_height - box_height) / 2.0;
-    
-    // Style the window
-    let bg_color = [0.1, 0.1, 0.1, 0.8 * alpha];
-    let text_color = [1.0, 1.0, 1.0, alpha];
-    let border_color = [0.4, 0.4, 0.4, 0.6 * alpha];
-    
-    let _bg_style = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
-    let _text_style = ui.push_style_color(imgui::StyleColor::Text, text_color);
-    let _border_style = ui.push_style_color(imgui::StyleColor::Border, border_color);
-    let _rounding = ui.push_style_var(imgui::StyleVar::WindowRounding(8.0));
-    let _padding_style = ui.push_style_var(imgui::StyleVar::WindowPadding([padding, padding]));
-    
-    ui.window("##ModeNotification")
-        .position([pos_x, pos_y], imgui::Condition::Always)
-        .size([box_width, box_height], imgui::Condition::Always)
-        .flags(
-            imgui::WindowFlags::NO_TITLE_BAR
-                | imgui::WindowFlags::NO_RESIZE
-                | imgui::WindowFlags::NO_MOVE
-                | imgui::WindowFlags::NO_SCROLLBAR
-                | imgui::WindowFlags::NO_SAVED_SETTINGS
-                | imgui::WindowFlags::NO_INPUTS
-        )
-        .build(|| {
-            ui.text(&notification.message);
-        });
+    // Function temporarily disabled during egui migration
+    // Will be re-implemented using egui overlays
 }
