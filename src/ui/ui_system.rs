@@ -12,6 +12,12 @@ pub struct ViewportRect {
     pub rect: Option<egui::Rect>,
 }
 
+/// Resource to track last applied UI scale
+#[derive(Resource, Default)]
+pub struct LastAppliedScale {
+    scale: Option<f32>,
+}
+
 /// UI state for genome editor widgets
 #[derive(Resource)]
 pub struct GenomeEditorState {
@@ -59,10 +65,37 @@ pub fn ui_system(
     mut viewport_rect: ResMut<ViewportRect>,
     mut current_genome: ResMut<CurrentGenome>,
     mut genome_editor_state: ResMut<GenomeEditorState>,
-    global_ui_state: Res<GlobalUiState>,
+    mut global_ui_state: ResMut<GlobalUiState>,
+    mut ui_capture: ResMut<crate::ui::camera::UiWantCapture>,
+    mut last_scale: Local<LastAppliedScale>,
 ) {
     for mut egui_context in contexts.iter_mut() {
         let ctx = egui_context.get_mut();
+
+        // Apply UI scale only when it changes
+        let scale_changed = last_scale.scale.map_or(true, |last| (last - global_ui_state.ui_scale).abs() > 0.001);
+        if scale_changed {
+            // Scale the entire UI by modifying the style
+            ctx.style_mut(|style| {
+                let scale_ratio = global_ui_state.ui_scale / last_scale.scale.unwrap_or(1.0);
+                
+                // Scale spacing values
+                style.spacing.item_spacing *= scale_ratio;
+                style.spacing.button_padding *= scale_ratio;
+                style.spacing.indent *= scale_ratio;
+                style.spacing.interact_size *= scale_ratio;
+                // Don't scale these - they should remain responsive to panel width
+                // style.spacing.slider_width *= scale_ratio;
+                // style.spacing.combo_width *= scale_ratio;
+                // style.spacing.text_edit_width *= scale_ratio;
+                
+                // Scale text sizes
+                for (_text_style, font_id) in style.text_styles.iter_mut() {
+                    font_id.size *= scale_ratio;
+                }
+            });
+            last_scale.scale = Some(global_ui_state.ui_scale);
+        }
 
         // Configure scroll style to use solid scrollbars that don't overlap content
         ctx.style_mut(|style| {
@@ -79,7 +112,7 @@ pub fn ui_system(
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("Windows", |ui| {
-                    show_windows_menu(ui, &mut dock_resource, &global_ui_state);
+                    show_windows_menu(ui, &mut dock_resource, &mut global_ui_state);
                 });
             });
         });
@@ -103,6 +136,19 @@ pub fn ui_system(
             // When hidden, set viewport to entire available screen area
             viewport_rect.rect = Some(ctx.available_rect());
         }
+
+        // Update mouse capture state AFTER UI is rendered
+        // Egui wants mouse if pointer is over any UI or if any widget is being interacted with
+        // BUT exclude the viewport area - camera should work there
+        let pointer_pos = ctx.pointer_hover_pos();
+        let is_over_viewport = if let (Some(pos), Some(viewport)) = (pointer_pos, viewport_rect.rect) {
+            viewport.contains(pos)
+        } else {
+            false
+        };
+        
+        ui_capture.want_capture_mouse = !is_over_viewport && (ctx.wants_pointer_input() || ctx.is_pointer_over_area());
+        ui_capture.want_capture_keyboard = ctx.wants_keyboard_input();
     }
 }
 
@@ -133,77 +179,6 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
             Panel::LeftPanel | Panel::RightPanel | Panel::BottomPanel => {
                 // No content - empty placeholder
             }
-            // BioSpheres-Q windows - placeholders for now, will be implemented later
-            Panel::CellInspector => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Cell Inspector");
-                        ui.label("Click on a cell to inspect it");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
-            Panel::GenomeEditor => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Genome Editor");
-                        ui.label("Genome editing interface");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
-            Panel::SceneManager => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Scene Manager");
-                        ui.label("Scene management controls");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
-            Panel::RenderingControls => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Rendering Controls");
-                        ui.label("Graphics settings");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
-            Panel::TimeScrubber => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Time Scrubber");
-                        ui.label("Timeline control");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
-            Panel::CameraSettings => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Camera Settings");
-                        ui.label("Camera configuration");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
-            Panel::LightingSettings => {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.separator();
-                        ui.label("Lighting Settings");
-                        ui.label("Lighting configuration");
-                        ui.label("(Implementation coming soon)");
-                    });
-            }
             // Genome editor panels - using actual implementations
             Panel::Modes => {
                 crate::ui::genome_editor::render_modes_panel(ui, self.current_genome, self.genome_editor_state);
@@ -226,15 +201,14 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
             Panel::TimeSlider => {
                 crate::ui::genome_editor::render_time_slider(ui, self.genome_editor_state);
             }
-            // Legacy panel names from reference - placeholders
-            Panel::Inspector | Panel::Console | Panel::Hierarchy | Panel::Assets |
-            Panel::PerformanceMonitor | Panel::ThemeEditor => {
+            // Unused stub panels - show placeholder message
+            _ => {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.separator();
                         ui.label(format!("{}", tab));
-                        ui.label("Legacy panel - not used");
+                        ui.label("This panel is not yet implemented.");
                     });
             }
         }

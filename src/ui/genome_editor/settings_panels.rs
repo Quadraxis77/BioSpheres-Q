@@ -284,9 +284,11 @@ pub fn render_circle_sliders(ui: &mut egui::Ui, current_genome: &mut CurrentGeno
         if selected_idx < current_genome.genome.modes.len() {
             let mode = &mut current_genome.genome.modes[selected_idx];
 
-            // Calculate available space and size for two sliders
-            let _available_width = ui.available_width();
-            let radius = 29.25;
+            // Calculate responsive radius based on available width
+            let available_width = ui.available_width();
+            // Reserve space for padding and two sliders side by side
+            let max_radius = ((available_width - 40.0) / 2.0 - 20.0) / 2.0;
+            let radius = max_radius.clamp(20.0, 60.0);
 
             // Always side by side
             ui.horizontal(|ui| {
@@ -331,18 +333,11 @@ pub fn render_quaternion_ball(ui: &mut egui::Ui, current_genome: &mut CurrentGen
         ui.checkbox(&mut genome_editor_state.qball_snapping, "Enable Snapping (11.25°)");
         ui.add_space(10.0);
 
-        // Calculate responsive ball size
+        // Calculate responsive ball size - match circle slider calculation
         let available_width = ui.available_width();
-        let available_height = ui.available_height();
-
-        // Reserve space for checkbox and coordinates
-        let reserved_height = 120.0;
-        let usable_height = available_height - reserved_height;
-
-        // Always side by side
-        let ball_width = (available_width / 2.0) - 40.0;
-        let max_size = ball_width.min(usable_height);
-        let ball_radius = (max_size / 2.5).max(32.5).min(130.0);
+        // Reserve space for padding and two balls side by side
+        let max_radius = ((available_width - 40.0) / 2.0 - 20.0) / 2.0;
+        let ball_radius = max_radius.clamp(20.0, 60.0);
 
         let ball_container_width = ball_radius * 2.0 + 20.0;
 

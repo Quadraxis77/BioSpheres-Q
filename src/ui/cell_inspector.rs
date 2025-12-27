@@ -41,14 +41,14 @@ fn handle_cell_click(
     window_query: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     cell_query: Query<(Entity, &CellPosition, &Cell)>,
-    imgui_capture: Res<crate::ui::camera::ImGuiWantCapture>,
+    ui_capture: Res<crate::ui::camera::UiWantCapture>,
     simulation_state: Res<SimulationState>,
     main_sim_state: Option<Res<MainSimState>>,
     preview_sim_state: Option<Res<PreviewSimState>>,
     mut inspector_state: ResMut<CellInspectorState>,
 ) {
-    // Don't process if ImGui wants to capture mouse
-    if imgui_capture.want_capture_mouse {
+    // Don't process if UI wants to capture mouse
+    if ui_capture.want_capture_mouse {
         return;
     }
 

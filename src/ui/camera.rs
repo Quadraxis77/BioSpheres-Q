@@ -9,7 +9,7 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraConfig>()
             .init_resource::<CameraState>()
-            .init_resource::<ImGuiWantCapture>()
+            .init_resource::<UiWantCapture>()
             .init_resource::<FocalPlaneSettings>()
             .init_resource::<ModeNotification>()
             .add_systems(Update, (
@@ -159,8 +159,9 @@ pub struct CameraState {
 }
 
 /// Resource to track whether ImGui wants to capture input
+/// Resource to track if UI wants to capture input (prevents camera/game input when over UI)
 #[derive(Resource, Default)]
-pub struct ImGuiWantCapture {
+pub struct UiWantCapture {
     pub want_capture_mouse: bool,
     pub want_capture_keyboard: bool,
 }
@@ -207,7 +208,7 @@ pub fn camera_update(
     mouse_scroll: Res<AccumulatedMouseScroll>,
     keyboard: Res<ButtonInput<KeyCode>>,
     config: Res<CameraConfig>,
-    imgui_capture: Res<ImGuiWantCapture>,
+    ui_capture: Res<UiWantCapture>,
     mut query: Query<(&mut Transform, &mut MainCamera)>,
     mut notification: ResMut<ModeNotification>,
 ) {
@@ -251,7 +252,7 @@ pub fn camera_update(
     // -------------------------------
     // 1. ZOOM (scroll) - Only in Orbit mode
     // -------------------------------
-    if cam.mode == CameraMode::Orbit && !imgui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
+    if cam.mode == CameraMode::Orbit && !ui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
         // Additive zoom - constant speed regardless of distance (doubled multiplier)
         cam.target_distance -= mouse_scroll.delta.y * config.zoom_speed * 30.0;
         cam.target_distance = cam.target_distance.max(0.1); // Don't allow too close to origin
@@ -311,7 +312,7 @@ pub fn camera_update(
     // -------------------------------
     // 3. ROLL (Q/E) - Only in FreeFly mode
     // -------------------------------
-    if cam.mode == CameraMode::FreeFly && !imgui_capture.want_capture_keyboard {
+    if cam.mode == CameraMode::FreeFly && !ui_capture.want_capture_keyboard {
         let mut roll_amount = 0.0;
         if keyboard.pressed(KeyCode::KeyQ) {
             roll_amount += 1.0;
@@ -330,7 +331,7 @@ pub fn camera_update(
     // -------------------------------
     // 4. MOVEMENT (WASD + Space + C) - Only in FreeFly mode
     // -------------------------------
-    if cam.mode == CameraMode::FreeFly && !imgui_capture.want_capture_keyboard {
+    if cam.mode == CameraMode::FreeFly && !ui_capture.want_capture_keyboard {
         let mut speed = config.move_speed * dt;
         if keyboard.pressed(KeyCode::ShiftLeft) {
             speed *= config.sprint_multiplier;
@@ -380,10 +381,10 @@ fn detect_double_click_and_snap(
     mut camera_query: Query<(&Camera, &GlobalTransform, &mut MainCamera)>,
     window_query: Query<&Window, With<PrimaryWindow>>,
     cell_query: Query<(Entity, &crate::cell::CellPosition, &crate::cell::Cell)>,
-    imgui_capture: Res<ImGuiWantCapture>,
+    ui_capture: Res<UiWantCapture>,
 ) {
-    // Don't process if ImGui wants to capture mouse
-    if imgui_capture.want_capture_mouse {
+    // Don't process if UI wants to capture mouse
+    if ui_capture.want_capture_mouse {
         return;
     }
     
@@ -541,7 +542,7 @@ fn focal_plane_input(
     mouse_scroll: Res<AccumulatedMouseScroll>,
     mut focal_plane: ResMut<FocalPlaneSettings>,
     camera_query: Query<&MainCamera>,
-    imgui_capture: Res<ImGuiWantCapture>,
+    ui_capture: Res<UiWantCapture>,
     mut notification: ResMut<ModeNotification>,
 ) {
     let Ok(cam) = camera_query.single() else {
@@ -557,8 +558,8 @@ fn focal_plane_input(
         return;
     }
     
-    // Toggle focal plane with F key (allow even when ImGui wants keyboard for this critical feature)
-    if keyboard.just_pressed(KeyCode::KeyF) && !imgui_capture.want_capture_keyboard {
+    // Toggle focal plane with F key (allow even when UI wants keyboard for this critical feature)
+    if keyboard.just_pressed(KeyCode::KeyF) && !ui_capture.want_capture_keyboard {
         focal_plane.enabled = !focal_plane.enabled;
         if focal_plane.enabled {
             notification.show("Focal Slice Enabled", 1.5);
@@ -568,7 +569,7 @@ fn focal_plane_input(
     }
     
     // Adjust distance with scroll wheel when focal plane is enabled
-    if focal_plane.enabled && !imgui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
+    if focal_plane.enabled && !ui_capture.want_capture_mouse && mouse_scroll.delta.y.abs() > 0.001 {
         focal_plane.distance += mouse_scroll.delta.y * focal_plane.scroll_speed;
         focal_plane.distance = focal_plane.distance.clamp(focal_plane.min_distance, focal_plane.max_distance);
     }

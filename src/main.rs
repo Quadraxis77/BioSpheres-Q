@@ -123,7 +123,7 @@ fn main() {
         .add_plugins(GenomePlugin)
          // Rendering and UI plugins
         .add_plugins(RenderingPlugin)
-        .add_plugins(UiPlugin)  // Now uses egui instead of imgui
+        .add_plugins(UiPlugin)  // Uses egui for UI
         .add_plugins(InputPlugin)
         .run();
 }

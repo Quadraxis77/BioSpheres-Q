@@ -205,24 +205,31 @@ pub fn save_on_exit(
     }
 }
 
-pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockResource, _global_ui_state: &crate::ui::GlobalUiState) {
-    // List of dynamic windows that can be toggled
-    let dynamic_windows = [
-        Panel::GenomeEditor,
-        Panel::CellInspector,
-        Panel::SceneManager,
-        Panel::TimeScrubber,
-        Panel::PerformanceMonitor,
-        Panel::RenderingControls,
-        Panel::ThemeEditor,
-        Panel::CameraSettings,
-        Panel::LightingSettings,
+pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockResource, global_ui_state: &mut crate::ui::GlobalUiState) {
+    // UI Scale slider
+    ui.label("UI Scale:");
+    ui.add(bevy_egui::egui::Slider::new(&mut global_ui_state.ui_scale, 0.5..=4.0)
+        .text("Scale")
+        .suffix("x"));
+    
+    ui.separator();
+    
+    // List of genome editor panels that can be toggled
+    let genome_editor_panels = [
+        Panel::Modes,
+        Panel::NameTypeEditor,
+        Panel::AdhesionSettings,
+        Panel::ParentSettings,
+        Panel::CircleSliders,
+        Panel::QuaternionBall,
+        Panel::TimeSlider,
     ];
 
-    for panel in &dynamic_windows {
+    ui.label("Genome Editor:");
+    for panel in &genome_editor_panels {
         let is_open = is_panel_open(&dock_resource.tree, panel);
 
-        if ui.selectable_label(is_open, format!("{}", panel)).clicked() {
+        if ui.selectable_label(is_open, format!("  {}", panel)).clicked() {
             if is_open {
                 close_panel(&mut dock_resource.tree, panel);
             } else {

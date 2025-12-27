@@ -6,6 +6,7 @@ pub mod dock;
 pub mod widgets;
 pub mod ui_system;
 pub mod genome_editor;
+pub mod windows;
 
 // Feature modules (still using old implementations for now)
 pub mod camera;
@@ -91,6 +92,7 @@ impl Plugin for UiPlugin {
             .add_plugins(CameraPlugin)
             .add_systems(Startup, (
                 setup_dock,
+                load_ui_scale_on_startup,
                 settings::load_fog_settings_on_startup,
                 settings::load_lighting_settings_on_startup,
                 settings::load_skybox_settings_on_startup,
@@ -101,8 +103,44 @@ impl Plugin for UiPlugin {
             .add_systems(Update, (
                 auto_save_dock_state,
                 save_on_exit,
+                save_ui_scale_on_change,
                 // TODO: Re-enable after fixing for egui
                 // settings::save_ui_settings_on_change,
             ));
+    }
+}
+
+/// Load UI scale from saved settings on startup
+fn load_ui_scale_on_startup(mut global_ui_state: ResMut<GlobalUiState>) {
+    let saved_settings = settings::UiSettings::load();
+    global_ui_state.ui_scale = saved_settings.ui_scale;
+    info!("Loaded UI scale: {}", global_ui_state.ui_scale);
+}
+
+/// Save UI scale when it changes
+fn save_ui_scale_on_change(
+    global_ui_state: Res<GlobalUiState>,
+    mut last_saved_scale: Local<Option<f32>>,
+) {
+    // Initialize on first run
+    if last_saved_scale.is_none() {
+        *last_saved_scale = Some(global_ui_state.ui_scale);
+        return;
+    }
+
+    // Check if scale changed
+    let last = last_saved_scale.unwrap();
+    if (last - global_ui_state.ui_scale).abs() > 0.001 {
+        // Load current settings, update scale, and save
+        let mut settings = settings::UiSettings::load();
+        settings.ui_scale = global_ui_state.ui_scale;
+        
+        if let Err(e) = settings.save() {
+            error!("Failed to save UI scale: {}", e);
+        } else {
+            info!("Saved UI scale: {}", global_ui_state.ui_scale);
+        }
+        
+        *last_saved_scale = Some(global_ui_state.ui_scale);
     }
 }

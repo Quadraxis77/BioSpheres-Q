@@ -1,11 +1,10 @@
 // Genome Editor Module - Main interface for genome editing UI
 
-pub mod modes_panel;
 pub mod settings_panels;
 pub mod genome_graph;
 
-// Re-export panel rendering functions
-pub use modes_panel::render_modes_panel;
+// Re-export panel rendering functions from windows module
+pub use crate::ui::windows::modes::render_modes_panel;
 pub use settings_panels::{
     render_name_type_editor,
     render_adhesion_settings,

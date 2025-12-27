@@ -21,6 +21,13 @@ pub struct GenomeLibrary {
     pub genomes: Vec<GenomeData>,
 }
 
+impl GenomeLibrary {
+    #[allow(dead_code)]
+    pub fn add_genome(&mut self, genome: GenomeData) {
+        self.genomes.push(genome);
+    }
+}
+
 /// Current genome being edited/used
 #[derive(Resource)]
 pub struct CurrentGenome {
@@ -293,13 +300,47 @@ impl Default for GenomeData {
             initial_orientation: Quat::IDENTITY,
             modes: Vec::new(),
         };
-        // Initialize with one default mode that splits back to itself
-        genome.modes.push(ModeSettings::new_self_splitting(
-            0,
-            "Mode 0".to_string(),
-        ));
+        
+        // Create all 120 modes
+        for i in 0..120 {
+            let mode_name = format!("M {}", i);
+            let mut mode = ModeSettings::new_self_splitting(i as i32, mode_name);
+            
+            // Generate a color based on the mode number using HSV
+            let hue = (i as f32 / 120.0) * 360.0;
+            let (r, g, b) = hue_to_rgb(hue);
+            mode.color = Vec3::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
+            
+            genome.modes.push(mode);
+        }
+        
         genome
     }
+}
+
+// Helper function to convert HSV hue to RGB
+fn hue_to_rgb(hue: f32) -> (u8, u8, u8) {
+    let h = hue / 60.0;
+    let c = 1.0;
+    let x = 1.0 - (h % 2.0 - 1.0).abs();
+    
+    let (r, g, b) = if h < 1.0 {
+        (c, x, 0.0)
+    } else if h < 2.0 {
+        (x, c, 0.0)
+    } else if h < 3.0 {
+        (0.0, c, x)
+    } else if h < 4.0 {
+        (0.0, x, c)
+    } else if h < 5.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    
+    // Scale to 100-255 range for better visibility
+    let scale = |v: f32| ((v * 155.0) + 100.0) as u8;
+    (scale(r), scale(g), scale(b))
 }
 
 impl GenomeData {

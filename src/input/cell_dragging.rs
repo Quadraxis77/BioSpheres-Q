@@ -55,10 +55,10 @@ fn handle_drag_start(
     window_query: Query<&Window, With<PrimaryWindow>>,
     mut camera_query: Query<(&Camera, &GlobalTransform, &mut MainCamera)>,
     cell_query: Query<(Entity, &CellPosition, &Cell)>,
-    imgui_capture: Res<crate::ui::camera::ImGuiWantCapture>,
+    ui_capture: Res<crate::ui::camera::UiWantCapture>,
 ) {
-    // Don't process mouse input if ImGui wants to capture it
-    if imgui_capture.want_capture_mouse {
+    // Don't process mouse input if UI wants to capture it
+    if ui_capture.want_capture_mouse {
         return;
     }
     
