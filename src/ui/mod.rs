@@ -89,6 +89,7 @@ impl Plugin for UiPlugin {
             .init_resource::<GenomeEditorState>()
             .init_resource::<CpuCellCapacity>()
             .init_resource::<LightingConfig>()
+            .init_resource::<windows::scene_manager::SceneModeRequest>()
             .add_plugins(CameraPlugin)
             .add_systems(Startup, (
                 setup_dock,
@@ -104,6 +105,7 @@ impl Plugin for UiPlugin {
                 auto_save_dock_state,
                 save_on_exit,
                 save_ui_scale_on_change,
+                process_scene_mode_requests,
                 // TODO: Re-enable after fixing for egui
                 // settings::save_ui_settings_on_change,
             ));
@@ -142,5 +144,36 @@ fn save_ui_scale_on_change(
         }
         
         *last_saved_scale = Some(global_ui_state.ui_scale);
+    }
+}
+
+/// Process scene mode change requests from the UI
+fn process_scene_mode_requests(
+    mut scene_request: ResMut<windows::scene_manager::SceneModeRequest>,
+    mut sim_state: ResMut<crate::simulation::SimulationState>,
+    mut next_preview_state: ResMut<NextState<crate::simulation::PreviewSceneState>>,
+    mut next_cpu_state: ResMut<NextState<crate::simulation::CpuSceneState>>,
+) {
+    if let Some(requested_mode) = scene_request.requested_mode.take() {
+        if sim_state.mode != requested_mode {
+            match requested_mode {
+                crate::simulation::SimulationMode::Preview => {
+                    info!("Switching to Preview mode");
+                    next_cpu_state.set(crate::simulation::CpuSceneState::Inactive);
+                    next_preview_state.set(crate::simulation::PreviewSceneState::Active);
+                    sim_state.mode = crate::simulation::SimulationMode::Preview;
+                }
+                crate::simulation::SimulationMode::Cpu => {
+                    info!("Switching to CPU mode");
+                    next_preview_state.set(crate::simulation::PreviewSceneState::Inactive);
+                    next_cpu_state.set(crate::simulation::CpuSceneState::Active);
+                    sim_state.mode = crate::simulation::SimulationMode::Cpu;
+                }
+                crate::simulation::SimulationMode::Gpu => {
+                    warn!("GPU mode not yet implemented");
+                    // Don't change mode
+                }
+            }
+        }
     }
 }

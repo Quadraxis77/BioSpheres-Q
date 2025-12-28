@@ -251,6 +251,9 @@ fn handle_drag_update(
                 }
             }
         }
+        crate::simulation::SimulationMode::Gpu => {
+            // GPU mode not yet implemented
+        }
     }
 }
 

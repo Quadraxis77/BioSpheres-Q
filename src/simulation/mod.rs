@@ -98,6 +98,7 @@ pub enum SimulationMode {
     Cpu,
     #[default]
     Preview,
+    Gpu,
 }
 
 /// Global simulation state

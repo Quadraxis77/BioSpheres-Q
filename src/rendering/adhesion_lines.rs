@@ -79,6 +79,10 @@ fn render_adhesion_lines_gizmos(
                 return;
             }
         }
+        crate::simulation::SimulationMode::Gpu => {
+            // GPU mode not yet implemented
+            return;
+        }
     };
     
     // Only render if there are active connections

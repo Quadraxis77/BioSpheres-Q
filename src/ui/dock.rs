@@ -241,6 +241,22 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
 
     ui.separator();
 
+    // Other windows
+    ui.label("Other Windows:");
+
+    // Scene Manager
+    let scene_manager_open = is_panel_open(&dock_resource.tree, &Panel::SceneManager);
+    if ui.selectable_label(scene_manager_open, "  Scene Manager").clicked() {
+        if scene_manager_open {
+            close_panel(&mut dock_resource.tree, &Panel::SceneManager);
+        } else {
+            open_panel(&mut dock_resource.tree, &Panel::SceneManager);
+        }
+        ui.close();
+    }
+
+    ui.separator();
+
     let hide_all_label = if dock_resource.all_hidden {
         "Show All"
     } else {

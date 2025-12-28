@@ -73,6 +73,7 @@ pub fn ui_system(
     mut ui_capture: ResMut<crate::ui::camera::UiWantCapture>,
     mut last_scale: Local<LastAppliedScale>,
     sim_state: Res<crate::simulation::SimulationState>,
+    mut scene_mode_request: ResMut<crate::ui::windows::scene_manager::SceneModeRequest>,
 ) {
     for mut egui_context in contexts.iter_mut() {
         let ctx = egui_context.get_mut();
@@ -137,6 +138,7 @@ pub fn ui_system(
                     current_genome: &mut current_genome,
                     genome_editor_state: &mut genome_editor_state,
                     sim_state: &sim_state,
+                    scene_mode_request: &mut scene_mode_request,
                 });
         } else {
             // When hidden, set viewport to entire available screen area
@@ -164,6 +166,7 @@ struct TabViewer<'a> {
     current_genome: &'a mut CurrentGenome,
     genome_editor_state: &'a mut GenomeEditorState,
     sim_state: &'a crate::simulation::SimulationState,
+    scene_mode_request: &'a mut crate::ui::windows::scene_manager::SceneModeRequest,
 }
 
 impl<'a> egui_dock::TabViewer for TabViewer<'a> {
@@ -207,6 +210,9 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
             }
             Panel::TimeSlider => {
                 crate::ui::genome_editor::render_time_slider(ui, self.genome_editor_state, self.sim_state);
+            }
+            Panel::SceneManager => {
+                crate::ui::windows::render_scene_manager(ui, self.sim_state.mode, self.scene_mode_request);
             }
             // Unused stub panels - show placeholder message
             _ => {

@@ -301,13 +301,13 @@ impl Default for GenomeData {
             modes: Vec::new(),
         };
         
-        // Create all 120 modes
-        for i in 0..120 {
+        // Create all 40 modes
+        for i in 0..40 {
             let mode_name = format!("M {}", i);
             let mut mode = ModeSettings::new_self_splitting(i as i32, mode_name);
-            
+
             // Generate a color based on the mode number using HSV
-            let hue = (i as f32 / 120.0) * 360.0;
+            let hue = (i as f32 / 40.0) * 360.0;
             let (r, g, b) = hue_to_rgb(hue);
             mode.color = Vec3::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
             

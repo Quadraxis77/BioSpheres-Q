@@ -373,6 +373,10 @@ fn update_anchor_gizmos(
                 return;
             }
         }
+        crate::simulation::SimulationMode::Gpu => {
+            // GPU mode not yet implemented
+            return;
+        }
     };
 
     // Track which anchors exist (entity, adhesion_index, is_side_a)
@@ -400,6 +404,9 @@ fn update_anchor_gizmos(
                     }
                 }
             }
+        }
+        crate::simulation::SimulationMode::Gpu => {
+            // GPU mode not yet implemented
         }
     }
 
@@ -543,6 +550,10 @@ fn update_anchor_transforms(
             } else {
                 return;
             }
+        }
+        crate::simulation::SimulationMode::Gpu => {
+            // GPU mode not yet implemented
+            return;
         }
     };
 
