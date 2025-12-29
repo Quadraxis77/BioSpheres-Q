@@ -129,17 +129,33 @@ pub fn ui_system(
             // Reduce separator minimum constraint to allow smaller panels
             style.separator.extra = 75.0;
 
-            DockArea::new(&mut dock_resource.tree)
+            // Apply lock settings to hide tab bar height if locked
+            if global_ui_state.lock_tab_bar {
+                style.tab_bar.height = 0.0;
+            }
+
+            let mut dock_area = DockArea::new(&mut dock_resource.tree)
                 .style(style)
                 .show_leaf_collapse_buttons(false)
-                .show_leaf_close_all_buttons(false)
-                .show(ctx, &mut TabViewer {
-                    viewport_rect: &mut viewport_rect,
-                    current_genome: &mut current_genome,
-                    genome_editor_state: &mut genome_editor_state,
-                    sim_state: &sim_state,
-                    scene_mode_request: &mut scene_mode_request,
-                });
+                .show_leaf_close_all_buttons(false);
+
+            // Apply lock settings for tabs and close buttons
+            if global_ui_state.lock_tabs {
+                dock_area = dock_area.show_tab_name_on_hover(false);
+            }
+
+            if global_ui_state.lock_close_buttons {
+                dock_area = dock_area.show_close_buttons(false);
+            }
+
+            dock_area.show(ctx, &mut TabViewer {
+                viewport_rect: &mut viewport_rect,
+                current_genome: &mut current_genome,
+                genome_editor_state: &mut genome_editor_state,
+                sim_state: &sim_state,
+                scene_mode_request: &mut scene_mode_request,
+                global_ui_state: &global_ui_state,
+            });
         } else {
             // When hidden, set viewport to entire available screen area
             viewport_rect.rect = Some(ctx.available_rect());
@@ -167,6 +183,7 @@ struct TabViewer<'a> {
     genome_editor_state: &'a mut GenomeEditorState,
     sim_state: &'a crate::simulation::SimulationState,
     scene_mode_request: &'a mut crate::ui::windows::scene_manager::SceneModeRequest,
+    global_ui_state: &'a GlobalUiState,
 }
 
 impl<'a> egui_dock::TabViewer for TabViewer<'a> {
@@ -233,17 +250,31 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
     }
 
     fn is_closeable(&self, tab: &Self::Tab) -> bool {
-        // Placeholder panels and Viewport should not be closeable
-        !matches!(tab, Panel::LeftPanel | Panel::RightPanel | Panel::BottomPanel | Panel::Viewport)
+        // Check if this specific window is locked
+        let panel_name = tab.to_string();
+        let is_locked = self.global_ui_state.locked_windows.contains(&panel_name);
+        
+        // If window is locked, it's not closeable
+        // If global lock_close_buttons is enabled, nothing is closeable
+        !is_locked && !self.global_ui_state.lock_close_buttons
     }
 
-    fn is_placeholder(&self, tab: &Self::Tab) -> bool {
-        // Mark structural panels as placeholders (except Viewport which gets special treatment)
-        matches!(tab, Panel::LeftPanel | Panel::RightPanel | Panel::BottomPanel)
+    fn is_placeholder(&self, _tab: &Self::Tab) -> bool {
+        // No panels are placeholders anymore - all can be toggled
+        false
     }
 
     fn is_viewport(&self, tab: &Self::Tab) -> bool {
         // Mark Viewport as viewport for special rendering
         matches!(tab, Panel::Viewport)
+    }
+
+    fn hide_tab_button(&self, tab: &Self::Tab) -> bool {
+        // Check if this specific window is locked
+        let panel_name = tab.to_string();
+        let is_locked = self.global_ui_state.locked_windows.contains(&panel_name);
+        
+        // Hide tab button if window is locked OR if global lock_tabs is enabled
+        is_locked || self.global_ui_state.lock_tabs
     }
 }

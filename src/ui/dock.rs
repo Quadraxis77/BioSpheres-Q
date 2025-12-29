@@ -228,15 +228,68 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
     ui.label("Genome Editor:");
     for panel in &genome_editor_panels {
         let is_open = is_panel_open(&dock_resource.tree, panel);
+        let panel_name = panel.to_string();
+        let is_locked = global_ui_state.locked_windows.contains(&panel_name);
 
-        if ui.selectable_label(is_open, format!("  {}", panel)).clicked() {
-            if is_open {
-                close_panel(&mut dock_resource.tree, panel);
-            } else {
-                open_panel(&mut dock_resource.tree, panel);
+        ui.horizontal(|ui| {
+            // Window toggle button
+            if ui.selectable_label(is_open, format!("  {}", panel)).clicked() {
+                if is_open {
+                    close_panel(&mut dock_resource.tree, panel);
+                } else {
+                    open_panel(&mut dock_resource.tree, panel);
+                }
             }
-            ui.close();
-        }
+            
+            // Lock/Unlock button
+            let lock_icon = if is_locked { "🔒" } else { "🔓" };
+            if ui.small_button(lock_icon).clicked() {
+                if is_locked {
+                    global_ui_state.locked_windows.remove(&panel_name);
+                } else {
+                    global_ui_state.locked_windows.insert(panel_name);
+                }
+            }
+        });
+    }
+
+    ui.separator();
+
+    // Placeholder panels (structural layout panels)
+    ui.label("Layout Panels:");
+    
+    let placeholder_panels = [
+        Panel::LeftPanel,
+        Panel::RightPanel,
+        Panel::BottomPanel,
+        Panel::Viewport,
+    ];
+    
+    for panel in &placeholder_panels {
+        let is_open = is_panel_open(&dock_resource.tree, panel);
+        let panel_name = panel.to_string();
+        let is_locked = global_ui_state.locked_windows.contains(&panel_name);
+
+        ui.horizontal(|ui| {
+            // Window toggle button
+            if ui.selectable_label(is_open, format!("  {}", panel)).clicked() {
+                if is_open {
+                    close_panel(&mut dock_resource.tree, panel);
+                } else {
+                    open_panel(&mut dock_resource.tree, panel);
+                }
+            }
+            
+            // Lock/Unlock button
+            let lock_icon = if is_locked { "🔒" } else { "🔓" };
+            if ui.small_button(lock_icon).clicked() {
+                if is_locked {
+                    global_ui_state.locked_windows.remove(&panel_name);
+                } else {
+                    global_ui_state.locked_windows.insert(panel_name);
+                }
+            }
+        });
     }
 
     ui.separator();
@@ -246,13 +299,53 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
 
     // Scene Manager
     let scene_manager_open = is_panel_open(&dock_resource.tree, &Panel::SceneManager);
-    if ui.selectable_label(scene_manager_open, "  Scene Manager").clicked() {
-        if scene_manager_open {
-            close_panel(&mut dock_resource.tree, &Panel::SceneManager);
-        } else {
-            open_panel(&mut dock_resource.tree, &Panel::SceneManager);
+    let scene_manager_name = Panel::SceneManager.to_string();
+    let scene_manager_locked = global_ui_state.locked_windows.contains(&scene_manager_name);
+    
+    ui.horizontal(|ui| {
+        if ui.selectable_label(scene_manager_open, "  Scene Manager").clicked() {
+            if scene_manager_open {
+                close_panel(&mut dock_resource.tree, &Panel::SceneManager);
+            } else {
+                open_panel(&mut dock_resource.tree, &Panel::SceneManager);
+            }
         }
-        ui.close();
+        
+        let lock_icon = if scene_manager_locked { "🔒" } else { "🔓" };
+        if ui.small_button(lock_icon).clicked() {
+            if scene_manager_locked {
+                global_ui_state.locked_windows.remove(&scene_manager_name);
+            } else {
+                global_ui_state.locked_windows.insert(scene_manager_name);
+            }
+        }
+    });
+
+    ui.separator();
+
+    // Individual hide options
+    ui.checkbox(&mut global_ui_state.lock_tab_bar, "Hide Tab Bar");
+    ui.checkbox(&mut global_ui_state.lock_tabs, "Hide Tabs");
+    ui.checkbox(&mut global_ui_state.lock_close_buttons, "Hide Close Buttons");
+
+    ui.separator();
+
+    // Lock All option - toggles all three settings at once
+    let all_locked = global_ui_state.lock_tab_bar 
+        && global_ui_state.lock_tabs 
+        && global_ui_state.lock_close_buttons;
+    
+    let lock_all_label = if all_locked {
+        "Unlock All"
+    } else {
+        "Lock All"
+    };
+
+    if ui.button(lock_all_label).clicked() {
+        let new_state = !all_locked;
+        global_ui_state.lock_tab_bar = new_state;
+        global_ui_state.lock_tabs = new_state;
+        global_ui_state.lock_close_buttons = new_state;
     }
 
     ui.separator();
@@ -265,6 +358,5 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
 
     if ui.button(hide_all_label).clicked() {
         dock_resource.all_hidden = !dock_resource.all_hidden;
-        ui.close();
     }
 }

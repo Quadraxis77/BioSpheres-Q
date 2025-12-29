@@ -59,6 +59,12 @@ pub struct GlobalUiState {
     pub show_time_scrubber: bool,
     pub show_camera_settings: bool,
     pub show_lighting_settings: bool,
+    // Lock settings for UI elements
+    pub lock_tab_bar: bool,
+    pub lock_tabs: bool,
+    pub lock_close_buttons: bool,
+    // Individual window lock states
+    pub locked_windows: std::collections::HashSet<String>,
 }
 
 impl Default for GlobalUiState {
@@ -73,6 +79,10 @@ impl Default for GlobalUiState {
             show_time_scrubber: true,
             show_camera_settings: false,
             show_lighting_settings: false,
+            lock_tab_bar: false,
+            lock_tabs: false,
+            lock_close_buttons: false,
+            locked_windows: std::collections::HashSet::new(),
         }
     }
 }

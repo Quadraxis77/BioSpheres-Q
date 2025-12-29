@@ -19,7 +19,7 @@ bevy = { version = "0.17", features = [
 bevy_mesh = "0.17"
 bevy_asset = "0.17"
 bevy_embedded_assets = "0.14"
-bevy_egui = "0.38"
+bevy_egui = { path = "./bevy_egui_local" }
 egui_dock = { path = "./egui_dock_local", features = ["serde"] }
 # egui_node_graph = "0.8"  # TODO: Find correct version or implement custom node graph
 ron = "0.8"
@@ -60,3 +60,14 @@ opt-level = 3
 # Enable fast compiles for development
 [profile.dev.package.bevy_render]
 opt-level = 3
+
+# Use local egui forks for all egui-related dependencies
+[patch.crates-io]
+egui = { path = "./egui_local/crates/egui" }
+eframe = { path = "./egui_local/crates/eframe" }
+egui-winit = { path = "./egui_local/crates/egui-winit" }
+egui-wgpu = { path = "./egui_local/crates/egui-wgpu" }
+egui_glow = { path = "./egui_local/crates/egui_glow" }
+emath = { path = "./egui_local/crates/emath" }
+epaint = { path = "./egui_local/crates/epaint" }
+ecolor = { path = "./egui_local/crates/ecolor" }

@@ -88,27 +88,5 @@ pub fn render(
             ui.add_sized(egui::vec2(button_width, button_height), gpu_button)
         }).inner;
         gpu_response.on_disabled_hover_text("GPU mode is not yet implemented");
-
-        ui.add_space(16.0);
-
-        // Show current mode info
-        ui.separator();
-        ui.label(format!("Current Mode: {:?}", current_mode));
-
-        // Show mode description
-        match current_mode {
-            SimulationMode::Preview => {
-                ui.label("Preview mode is optimized for genome editing and testing.");
-                ui.label("Real-time preview of genome changes with limited cell count.");
-            }
-            SimulationMode::Cpu => {
-                ui.label("CPU mode for full simulations with large cell counts.");
-                ui.label("Uses multi-threaded CPU physics simulation.");
-            }
-            SimulationMode::Gpu => {
-                ui.label("GPU mode (not yet implemented).");
-                ui.label("Will use GPU compute shaders for maximum performance.");
-            }
-        }
     });
 }

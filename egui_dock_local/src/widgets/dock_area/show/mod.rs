@@ -51,7 +51,7 @@ impl<Tab> DockArea<'_, Tab> {
     pub fn show(self, ctx: &Context, tab_viewer: &mut impl TabViewer<Tab = Tab>) {
         CentralPanel::default()
             .frame(
-                Frame::central_panel(&ctx.style())
+                Frame::central_panel(&ctx.global_style())
                     .inner_margin(0.)
                     .fill(Color32::TRANSPARENT),
             )
