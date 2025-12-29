@@ -8,6 +8,8 @@ use std::time::Duration;
 const DOCK_STATE_FILE: &str = "dock_state.ron";
 const PREVIEW_DOCK_STATE_FILE: &str = "dock_state_preview.ron";
 const CPU_DOCK_STATE_FILE: &str = "dock_state_cpu.ron";
+const PREVIEW_DEFAULT_FILE: &str = "dock_default_preview.ron";
+const CPU_DEFAULT_FILE: &str = "dock_default_cpu.ron";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Panel {
@@ -134,39 +136,120 @@ pub fn save_dock_state_for_mode(tree: &DockState<Panel>, mode: &str) {
 }
 
 pub fn create_default_layout() -> DockState<Panel> {
+    create_default_preview_layout()
+}
+
+pub fn create_default_preview_layout() -> DockState<Panel> {
+    // Try to load from saved default file first
+    if let Some(tree) = load_dock_state_from_file(PREVIEW_DEFAULT_FILE) {
+        return tree;
+    }
+    
+    // Fallback to hardcoded default
+    create_hardcoded_preview_layout()
+}
+
+pub fn create_default_cpu_layout() -> DockState<Panel> {
+    // Try to load from saved default file first
+    if let Some(tree) = load_dock_state_from_file(CPU_DEFAULT_FILE) {
+        return tree;
+    }
+    
+    // Fallback to hardcoded default
+    create_hardcoded_cpu_layout()
+}
+
+fn load_dock_state_from_file(filename: &str) -> Option<DockState<Panel>> {
+    if Path::new(filename).exists() {
+        let data = fs::read_to_string(filename).ok()?;
+        ron::from_str(&data).ok()
+    } else {
+        None
+    }
+}
+
+fn create_hardcoded_preview_layout() -> DockState<Panel> {
+    // Create the initial layout matching the exact saved Preview layout structure
+    let mut tree = DockState::new(vec![Panel::LeftPanel]);
+    let surface = tree.main_surface_mut();
+
+    // The saved layout has this structure:
+    // Root (Horizontal split at 0.113662764)
+    //   ├─ Left: LeftPanel leaf
+    //   └─ Right (Horizontal split at 0.8863618)
+    //       ├─ Center (Vertical split at 0.8175097)
+    //       │   ├─ Top: Viewport leaf
+    //       │   └─ Bottom: BottomPanel leaf
+    //       └─ Right (Vertical split at 0.18871589)
+    //           ├─ Top: SceneManager leaf
+    //           └─ Bottom: RightPanel leaf
+
+    // Split off the main right section
+    let [_left, right_section] = surface.split_right(
+        egui_dock::NodeIndex::root(),
+        0.113662764,
+        vec![Panel::LeftPanel]
+    );
+
+    // Split the right section into center and right panel
+    let [center_section, right_panel_section] = surface.split_right(
+        right_section,
+        0.8863618,
+        vec![Panel::Viewport]
+    );
+
+    // Split center into viewport and bottom panel
+    let [_viewport, _bottom] = surface.split_below(
+        center_section,
+        0.8175097,
+        vec![Panel::Viewport]
+    );
+    
+    surface.set_focused_node(_bottom);
+    surface.push_to_focused_leaf(Panel::BottomPanel);
+
+    // Split right panel section into scene manager and right panel
+    let [_scene_manager, _right_panel] = surface.split_below(
+        right_panel_section,
+        0.18871589,
+        vec![Panel::SceneManager]
+    );
+    
+    surface.set_focused_node(_right_panel);
+    surface.push_to_focused_leaf(Panel::RightPanel);
+
+    tree
+}
+
+fn create_hardcoded_cpu_layout() -> DockState<Panel> {
     // Create the initial layout with Viewport in the center
     let mut tree = DockState::new(vec![Panel::Viewport]);
     let surface = tree.main_surface_mut();
 
-    // Build structure based on current baked layout:
-    // Left: LeftPanel (placeholder)
-    // Center: Viewport / BottomPanel (vertical split)
-    // Right: RightPanel (placeholder)
+    // Build structure matching current saved CPU layout:
+    // Left: Viewport (~89.1% width)
+    // Right: RightPanel with SceneManager tab (SceneManager is active)
 
-    // First: Split off left panel area (~12% width)
-    let [_left_panel, rest] = surface.split_left(
+    // Split off right panel area (~10.9% width)
+    let [_viewport, right_panel] = surface.split_right(
         egui_dock::NodeIndex::root(),
-        0.118,
-        vec![Panel::LeftPanel]
-    );
-
-    // Second: Split off right panel from the rest (~10% width from total)
-    let [center_area, _right_panel] = surface.split_right(
-        rest,
-        0.896,
-        vec![Panel::RightPanel]
-    );
-
-    // Third: Split center area into viewport (top ~89%) and bottom panel (bottom ~11%)
-    let [_viewport, _bottom_panel] = surface.split_below(
-        center_area,
-        0.893,
+        0.891,
         vec![Panel::Viewport]
     );
 
-    // Add BottomPanel to the bottom node
-    surface.set_focused_node(_bottom_panel);
-    surface.push_to_focused_leaf(Panel::BottomPanel);
+    // The right panel should have RightPanel first, then SceneManager
+    // with SceneManager being the active tab (index 1)
+    surface.set_focused_node(right_panel);
+    
+    // Access the leaf node and modify it
+    if let egui_dock::Node::Leaf(leaf) = &mut surface[right_panel] {
+        leaf.tabs.clear();
+        // Add tabs in correct order: RightPanel first, SceneManager second
+        leaf.tabs.push(Panel::RightPanel);
+        leaf.tabs.push(Panel::SceneManager);
+        // Set SceneManager as active (index 1)
+        leaf.active = egui_dock::TabIndex(1);
+    }
 
     tree
 }
@@ -175,12 +258,12 @@ pub fn setup_dock(mut commands: Commands) {
     // Load or create default layouts for each scene mode
     let preview_tree = load_dock_state_for_mode("preview").unwrap_or_else(|| {
         info!("Creating default Preview dock layout");
-        create_default_layout()
+        create_default_preview_layout()
     });
     
     let cpu_tree = load_dock_state_for_mode("cpu").unwrap_or_else(|| {
         info!("Creating default CPU dock layout");
-        create_default_layout()
+        create_default_cpu_layout()
     });
 
     // Start with Preview mode (default)
@@ -436,6 +519,49 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
 
     if ui.button(hide_all_label).clicked() {
         dock_resource.all_hidden = !dock_resource.all_hidden;
+    }
+    
+    ui.separator();
+    
+    // Reset to Defaults button - resets to the hardcoded default layout for current scene
+    if ui.button("Reset to Default Layout").clicked() {
+        // Create the appropriate hardcoded default layout based on current mode
+        let default_tree = match dock_resource.current_mode {
+            crate::simulation::SimulationMode::Preview => create_default_preview_layout(),
+            crate::simulation::SimulationMode::Cpu => create_default_cpu_layout(),
+            crate::simulation::SimulationMode::Gpu => create_default_preview_layout(), // fallback
+        };
+        
+        // Apply to current view
+        dock_resource.tree = default_tree.clone();
+        
+        // Update the stored tree for current mode
+        match dock_resource.current_mode {
+            crate::simulation::SimulationMode::Preview => {
+                dock_resource.preview_tree = default_tree;
+            }
+            crate::simulation::SimulationMode::Cpu => {
+                dock_resource.cpu_tree = default_tree;
+            }
+            _ => {}
+        }
+        
+        info!("Reset layout to default for current scene");
+    }
+    
+    // Save Current as Default button - saves current layout as the default
+    if ui.button("Save Current as Default").clicked() {
+        let (filename, mode_str) = match dock_resource.current_mode {
+            crate::simulation::SimulationMode::Preview => (PREVIEW_DEFAULT_FILE, "Preview"),
+            crate::simulation::SimulationMode::Cpu => (CPU_DEFAULT_FILE, "CPU"),
+            crate::simulation::SimulationMode::Gpu => (PREVIEW_DEFAULT_FILE, "GPU"),
+        };
+        
+        if let Ok(serialized) = ron::ser::to_string_pretty(&dock_resource.tree, Default::default()) {
+            if let Ok(_) = std::fs::write(filename, serialized) {
+                info!("Saved current {} layout as default to {}", mode_str, filename);
+            }
+        }
     }
 }
 

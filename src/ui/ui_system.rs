@@ -12,10 +12,12 @@ pub struct ViewportRect {
     pub rect: Option<egui::Rect>,
 }
 
-/// Resource to track last applied UI scale
+/// Resource to track last applied UI scale and original style values
 #[derive(Resource, Default)]
 pub struct LastAppliedScale {
     scale: Option<f32>,
+    original_spacing: Option<egui::style::Spacing>,
+    original_text_styles: Option<std::collections::BTreeMap<egui::TextStyle, egui::FontId>>,
 }
 
 /// UI state for genome editor widgets
@@ -83,21 +85,27 @@ pub fn ui_system(
         if scale_changed {
             // Scale the entire UI by modifying the style
             ctx.global_style_mut(|style| {
-                let scale_ratio = global_ui_state.ui_scale / last_scale.scale.unwrap_or(1.0);
+                // Store original values on first run
+                if last_scale.original_spacing.is_none() {
+                    last_scale.original_spacing = Some(style.spacing.clone());
+                    last_scale.original_text_styles = Some(style.text_styles.clone());
+                }
                 
-                // Scale spacing values
-                style.spacing.item_spacing *= scale_ratio;
-                style.spacing.button_padding *= scale_ratio;
-                style.spacing.indent *= scale_ratio;
-                style.spacing.interact_size *= scale_ratio;
-                // Don't scale these - they should remain responsive to panel width
-                // style.spacing.slider_width *= scale_ratio;
-                // style.spacing.combo_width *= scale_ratio;
-                // style.spacing.text_edit_width *= scale_ratio;
+                // Apply scale from original values (not multiplicatively)
+                if let Some(ref original_spacing) = last_scale.original_spacing {
+                    style.spacing.item_spacing = original_spacing.item_spacing * global_ui_state.ui_scale;
+                    style.spacing.button_padding = original_spacing.button_padding * global_ui_state.ui_scale;
+                    style.spacing.indent = original_spacing.indent * global_ui_state.ui_scale;
+                    style.spacing.interact_size = original_spacing.interact_size * global_ui_state.ui_scale;
+                }
                 
-                // Scale text sizes
-                for (_text_style, font_id) in style.text_styles.iter_mut() {
-                    font_id.size *= scale_ratio;
+                // Scale text sizes from original values
+                if let Some(ref original_text_styles) = last_scale.original_text_styles {
+                    for (text_style, font_id) in style.text_styles.iter_mut() {
+                        if let Some(original_font) = original_text_styles.get(text_style) {
+                            font_id.size = original_font.size * global_ui_state.ui_scale;
+                        }
+                    }
                 }
             });
             last_scale.scale = Some(global_ui_state.ui_scale);
@@ -296,5 +304,15 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
         
         // Hide tab button if window is locked OR if global lock_tabs is enabled
         is_locked || self.global_ui_state.lock_tabs
+    }
+
+    fn is_draggable(&self, tab: &Self::Tab) -> bool {
+        // Allow all tabs to be draggable, including Viewport
+        // Check if this specific window is locked
+        let panel_name = tab.to_string();
+        let is_locked = self.global_ui_state.locked_windows.contains(&panel_name);
+        
+        // Not draggable if locked or if global lock_tabs is enabled
+        !is_locked && !self.global_ui_state.lock_tabs
     }
 }
