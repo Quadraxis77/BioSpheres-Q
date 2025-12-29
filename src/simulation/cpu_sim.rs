@@ -572,9 +572,7 @@ fn setup_cpu_scene(
         },
         // Boundary crossing post-processing effect
         crate::rendering::BoundaryCrossingSettings::default(),
-        // OIT (Order-Independent Transparency) DISABLED - conflicts with bevy_mod_imgui
-        // bevy_mod_imgui renders directly to swapchain, causing command encoder conflicts with OIT
-        // To re-enable: refactor bevy_mod_imgui to render to intermediate texture first
+        // OIT (Order-Independent Transparency) - currently disabled
         // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
         Msaa::Sample4, // Enable MSAA for AlphaToCoverage transparency
         CpuSceneEntity,
