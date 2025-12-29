@@ -541,42 +541,29 @@ pub enum CpuSceneState {
 #[derive(Component)]
 pub struct CpuSceneEntity;
 
-/// Setup the CPU simulation scene with camera and single cell at origin
+/// Setup the CPU simulation scene with initial state (camera already exists from Preview)
 fn setup_cpu_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    fog_settings: Res<crate::rendering::VolumetricFogSettings>,
+    _fog_settings: Res<crate::rendering::VolumetricFogSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     genome: Res<crate::genome::CurrentGenome>,
     config: Res<PhysicsConfig>,
     mut main_state: ResMut<MainSimState>,
     cpu_cell_capacity: Res<crate::ui::scene_manager::CpuCellCapacity>,
     lighting_config: Res<crate::ui::lighting_settings::LightingConfig>,
+    mut camera_query: Query<&mut MainCamera>,
 ) {
-    // Spawn 3D camera with volumetric fog and boundary crossing effect
-    commands.spawn((
-        Camera3d::default(),
-        MainCamera{
-            center: Vec3::ZERO, // Orbit around world origin
-            distance: 50.0, // Start with some distance from origin
-            target_distance: 50.0, // Target distance for spring interpolation
-            rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
-            target_rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
-            mode: crate::ui::camera::CameraMode::Orbit,
-            followed_entity: None,
-        },
-        bevy::light::VolumetricFog {
-            ambient_intensity: fog_settings.ambient_intensity,
-            step_count: fog_settings.step_count,
-            ..default()
-        },
-        // Boundary crossing post-processing effect
-        crate::rendering::BoundaryCrossingSettings::default(),
-        // OIT (Order-Independent Transparency) - currently disabled
-        // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
-        Msaa::Sample4, // Enable MSAA for AlphaToCoverage transparency
-        CpuSceneEntity,
-    ));
+    // Reset camera to default position (reuse existing camera from Preview scene)
+    for mut camera in camera_query.iter_mut() {
+        camera.center = Vec3::ZERO;
+        camera.distance = 50.0;
+        camera.target_distance = 50.0;
+        camera.rotation = Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5);
+        camera.target_rotation = Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5);
+        camera.mode = crate::ui::camera::CameraMode::Orbit;
+        camera.followed_entity = None;
+    }
 
     // Get initial mode settings from genome (same as preview scene)
     let initial_mode_index = genome.genome.initial_mode.max(0) as usize;
@@ -755,10 +742,10 @@ fn spawn_cpu_skybox(
     );
 }
 
-/// Cleanup CPU scene entities
+/// Cleanup CPU scene entities (but keep the camera)
 fn cleanup_cpu_scene(
     mut commands: Commands,
-    query: Query<Entity, With<CpuSceneEntity>>,
+    query: Query<Entity, (With<CpuSceneEntity>, Without<MainCamera>)>,
 ) {
     for entity in query.iter() {
         commands.entity(entity).despawn();

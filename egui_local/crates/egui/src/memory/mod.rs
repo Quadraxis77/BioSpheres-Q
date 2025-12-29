@@ -548,13 +548,14 @@ impl Focus {
                     crate::Key::ArrowDown => Some(FocusDirection::Down),
                     crate::Key::ArrowLeft => Some(FocusDirection::Left),
 
-                    crate::Key::Tab => {
-                        if modifiers.shift {
-                            Some(FocusDirection::Previous)
-                        } else {
-                            Some(FocusDirection::Next)
-                        }
-                    }
+                    // DISABLED: Tab key focus navigation
+                    // crate::Key::Tab => {
+                    //     if modifiers.shift {
+                    //         Some(FocusDirection::Previous)
+                    //     } else {
+                    //         Some(FocusDirection::Next)
+                    //     }
+                    // }
                     crate::Key::Escape => {
                         self.focused_widget = None;
                         Some(FocusDirection::None)

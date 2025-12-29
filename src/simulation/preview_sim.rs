@@ -232,31 +232,43 @@ fn setup_preview_scene(
     genome: Res<CurrentGenome>,
     config: Res<PhysicsConfig>,
     lighting_config: Res<crate::ui::lighting_settings::LightingConfig>,
+    camera_query: Query<Entity, With<MainCamera>>,
 ) {
-    // Spawn camera with volumetric fog and boundary crossing effect
-    commands.spawn((
-        Camera3d::default(),
-        MainCamera{
-            center: Vec3::ZERO, // Orbit around world origin
-            distance: 50.0, // Start with some distance from origin
-            target_distance: 50.0, // Target distance for spring interpolation
-            rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
-            target_rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
-            mode: crate::ui::camera::CameraMode::Orbit,
-            followed_entity: None,
-        },
-        bevy::light::VolumetricFog {
-            ambient_intensity: fog_settings.ambient_intensity,
-            step_count: fog_settings.step_count,
-            ..default()
-        },
-        // Boundary crossing post-processing effect
-        crate::rendering::BoundaryCrossingSettings::default(),
-        // OIT (Order-Independent Transparency) - currently disabled
-        // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
-        Msaa::Sample4, // Enable MSAA for AlphaToCoverage transparency
-        PreviewSceneEntity,
-    ));
+    // Only spawn camera if it doesn't already exist (from scene switching)
+    if camera_query.is_empty() {
+        // Spawn camera with volumetric fog and boundary crossing effect
+        commands.spawn((
+            Camera3d::default(),
+            MainCamera{
+                center: Vec3::ZERO, // Orbit around world origin
+                distance: 50.0, // Start with some distance from origin
+                target_distance: 50.0, // Target distance for spring interpolation
+                rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
+                target_rotation: Quat::from_rotation_x(-0.5) * Quat::from_rotation_y(0.5),
+                mode: crate::ui::camera::CameraMode::Orbit,
+                followed_entity: None,
+            },
+            bevy::light::VolumetricFog {
+                ambient_intensity: fog_settings.ambient_intensity,
+                step_count: fog_settings.step_count,
+                ..default()
+            },
+            // Boundary crossing post-processing effect
+            crate::rendering::BoundaryCrossingSettings::default(),
+            // OIT (Order-Independent Transparency) - currently disabled
+            // bevy::core_pipeline::oit::OrderIndependentTransparencySettings::default(),
+            Msaa::Sample4, // Enable MSAA for AlphaToCoverage transparency
+            PreviewSceneEntity,
+        ));
+    } else {
+        // Reset existing camera to default position
+        for camera in camera_query.iter() {
+            if let Ok(cam) = commands.get_entity(camera) {
+                // Camera already exists, just reset its MainCamera component
+                // (it will be updated by the camera system)
+            }
+        }
+    }
 
     // Spawn lights (using saved settings)
     let light_rotation = Quat::from_euler(
@@ -433,10 +445,10 @@ fn setup_preview_scene(
     preview_state.index_to_entity[0] = Some(entity);
 }
 
-/// Cleanup Preview scene entities
+/// Cleanup Preview scene entities (but keep the camera)
 fn cleanup_preview_scene(
     mut commands: Commands,
-    query: Query<Entity, With<PreviewSceneEntity>>,
+    query: Query<Entity, (With<PreviewSceneEntity>, Without<MainCamera>)>,
 ) {
     for entity in query.iter() {
         commands.entity(entity).despawn();

@@ -67,14 +67,9 @@
     "lock_tabs": false,
     "lock_close_buttons": false,
     "locked_windows": [
-      "Bottom Panel",
       "Child Settings",
-      "Left Panel",
-      "Modes",
-      "Name & Type",
       "Parent Split Angle",
       "Right Panel",
-      "Scene Manager",
       "Time Slider",
       "Viewport"
     ]

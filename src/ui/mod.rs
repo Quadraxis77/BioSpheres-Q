@@ -118,6 +118,7 @@ impl Plugin for UiPlugin {
                 save_ui_scale_on_change,
                 settings::save_lock_settings_on_change,
                 process_scene_mode_requests,
+                dock::switch_dock_on_scene_change,
                 // TODO: Re-enable after fixing for egui
                 // settings::save_ui_settings_on_change,
             ));

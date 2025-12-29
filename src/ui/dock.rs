@@ -6,6 +6,8 @@ use std::path::Path;
 use std::time::Duration;
 
 const DOCK_STATE_FILE: &str = "dock_state.ron";
+const PREVIEW_DOCK_STATE_FILE: &str = "dock_state_preview.ron";
+const CPU_DOCK_STATE_FILE: &str = "dock_state_cpu.ron";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Panel {
@@ -83,6 +85,10 @@ impl std::fmt::Display for Panel {
 pub struct DockResource {
     pub tree: DockState<Panel>,
     pub all_hidden: bool,
+    // Store separate dock states for each scene mode
+    pub preview_tree: DockState<Panel>,
+    pub cpu_tree: DockState<Panel>,
+    pub current_mode: crate::simulation::SimulationMode,
 }
 
 pub fn load_dock_state() -> Option<DockState<Panel>> {
@@ -94,9 +100,36 @@ pub fn load_dock_state() -> Option<DockState<Panel>> {
     }
 }
 
+pub fn load_dock_state_for_mode(mode: &str) -> Option<DockState<Panel>> {
+    let filename = match mode {
+        "preview" => PREVIEW_DOCK_STATE_FILE,
+        "cpu" => CPU_DOCK_STATE_FILE,
+        _ => return None,
+    };
+    
+    if Path::new(filename).exists() {
+        let data = fs::read_to_string(filename).ok()?;
+        ron::from_str(&data).ok()
+    } else {
+        None
+    }
+}
+
 pub fn save_dock_state(tree: &DockState<Panel>) {
     if let Ok(serialized) = ron::ser::to_string_pretty(tree, Default::default()) {
         let _ = fs::write(DOCK_STATE_FILE, serialized);
+    }
+}
+
+pub fn save_dock_state_for_mode(tree: &DockState<Panel>, mode: &str) {
+    let filename = match mode {
+        "preview" => PREVIEW_DOCK_STATE_FILE,
+        "cpu" => CPU_DOCK_STATE_FILE,
+        _ => return,
+    };
+    
+    if let Ok(serialized) = ron::ser::to_string_pretty(tree, Default::default()) {
+        let _ = fs::write(filename, serialized);
     }
 }
 
@@ -139,15 +172,28 @@ pub fn create_default_layout() -> DockState<Panel> {
 }
 
 pub fn setup_dock(mut commands: Commands) {
-    let tree = load_dock_state().unwrap_or_else(|| {
-        info!("Creating default dock layout");
+    // Load or create default layouts for each scene mode
+    let preview_tree = load_dock_state_for_mode("preview").unwrap_or_else(|| {
+        info!("Creating default Preview dock layout");
+        create_default_layout()
+    });
+    
+    let cpu_tree = load_dock_state_for_mode("cpu").unwrap_or_else(|| {
+        info!("Creating default CPU dock layout");
         create_default_layout()
     });
 
-    info!("Dock state initialized");
+    // Start with Preview mode (default)
+    let current_mode = crate::simulation::SimulationMode::Preview;
+    let tree = preview_tree.clone();
+
+    info!("Dock state initialized with separate layouts for each scene");
     commands.insert_resource(DockResource {
         tree,
         all_hidden: false,
+        preview_tree,
+        cpu_tree,
+        current_mode,
     });
     commands.init_resource::<crate::ui::ViewportRect>();
     commands.init_resource::<crate::ui::GenomeEditorState>();
@@ -159,8 +205,29 @@ pub fn is_panel_open(tree: &DockState<Panel>, panel: &Panel) -> bool {
 }
 
 pub fn close_panel(tree: &mut DockState<Panel>, panel: &Panel) {
+    // Don't allow closing the Viewport - it's essential
+    if matches!(panel, Panel::Viewport) {
+        return;
+    }
+    
     // Find the panel location
     if let Some((surface_index, node_index, tab_index)) = tree.find_tab(panel) {
+        // Check if this is the last tab in a window surface (not main surface)
+        if !surface_index.is_main() {
+            // Count tabs in this window
+            let tab_count = tree[surface_index].iter()
+                .filter_map(|node| node.tabs())
+                .map(|tabs| tabs.len())
+                .sum::<usize>();
+            
+            // If this is the last tab in a floating window, remove the entire window
+            if tab_count == 1 {
+                tree.remove_surface(surface_index);
+                return;
+            }
+        }
+        
+        // Otherwise, just remove the tab
         tree[surface_index].remove_tab((node_index, tab_index));
     }
 }
@@ -191,7 +258,13 @@ pub fn auto_save_dock_state(
     save_timer.timer.tick(time.delta());
 
     if save_timer.timer.just_finished() {
-        save_dock_state(&dock_resource.tree);
+        // Save the current mode's dock state
+        let mode_str = match dock_resource.current_mode {
+            crate::simulation::SimulationMode::Preview => "preview",
+            crate::simulation::SimulationMode::Cpu => "cpu",
+            crate::simulation::SimulationMode::Gpu => "gpu",
+        };
+        save_dock_state_for_mode(&dock_resource.tree, mode_str);
     }
 }
 
@@ -200,8 +273,10 @@ pub fn save_on_exit(
     mut exit_events: MessageReader<bevy::app::AppExit>,
 ) {
     for _ in exit_events.read() {
-        save_dock_state(&dock_resource.tree);
-        info!("Saved dock state on exit");
+        // Save both mode-specific states
+        save_dock_state_for_mode(&dock_resource.preview_tree, "preview");
+        save_dock_state_for_mode(&dock_resource.cpu_tree, "cpu");
+        info!("Saved dock states for all modes on exit");
     }
 }
 
@@ -238,6 +313,16 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
                     close_panel(&mut dock_resource.tree, panel);
                 } else {
                     open_panel(&mut dock_resource.tree, panel);
+                }
+                // Sync changes to the stored tree for current mode
+                match dock_resource.current_mode {
+                    crate::simulation::SimulationMode::Preview => {
+                        dock_resource.preview_tree = dock_resource.tree.clone();
+                    }
+                    crate::simulation::SimulationMode::Cpu => {
+                        dock_resource.cpu_tree = dock_resource.tree.clone();
+                    }
+                    _ => {}
                 }
             }
             
@@ -278,6 +363,16 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
                 } else {
                     open_panel(&mut dock_resource.tree, panel);
                 }
+                // Sync changes to the stored tree for current mode
+                match dock_resource.current_mode {
+                    crate::simulation::SimulationMode::Preview => {
+                        dock_resource.preview_tree = dock_resource.tree.clone();
+                    }
+                    crate::simulation::SimulationMode::Cpu => {
+                        dock_resource.cpu_tree = dock_resource.tree.clone();
+                    }
+                    _ => {}
+                }
             }
             
             // Lock/Unlock button
@@ -309,6 +404,16 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
             } else {
                 open_panel(&mut dock_resource.tree, &Panel::SceneManager);
             }
+            // Sync changes to the stored tree for current mode
+            match dock_resource.current_mode {
+                crate::simulation::SimulationMode::Preview => {
+                    dock_resource.preview_tree = dock_resource.tree.clone();
+                }
+                crate::simulation::SimulationMode::Cpu => {
+                    dock_resource.cpu_tree = dock_resource.tree.clone();
+                }
+                _ => {}
+            }
         }
         
         let lock_icon = if scene_manager_locked { "🔒" } else { "🔓" };
@@ -331,5 +436,47 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
 
     if ui.button(hide_all_label).clicked() {
         dock_resource.all_hidden = !dock_resource.all_hidden;
+    }
+}
+
+/// System to switch dock layouts when scene mode changes
+pub fn switch_dock_on_scene_change(
+    mut dock_resource: ResMut<DockResource>,
+    sim_state: Res<crate::simulation::SimulationState>,
+) {
+    // Check if the mode has changed
+    if dock_resource.current_mode != sim_state.mode {
+        info!("Scene mode changed from {:?} to {:?}, switching dock layout", 
+              dock_resource.current_mode, sim_state.mode);
+        
+        // Save the current layout to the appropriate storage
+        match dock_resource.current_mode {
+            crate::simulation::SimulationMode::Preview => {
+                dock_resource.preview_tree = dock_resource.tree.clone();
+            }
+            crate::simulation::SimulationMode::Cpu => {
+                dock_resource.cpu_tree = dock_resource.tree.clone();
+            }
+            crate::simulation::SimulationMode::Gpu => {
+                // GPU mode not yet implemented
+            }
+        }
+        
+        // Load the layout for the new mode
+        dock_resource.tree = match sim_state.mode {
+            crate::simulation::SimulationMode::Preview => {
+                dock_resource.preview_tree.clone()
+            }
+            crate::simulation::SimulationMode::Cpu => {
+                dock_resource.cpu_tree.clone()
+            }
+            crate::simulation::SimulationMode::Gpu => {
+                // GPU mode not yet implemented, use preview as fallback
+                dock_resource.preview_tree.clone()
+            }
+        };
+        
+        // Update the current mode
+        dock_resource.current_mode = sim_state.mode;
     }
 }
