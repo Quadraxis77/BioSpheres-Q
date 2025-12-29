@@ -263,7 +263,7 @@ fn setup_preview_scene(
     } else {
         // Reset existing camera to default position
         for camera in camera_query.iter() {
-            if let Ok(cam) = commands.get_entity(camera) {
+            if let Ok(_cam) = commands.get_entity(camera) {
                 // Camera already exists, just reset its MainCamera component
                 // (it will be updated by the camera system)
             }

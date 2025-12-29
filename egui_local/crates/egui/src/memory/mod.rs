@@ -539,7 +539,7 @@ impl Focus {
                 && let crate::Event::Key {
                     key,
                     pressed: true,
-                    modifiers,
+                    modifiers: _,
                     ..
                 } = event
                 && let Some(cardinality) = match key {
