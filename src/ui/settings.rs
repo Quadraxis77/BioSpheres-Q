@@ -29,6 +29,9 @@ pub struct UiSettings {
     /// Simulation settings
     #[serde(default)]
     pub simulation_settings: SimulationSettings,
+    /// Window lock settings
+    #[serde(default)]
+    pub lock_settings: LockSettings,
 }
 
 /// Window visibility settings
@@ -49,6 +52,26 @@ pub struct WindowVisibilitySettings {
 
 fn default_false() -> bool {
     false
+}
+
+/// Window lock settings
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LockSettings {
+    pub lock_tab_bar: bool,
+    pub lock_tabs: bool,
+    pub lock_close_buttons: bool,
+    pub locked_windows: Vec<String>,
+}
+
+impl Default for LockSettings {
+    fn default() -> Self {
+        Self {
+            lock_tab_bar: false,
+            lock_tabs: false,
+            lock_close_buttons: false,
+            locked_windows: Vec::new(),
+        }
+    }
 }
 
 /// Fog settings
@@ -239,6 +262,8 @@ impl Default for UiSettings {
             skybox_settings: SkyboxSettings::default(),
             // Default simulation settings
             simulation_settings: SimulationSettings::default(),
+            // Default lock settings
+            lock_settings: LockSettings::default(),
         }
     }
 }
@@ -671,4 +696,84 @@ pub fn load_simulation_settings_on_startup(
     cpu_cell_capacity.capacity = saved_settings.simulation_settings.cpu_cell_capacity;
     spatial_grid_config.grid_density = saved_settings.simulation_settings.grid_density;
     physics_config.disable_collisions = saved_settings.simulation_settings.disable_collisions;
+}
+
+/// System to load lock settings from saved UI settings on startup
+pub fn load_lock_settings_on_startup(
+    mut global_ui_state: ResMut<crate::ui::GlobalUiState>,
+) {
+    let saved_settings = UiSettings::load();
+    global_ui_state.lock_tab_bar = saved_settings.lock_settings.lock_tab_bar;
+    global_ui_state.lock_tabs = saved_settings.lock_settings.lock_tabs;
+    global_ui_state.lock_close_buttons = saved_settings.lock_settings.lock_close_buttons;
+    
+    // Convert Vec to HashSet
+    global_ui_state.locked_windows.clear();
+    for window_name in saved_settings.lock_settings.locked_windows {
+        global_ui_state.locked_windows.insert(window_name);
+    }
+    
+    info!("Loaded lock settings: tab_bar={}, tabs={}, close_buttons={}, locked_windows={}", 
+        global_ui_state.lock_tab_bar, 
+        global_ui_state.lock_tabs, 
+        global_ui_state.lock_close_buttons,
+        global_ui_state.locked_windows.len());
+}
+
+/// System to save lock settings when they change
+pub fn save_lock_settings_on_change(
+    global_ui_state: Res<crate::ui::GlobalUiState>,
+    mut last_saved: Local<Option<LockSettings>>,
+) {
+    // Initialize on first run
+    if last_saved.is_none() {
+        let mut locked_windows_vec: Vec<String> = global_ui_state.locked_windows.iter().cloned().collect();
+        locked_windows_vec.sort(); // Sort for consistent comparison
+        
+        *last_saved = Some(LockSettings {
+            lock_tab_bar: global_ui_state.lock_tab_bar,
+            lock_tabs: global_ui_state.lock_tabs,
+            lock_close_buttons: global_ui_state.lock_close_buttons,
+            locked_windows: locked_windows_vec,
+        });
+        return;
+    }
+
+    let last = last_saved.as_ref().unwrap();
+    
+    // Check if lock settings changed
+    let mut current_locked_windows: Vec<String> = global_ui_state.locked_windows.iter().cloned().collect();
+    current_locked_windows.sort(); // Sort for consistent comparison
+    
+    let changed = last.lock_tab_bar != global_ui_state.lock_tab_bar
+        || last.lock_tabs != global_ui_state.lock_tabs
+        || last.lock_close_buttons != global_ui_state.lock_close_buttons
+        || last.locked_windows != current_locked_windows;
+
+    if changed {
+        // Load existing settings to preserve other values
+        let mut settings = UiSettings::load();
+        
+        // Update lock settings
+        settings.lock_settings = LockSettings {
+            lock_tab_bar: global_ui_state.lock_tab_bar,
+            lock_tabs: global_ui_state.lock_tabs,
+            lock_close_buttons: global_ui_state.lock_close_buttons,
+            locked_windows: current_locked_windows.clone(),
+        };
+
+        if let Err(e) = settings.save() {
+            error!("Failed to save lock settings: {}", e);
+        } else {
+            info!("Saved lock settings");
+        }
+
+        // Update last saved values
+        *last_saved = Some(LockSettings {
+            lock_tab_bar: global_ui_state.lock_tab_bar,
+            lock_tabs: global_ui_state.lock_tabs,
+            lock_close_buttons: global_ui_state.lock_close_buttons,
+            locked_windows: current_locked_windows,
+        });
+    }
 }

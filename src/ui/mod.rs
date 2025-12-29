@@ -108,6 +108,7 @@ impl Plugin for UiPlugin {
                 settings::load_lighting_settings_on_startup,
                 settings::load_skybox_settings_on_startup,
                 settings::load_simulation_settings_on_startup,
+                settings::load_lock_settings_on_startup,
             ))
             // CRITICAL: ui_system must run in EguiPrimaryContextPass, not Update
             .add_systems(bevy_egui::EguiPrimaryContextPass, ui_system)
@@ -115,6 +116,7 @@ impl Plugin for UiPlugin {
                 auto_save_dock_state,
                 save_on_exit,
                 save_ui_scale_on_change,
+                settings::save_lock_settings_on_change,
                 process_scene_mode_requests,
                 // TODO: Re-enable after fixing for egui
                 // settings::save_ui_settings_on_change,

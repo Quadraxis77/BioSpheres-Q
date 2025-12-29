@@ -61,5 +61,16 @@
     "cpu_cell_capacity": 10000,
     "grid_density": 64,
     "disable_collisions": false
+  },
+  "lock_settings": {
+    "lock_tab_bar": false,
+    "lock_tabs": false,
+    "lock_close_buttons": false,
+    "locked_windows": [
+      "Bottom Panel",
+      "Left Panel",
+      "Right Panel",
+      "Viewport"
+    ]
   }
 }

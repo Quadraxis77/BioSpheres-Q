@@ -118,9 +118,19 @@ pub fn ui_system(
         #[allow(deprecated)]
         egui::Panel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button("Windows", |ui| {
-                    show_windows_menu(ui, &mut dock_resource, &mut global_ui_state);
-                });
+                // Use MenuButton with IgnoreClicks behavior for Windows menu
+                // so it stays open when clicking items inside
+                use bevy_egui::egui::PopupCloseBehavior;
+                use bevy_egui::egui::containers::menu::{MenuButton, MenuConfig};
+                
+                let config = MenuConfig::new()
+                    .close_behavior(PopupCloseBehavior::IgnoreClicks);
+                
+                MenuButton::new("Windows")
+                    .config(config)
+                    .ui(ui, |ui| {
+                        show_windows_menu(ui, &mut dock_resource, &mut global_ui_state);
+                    });
             });
         });
 

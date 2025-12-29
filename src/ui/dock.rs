@@ -166,8 +166,8 @@ pub fn close_panel(tree: &mut DockState<Panel>, panel: &Panel) {
 }
 
 pub fn open_panel(tree: &mut DockState<Panel>, panel: &Panel) {
-    // Add the panel to the focused leaf
-    tree.main_surface_mut().push_to_focused_leaf(panel.clone());
+    // Create a floating window instead of docking to focused leaf
+    tree.add_window(vec![panel.clone()]);
 }
 
 #[derive(Resource)]
@@ -320,33 +320,6 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
             }
         }
     });
-
-    ui.separator();
-
-    // Individual hide options
-    ui.checkbox(&mut global_ui_state.lock_tab_bar, "Hide Tab Bar");
-    ui.checkbox(&mut global_ui_state.lock_tabs, "Hide Tabs");
-    ui.checkbox(&mut global_ui_state.lock_close_buttons, "Hide Close Buttons");
-
-    ui.separator();
-
-    // Lock All option - toggles all three settings at once
-    let all_locked = global_ui_state.lock_tab_bar 
-        && global_ui_state.lock_tabs 
-        && global_ui_state.lock_close_buttons;
-    
-    let lock_all_label = if all_locked {
-        "Unlock All"
-    } else {
-        "Lock All"
-    };
-
-    if ui.button(lock_all_label).clicked() {
-        let new_state = !all_locked;
-        global_ui_state.lock_tab_bar = new_state;
-        global_ui_state.lock_tabs = new_state;
-        global_ui_state.lock_close_buttons = new_state;
-    }
 
     ui.separator();
 
