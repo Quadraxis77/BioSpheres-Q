@@ -13,43 +13,31 @@
                             y: 1316.0,
                         ),
                     ),
-                    fraction: 0.12039168,
+                    fraction: 0.13289167,
                     fully_collapsed: false,
                     collapsed_leaf_count: 0,
                     absolute_size_left: None,
                 )),
-                Leaf((
+                Vertical((
                     rect: (
                         min: (
                             x: 0.0,
                             y: 31.0,
                         ),
                         max: (
-                            x: 414.0,
+                            x: 457.0,
                             y: 1316.0,
                         ),
                     ),
-                    viewport: (
-                        min: (
-                            x: 0.0,
-                            y: 31.0,
-                        ),
-                        max: (
-                            x: 414.0,
-                            y: 1316.0,
-                        ),
-                    ),
-                    tabs: [
-                        LeftPanel,
-                    ],
-                    active: (0),
-                    scroll: 0.0,
-                    collapsed: false,
+                    fraction: 0.10544738,
+                    fully_collapsed: false,
+                    collapsed_leaf_count: 0,
+                    absolute_size_left: None,
                 )),
                 Horizontal((
                     rect: (
                         min: (
-                            x: 415.0,
+                            x: 458.0,
                             y: 31.0,
                         ),
                         max: (
@@ -62,20 +50,46 @@
                     collapsed_leaf_count: 0,
                     absolute_size_left: None,
                 )),
-                Empty,
-                Empty,
-                Vertical((
+                Leaf((
                     rect: (
                         min: (
-                            x: 415.0,
+                            x: 0.0,
                             y: 31.0,
                         ),
                         max: (
-                            x: 3133.0,
+                            x: 457.0,
+                            y: 166.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 0.0,
+                            y: 31.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 166.0,
+                        ),
+                    ),
+                    tabs: [
+                        NameTypeEditor,
+                    ],
+                    active: (0),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
+                Vertical((
+                    rect: (
+                        min: (
+                            x: 0.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 457.0,
                             y: 1316.0,
                         ),
                     ),
-                    fraction: 0.8533075,
+                    fraction: 0.54699767,
                     fully_collapsed: false,
                     collapsed_leaf_count: 0,
                     absolute_size_left: None,
@@ -83,7 +97,23 @@
                 Vertical((
                     rect: (
                         min: (
-                            x: 3134.0,
+                            x: 458.0,
+                            y: 31.0,
+                        ),
+                        max: (
+                            x: 3137.0,
+                            y: 1316.0,
+                        ),
+                    ),
+                    fraction: 0.92996114,
+                    fully_collapsed: false,
+                    collapsed_leaf_count: 0,
+                    absolute_size_left: None,
+                )),
+                Vertical((
+                    rect: (
+                        min: (
+                            x: 3138.0,
                             y: 31.0,
                         ),
                         max: (
@@ -91,34 +121,78 @@
                             y: 1316.0,
                         ),
                     ),
-                    fraction: 0.14513603,
+                    fraction: 0.12568077,
                     fully_collapsed: false,
                     collapsed_leaf_count: 0,
                     absolute_size_left: None,
                 )),
                 Empty,
                 Empty,
-                Empty,
-                Empty,
+                Horizontal((
+                    rect: (
+                        min: (
+                            x: 0.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 795.0,
+                        ),
+                    ),
+                    fraction: 0.33854935,
+                    fully_collapsed: false,
+                    collapsed_leaf_count: 0,
+                    absolute_size_left: None,
+                )),
                 Leaf((
                     rect: (
                         min: (
-                            x: 415.0,
-                            y: 31.0,
+                            x: 0.0,
+                            y: 796.0,
                         ),
                         max: (
-                            x: 3133.0,
-                            y: 1127.0,
+                            x: 457.0,
+                            y: 1316.0,
                         ),
                     ),
                     viewport: (
                         min: (
-                            x: 415.0,
+                            x: 0.0,
+                            y: 820.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 1316.0,
+                        ),
+                    ),
+                    tabs: [
+                        LeftPanel,
+                        ParentSettings,
+                        AdhesionSettings,
+                    ],
+                    active: (1),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
+                Leaf((
+                    rect: (
+                        min: (
+                            x: 458.0,
                             y: 31.0,
                         ),
                         max: (
-                            x: 3133.0,
-                            y: 1127.0,
+                            x: 3137.0,
+                            y: 1226.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 458.0,
+                            y: 31.0,
+                        ),
+                        max: (
+                            x: 3137.0,
+                            y: 1226.0,
                         ),
                     ),
                     tabs: [
@@ -128,53 +202,41 @@
                     scroll: 0.0,
                     collapsed: false,
                 )),
-                Leaf((
+                Horizontal((
                     rect: (
                         min: (
-                            x: 415.0,
-                            y: 1128.0,
+                            x: 458.0,
+                            y: 1227.0,
                         ),
                         max: (
-                            x: 3133.0,
+                            x: 3137.0,
                             y: 1316.0,
                         ),
                     ),
-                    viewport: (
-                        min: (
-                            x: 415.0,
-                            y: 1128.0,
-                        ),
-                        max: (
-                            x: 3133.0,
-                            y: 1316.0,
-                        ),
-                    ),
-                    tabs: [
-                        BottomPanel,
-                    ],
-                    active: (0),
-                    scroll: 0.0,
-                    collapsed: false,
+                    fraction: 0.5,
+                    fully_collapsed: false,
+                    collapsed_leaf_count: 0,
+                    absolute_size_left: None,
                 )),
                 Leaf((
                     rect: (
                         min: (
-                            x: 3134.0,
+                            x: 3138.0,
                             y: 31.0,
                         ),
                         max: (
                             x: 3440.0,
-                            y: 217.0,
+                            y: 192.0,
                         ),
                     ),
                     viewport: (
                         min: (
-                            x: 3134.0,
-                            y: 55.0,
+                            x: 3138.0,
+                            y: 31.0,
                         ),
                         max: (
                             x: 3440.0,
-                            y: 217.0,
+                            y: 192.0,
                         ),
                     ),
                     tabs: [
@@ -187,8 +249,8 @@
                 Leaf((
                     rect: (
                         min: (
-                            x: 3134.0,
-                            y: 218.0,
+                            x: 3138.0,
+                            y: 193.0,
                         ),
                         max: (
                             x: 3440.0,
@@ -197,8 +259,8 @@
                     ),
                     viewport: (
                         min: (
-                            x: 3134.0,
-                            y: 218.0,
+                            x: 3138.0,
+                            y: 193.0,
                         ),
                         max: (
                             x: 3440.0,
@@ -216,6 +278,110 @@
                 Empty,
                 Empty,
                 Empty,
+                Leaf((
+                    rect: (
+                        min: (
+                            x: 0.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 154.0,
+                            y: 795.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 0.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 154.0,
+                            y: 795.0,
+                        ),
+                    ),
+                    tabs: [
+                        Modes,
+                    ],
+                    active: (0),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
+                Vertical((
+                    rect: (
+                        min: (
+                            x: 155.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 795.0,
+                        ),
+                    ),
+                    fraction: 0.41986066,
+                    fully_collapsed: false,
+                    collapsed_leaf_count: 0,
+                    absolute_size_left: None,
+                )),
+                Empty,
+                Empty,
+                Empty,
+                Empty,
+                Leaf((
+                    rect: (
+                        min: (
+                            x: 458.0,
+                            y: 1227.0,
+                        ),
+                        max: (
+                            x: 1797.0,
+                            y: 1316.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 458.0,
+                            y: 1227.0,
+                        ),
+                        max: (
+                            x: 1797.0,
+                            y: 1316.0,
+                        ),
+                    ),
+                    tabs: [
+                        TimeSlider,
+                    ],
+                    active: (0),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
+                Leaf((
+                    rect: (
+                        min: (
+                            x: 1798.0,
+                            y: 1227.0,
+                        ),
+                        max: (
+                            x: 3137.0,
+                            y: 1316.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 1798.0,
+                            y: 1227.0,
+                        ),
+                        max: (
+                            x: 3137.0,
+                            y: 1316.0,
+                        ),
+                    ),
+                    tabs: [
+                        BottomPanel,
+                    ],
+                    active: (0),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
                 Empty,
                 Empty,
                 Empty,
@@ -228,8 +394,66 @@
                 Empty,
                 Empty,
                 Empty,
+                Empty,
+                Empty,
+                Leaf((
+                    rect: (
+                        min: (
+                            x: 155.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 430.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 155.0,
+                            y: 167.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 430.0,
+                        ),
+                    ),
+                    tabs: [
+                        CircleSliders,
+                    ],
+                    active: (0),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
+                Leaf((
+                    rect: (
+                        min: (
+                            x: 155.0,
+                            y: 431.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 795.0,
+                        ),
+                    ),
+                    viewport: (
+                        min: (
+                            x: 155.0,
+                            y: 431.0,
+                        ),
+                        max: (
+                            x: 457.0,
+                            y: 795.0,
+                        ),
+                    ),
+                    tabs: [
+                        QuaternionBall,
+                    ],
+                    active: (0),
+                    scroll: 0.0,
+                    collapsed: false,
+                )),
             ],
-            focused_node: Some((11)),
+            focused_node: Some((19)),
             collapsed: false,
             collapsed_leaf_count: 0,
         )),

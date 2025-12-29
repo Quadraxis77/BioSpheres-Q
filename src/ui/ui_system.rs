@@ -148,11 +148,15 @@ pub fn ui_system(
             let mut dock_area = DockArea::new(&mut dock_resource.tree)
                 .style(style)
                 .show_leaf_collapse_buttons(false)
-                .show_leaf_close_all_buttons(false);
+                .show_leaf_close_all_buttons(false)
+                .draggable_tabs(true)  // Explicitly enable tab dragging for docking
+                .window_bounds(ctx.content_rect());  // Set window bounds for floating windows
 
             // Apply lock settings for tabs and close buttons
             if global_ui_state.lock_tabs {
-                dock_area = dock_area.show_tab_name_on_hover(false);
+                dock_area = dock_area
+                    .show_tab_name_on_hover(false)
+                    .draggable_tabs(false);  // Disable dragging when tabs are locked
             }
 
             if global_ui_state.lock_close_buttons {
@@ -278,6 +282,11 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
     fn is_viewport(&self, tab: &Self::Tab) -> bool {
         // Mark Viewport as viewport for special rendering
         matches!(tab, Panel::Viewport)
+    }
+
+    fn allowed_in_windows(&self, _tab: &mut Self::Tab) -> bool {
+        // Allow all tabs to be moved to floating windows
+        true
     }
 
     fn hide_tab_button(&self, tab: &Self::Tab) -> bool {

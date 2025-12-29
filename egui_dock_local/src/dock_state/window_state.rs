@@ -119,7 +119,8 @@ impl WindowState {
         let mut window_constructor = egui::Window::new("")
             .id(id)
             .constrain_to(bounds)
-            .title_bar(false);
+            .title_bar(false)
+            .movable(false);  // Disable window dragging so tabs can be dragged instead
 
         if let Some(position) = self.next_position() {
             window_constructor = window_constructor.current_pos(position);

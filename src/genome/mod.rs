@@ -303,7 +303,7 @@ impl Default for GenomeData {
         
         // Create all 40 modes
         for i in 0..40 {
-            let mode_name = format!("M {}", i);
+            let mode_name = format!("M {}", i + 1);  // Start mode numbering from 1
             let mut mode = ModeSettings::new_self_splitting(i as i32, mode_name);
 
             // Generate a color based on the mode number using HSV

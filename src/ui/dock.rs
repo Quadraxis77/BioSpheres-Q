@@ -166,7 +166,7 @@ pub fn close_panel(tree: &mut DockState<Panel>, panel: &Panel) {
 }
 
 pub fn open_panel(tree: &mut DockState<Panel>, panel: &Panel) {
-    // Create a floating window instead of docking to focused leaf
+    // Create a floating window - these ARE dockable by dragging the title bar
     tree.add_window(vec![panel.clone()]);
 }
 
