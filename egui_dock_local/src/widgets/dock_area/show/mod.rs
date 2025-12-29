@@ -48,6 +48,7 @@ impl<Tab> DockArea<'_, Tab> {
     ///
     /// See also [`show_inside`](Self::show_inside).
     #[inline]
+    #[allow(deprecated)]
     pub fn show(self, ctx: &Context, tab_viewer: &mut impl TabViewer<Tab = Tab>) {
         CentralPanel::default()
             .frame(

@@ -82,7 +82,7 @@ pub fn ui_system(
         let scale_changed = last_scale.scale.map_or(true, |last| (last - global_ui_state.ui_scale).abs() > 0.001);
         if scale_changed {
             // Scale the entire UI by modifying the style
-            ctx.style_mut(|style| {
+            ctx.global_style_mut(|style| {
                 let scale_ratio = global_ui_state.ui_scale / last_scale.scale.unwrap_or(1.0);
                 
                 // Scale spacing values
@@ -104,7 +104,7 @@ pub fn ui_system(
         }
 
         // Configure scroll style to use solid scrollbars that don't overlap content
-        ctx.style_mut(|style| {
+        ctx.global_style_mut(|style| {
             style.spacing.scroll = egui::style::ScrollStyle::solid();
             style.spacing.scroll.bar_outer_margin = 0.0;
             style.spacing.scroll.bar_inner_margin = 0.0;
@@ -115,7 +115,8 @@ pub fn ui_system(
         viewport_rect.rect = None;
 
         // Show menu bar at the top
-        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+        #[allow(deprecated)]
+        egui::Panel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("Windows", |ui| {
                     show_windows_menu(ui, &mut dock_resource, &mut global_ui_state);
@@ -125,7 +126,7 @@ pub fn ui_system(
 
         // Show dock area in remaining space (only if not hidden)
         if !dock_resource.all_hidden {
-            let mut style = Style::from_egui(ctx.style().as_ref());
+            let mut style = Style::from_egui(ctx.global_style().as_ref());
             // Reduce separator minimum constraint to allow smaller panels
             style.separator.extra = 75.0;
 
@@ -158,7 +159,7 @@ pub fn ui_system(
             });
         } else {
             // When hidden, set viewport to entire available screen area
-            viewport_rect.rect = Some(ctx.available_rect());
+            viewport_rect.rect = Some(ctx.content_rect());
         }
 
         // Update mouse capture state AFTER UI is rendered
@@ -171,8 +172,8 @@ pub fn ui_system(
             false
         };
         
-        ui_capture.want_capture_mouse = !is_over_viewport && (ctx.wants_pointer_input() || ctx.is_pointer_over_area());
-        ui_capture.want_capture_keyboard = ctx.wants_keyboard_input();
+        ui_capture.want_capture_mouse = !is_over_viewport && (ctx.egui_wants_pointer_input() || ctx.is_pointer_over_egui());
+        ui_capture.want_capture_keyboard = ctx.egui_wants_keyboard_input();
     }
 }
 
