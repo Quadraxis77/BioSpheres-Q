@@ -64,10 +64,6 @@ opt-level = 3
 # Use local egui forks for all egui-related dependencies
 [patch.crates-io]
 egui = { path = "./egui_local/crates/egui" }
-eframe = { path = "./egui_local/crates/eframe" }
-egui-winit = { path = "./egui_local/crates/egui-winit" }
-egui-wgpu = { path = "./egui_local/crates/egui-wgpu" }
-egui_glow = { path = "./egui_local/crates/egui_glow" }
 emath = { path = "./egui_local/crates/emath" }
 epaint = { path = "./egui_local/crates/epaint" }
 ecolor = { path = "./egui_local/crates/ecolor" }
