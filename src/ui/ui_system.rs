@@ -275,7 +275,15 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
     fn is_closeable(&self, tab: &Self::Tab) -> bool {
         // Check if this specific window is locked
         let panel_name = tab.to_string();
-        let is_locked = self.global_ui_state.locked_windows.contains(&panel_name);
+        
+        // Get the appropriate locked windows set based on current scene
+        let locked_windows = match self.sim_state.mode {
+            crate::simulation::SimulationMode::Preview => &self.global_ui_state.locked_windows_preview,
+            crate::simulation::SimulationMode::Cpu => &self.global_ui_state.locked_windows_cpu,
+            _ => &self.global_ui_state.locked_windows_preview, // fallback
+        };
+        
+        let is_locked = locked_windows.contains(&panel_name);
         
         // If window is locked, it's not closeable
         // If global lock_close_buttons is enabled, nothing is closeable
@@ -300,7 +308,15 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
     fn hide_tab_button(&self, tab: &Self::Tab) -> bool {
         // Check if this specific window is locked
         let panel_name = tab.to_string();
-        let is_locked = self.global_ui_state.locked_windows.contains(&panel_name);
+        
+        // Get the appropriate locked windows set based on current scene
+        let locked_windows = match self.sim_state.mode {
+            crate::simulation::SimulationMode::Preview => &self.global_ui_state.locked_windows_preview,
+            crate::simulation::SimulationMode::Cpu => &self.global_ui_state.locked_windows_cpu,
+            _ => &self.global_ui_state.locked_windows_preview, // fallback
+        };
+        
+        let is_locked = locked_windows.contains(&panel_name);
         
         // Hide tab button if window is locked OR if global lock_tabs is enabled
         is_locked || self.global_ui_state.lock_tabs
@@ -310,7 +326,15 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
         // Allow all tabs to be draggable, including Viewport
         // Check if this specific window is locked
         let panel_name = tab.to_string();
-        let is_locked = self.global_ui_state.locked_windows.contains(&panel_name);
+        
+        // Get the appropriate locked windows set based on current scene
+        let locked_windows = match self.sim_state.mode {
+            crate::simulation::SimulationMode::Preview => &self.global_ui_state.locked_windows_preview,
+            crate::simulation::SimulationMode::Cpu => &self.global_ui_state.locked_windows_cpu,
+            _ => &self.global_ui_state.locked_windows_preview, // fallback
+        };
+        
+        let is_locked = locked_windows.contains(&panel_name);
         
         // Not draggable if locked or if global lock_tabs is enabled
         !is_locked && !self.global_ui_state.lock_tabs

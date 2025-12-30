@@ -145,8 +145,8 @@ impl Default for CameraConfig {
             invert_look: false,         // Invert mouse Y axis
             zoom_speed: 0.2,
             enable_spring: true,        // Enable spring smoothing by default
-            spring_stiffness: 16.0,     // Spring stiffness for smooth camera movement
-            spring_damping: 0.7,        // Spring damping (higher = less oscillation)
+            spring_stiffness: 50.0,     // Spring stiffness for smooth camera movement (extremely stiff)
+            spring_damping: 0.9,        // Spring damping (higher = less oscillation)
             fov: 70.0,                  // Field of view in degrees
         }
     }
@@ -299,13 +299,24 @@ pub fn camera_update(
             cam.target_rotation = yaw * pitch * cam.target_rotation;
             cam.target_rotation = cam.target_rotation.normalize();
         } else {
-            // FreeFly mode: free rotation
-            let pitch = Quat::from_axis_angle(cam.rotation * Vec3::X, -delta.y);
-            let local_up = cam.rotation * Vec3::Y;
+            // FreeFly mode: free rotation with target for smoothing
+            let pitch = Quat::from_axis_angle(cam.target_rotation * Vec3::X, -delta.y);
+            let local_up = cam.target_rotation * Vec3::Y;
             let free_yaw = Quat::from_axis_angle(local_up, -delta.x);
             
-            cam.rotation = (free_yaw * pitch) * cam.rotation;
-            cam.rotation = cam.rotation.normalize();
+            cam.target_rotation = (free_yaw * pitch) * cam.target_rotation;
+            cam.target_rotation = cam.target_rotation.normalize();
+        }
+    }
+    
+    // Apply spring interpolation to rotation in free fly mode (same as orbit)
+    if cam.mode == CameraMode::FreeFly {
+        if config.enable_spring {
+            // Spring for rotation (slerp with spring-like behavior)
+            cam.rotation = cam.rotation.slerp(cam.target_rotation, config.spring_stiffness * dt * (1.0 - config.spring_damping));
+        } else {
+            // Instant movement - no spring
+            cam.rotation = cam.target_rotation;
         }
     }
 
@@ -322,9 +333,9 @@ pub fn camera_update(
         }
 
         if roll_amount != 0.0 {
-            let roll_axis = cam.rotation * Vec3::Z; // viewing direction local Z
+            let roll_axis = cam.target_rotation * Vec3::Z; // viewing direction local Z
             let roll = Quat::from_axis_angle(roll_axis, roll_amount * config.roll_speed * dt);
-            cam.rotation = (roll * cam.rotation).normalize();
+            cam.target_rotation = (roll * cam.target_rotation).normalize();
         }
     }
 

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_egui::egui;
 use egui_dock::DockState;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -315,9 +316,25 @@ pub fn close_panel(tree: &mut DockState<Panel>, panel: &Panel) {
     }
 }
 
-pub fn open_panel(tree: &mut DockState<Panel>, panel: &Panel) {
+pub fn open_panel(tree: &mut DockState<Panel>, panel: &Panel, screen_rect: Option<egui::Rect>) {
     // Create a floating window - these ARE dockable by dragging the title bar
-    tree.add_window(vec![panel.clone()]);
+    let surface_index = tree.add_window(vec![panel.clone()]);
+    
+    // Position the window at the center of the screen if screen_rect is provided
+    if let Some(rect) = screen_rect {
+        if let Some(window_state) = tree.get_window_state_mut(surface_index) {
+            // Default window size (can be adjusted per panel type if needed)
+            let window_size = egui::Vec2::new(400.0, 300.0);
+            
+            // Calculate center position
+            let center_x = rect.center().x - window_size.x / 2.0;
+            let center_y = rect.center().y - window_size.y / 2.0;
+            let center_pos = egui::Pos2::new(center_x, center_y);
+            
+            window_state.set_position(center_pos);
+            window_state.set_size(window_size);
+        }
+    }
 }
 
 #[derive(Resource)]
@@ -364,6 +381,9 @@ pub fn save_on_exit(
 }
 
 pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockResource, global_ui_state: &mut crate::ui::GlobalUiState) {
+    // Get the viewport rect for centering windows
+    let screen_rect = ui.ctx().input(|i| i.viewport_rect());
+    
     // UI Scale slider
     ui.label("UI Scale:");
     ui.add(bevy_egui::egui::Slider::new(&mut global_ui_state.ui_scale, 0.5..=4.0)
@@ -372,7 +392,14 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
     
     ui.separator();
     
-    // List of genome editor panels that can be toggled
+    // Get the appropriate locked windows set based on current scene
+    let locked_windows = match dock_resource.current_mode {
+        crate::simulation::SimulationMode::Preview => &mut global_ui_state.locked_windows_preview,
+        crate::simulation::SimulationMode::Cpu => &mut global_ui_state.locked_windows_cpu,
+        _ => &mut global_ui_state.locked_windows_preview, // fallback
+    };
+    
+    // List of genome editor panels that can be toggled (only show in Preview mode)
     let genome_editor_panels = [
         Panel::Modes,
         Panel::NameTypeEditor,
@@ -383,45 +410,48 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
         Panel::TimeSlider,
     ];
 
-    ui.label("Genome Editor:");
-    for panel in &genome_editor_panels {
-        let is_open = is_panel_open(&dock_resource.tree, panel);
-        let panel_name = panel.to_string();
-        let is_locked = global_ui_state.locked_windows.contains(&panel_name);
+    // Only show genome editor windows in Preview mode
+    if dock_resource.current_mode == crate::simulation::SimulationMode::Preview {
+        ui.label("Genome Editor:");
+        for panel in &genome_editor_panels {
+            let is_open = is_panel_open(&dock_resource.tree, panel);
+            let panel_name = panel.to_string();
+            let is_locked = locked_windows.contains(&panel_name);
 
-        ui.horizontal(|ui| {
-            // Window toggle button
-            if ui.selectable_label(is_open, format!("  {}", panel)).clicked() {
-                if is_open {
-                    close_panel(&mut dock_resource.tree, panel);
-                } else {
-                    open_panel(&mut dock_resource.tree, panel);
-                }
-                // Sync changes to the stored tree for current mode
-                match dock_resource.current_mode {
-                    crate::simulation::SimulationMode::Preview => {
-                        dock_resource.preview_tree = dock_resource.tree.clone();
+            ui.horizontal(|ui| {
+                // Window toggle button
+                if ui.selectable_label(is_open, format!("  {}", panel)).clicked() {
+                    if is_open {
+                        close_panel(&mut dock_resource.tree, panel);
+                    } else {
+                        open_panel(&mut dock_resource.tree, panel, Some(screen_rect));
                     }
-                    crate::simulation::SimulationMode::Cpu => {
-                        dock_resource.cpu_tree = dock_resource.tree.clone();
+                    // Sync changes to the stored tree for current mode
+                    match dock_resource.current_mode {
+                        crate::simulation::SimulationMode::Preview => {
+                            dock_resource.preview_tree = dock_resource.tree.clone();
+                        }
+                        crate::simulation::SimulationMode::Cpu => {
+                            dock_resource.cpu_tree = dock_resource.tree.clone();
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
-            }
-            
-            // Lock/Unlock button
-            let lock_icon = if is_locked { "🔒" } else { "🔓" };
-            if ui.small_button(lock_icon).clicked() {
-                if is_locked {
-                    global_ui_state.locked_windows.remove(&panel_name);
-                } else {
-                    global_ui_state.locked_windows.insert(panel_name);
+                
+                // Lock/Unlock button
+                let lock_icon = if is_locked { "🔒" } else { "🔓" };
+                if ui.small_button(lock_icon).clicked() {
+                    if is_locked {
+                        locked_windows.remove(&panel_name);
+                    } else {
+                        locked_windows.insert(panel_name);
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        ui.separator();
     }
-
-    ui.separator();
 
     // Placeholder panels (structural layout panels)
     ui.label("Layout Panels:");
@@ -436,7 +466,7 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
     for panel in &placeholder_panels {
         let is_open = is_panel_open(&dock_resource.tree, panel);
         let panel_name = panel.to_string();
-        let is_locked = global_ui_state.locked_windows.contains(&panel_name);
+        let is_locked = locked_windows.contains(&panel_name);
 
         ui.horizontal(|ui| {
             // Window toggle button
@@ -444,7 +474,7 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
                 if is_open {
                     close_panel(&mut dock_resource.tree, panel);
                 } else {
-                    open_panel(&mut dock_resource.tree, panel);
+                    open_panel(&mut dock_resource.tree, panel, Some(screen_rect));
                 }
                 // Sync changes to the stored tree for current mode
                 match dock_resource.current_mode {
@@ -462,9 +492,9 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
             let lock_icon = if is_locked { "🔒" } else { "🔓" };
             if ui.small_button(lock_icon).clicked() {
                 if is_locked {
-                    global_ui_state.locked_windows.remove(&panel_name);
+                    locked_windows.remove(&panel_name);
                 } else {
-                    global_ui_state.locked_windows.insert(panel_name);
+                    locked_windows.insert(panel_name);
                 }
             }
         });
@@ -478,14 +508,14 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
     // Scene Manager
     let scene_manager_open = is_panel_open(&dock_resource.tree, &Panel::SceneManager);
     let scene_manager_name = Panel::SceneManager.to_string();
-    let scene_manager_locked = global_ui_state.locked_windows.contains(&scene_manager_name);
+    let scene_manager_locked = locked_windows.contains(&scene_manager_name);
     
     ui.horizontal(|ui| {
         if ui.selectable_label(scene_manager_open, "  Scene Manager").clicked() {
             if scene_manager_open {
                 close_panel(&mut dock_resource.tree, &Panel::SceneManager);
             } else {
-                open_panel(&mut dock_resource.tree, &Panel::SceneManager);
+                open_panel(&mut dock_resource.tree, &Panel::SceneManager, Some(screen_rect));
             }
             // Sync changes to the stored tree for current mode
             match dock_resource.current_mode {
@@ -502,9 +532,9 @@ pub fn show_windows_menu(ui: &mut bevy_egui::egui::Ui, dock_resource: &mut DockR
         let lock_icon = if scene_manager_locked { "🔒" } else { "🔓" };
         if ui.small_button(lock_icon).clicked() {
             if scene_manager_locked {
-                global_ui_state.locked_windows.remove(&scene_manager_name);
+                locked_windows.remove(&scene_manager_name);
             } else {
-                global_ui_state.locked_windows.insert(scene_manager_name);
+                locked_windows.insert(scene_manager_name);
             }
         }
     });

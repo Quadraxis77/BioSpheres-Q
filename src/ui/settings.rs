@@ -60,7 +60,10 @@ pub struct LockSettings {
     pub lock_tab_bar: bool,
     pub lock_tabs: bool,
     pub lock_close_buttons: bool,
-    pub locked_windows: Vec<String>,
+    #[serde(default)]
+    pub locked_windows_preview: Vec<String>,
+    #[serde(default)]
+    pub locked_windows_cpu: Vec<String>,
 }
 
 impl Default for LockSettings {
@@ -69,7 +72,8 @@ impl Default for LockSettings {
             lock_tab_bar: false,
             lock_tabs: false,
             lock_close_buttons: false,
-            locked_windows: Vec::new(),
+            locked_windows_preview: Vec::new(),
+            locked_windows_cpu: Vec::new(),
         }
     }
 }
@@ -707,17 +711,24 @@ pub fn load_lock_settings_on_startup(
     global_ui_state.lock_tabs = saved_settings.lock_settings.lock_tabs;
     global_ui_state.lock_close_buttons = saved_settings.lock_settings.lock_close_buttons;
     
-    // Convert Vec to HashSet
-    global_ui_state.locked_windows.clear();
-    for window_name in saved_settings.lock_settings.locked_windows {
-        global_ui_state.locked_windows.insert(window_name);
+    // Convert Vec to HashSet for Preview scene
+    global_ui_state.locked_windows_preview.clear();
+    for window_name in saved_settings.lock_settings.locked_windows_preview {
+        global_ui_state.locked_windows_preview.insert(window_name);
     }
     
-    info!("Loaded lock settings: tab_bar={}, tabs={}, close_buttons={}, locked_windows={}", 
+    // Convert Vec to HashSet for CPU scene
+    global_ui_state.locked_windows_cpu.clear();
+    for window_name in saved_settings.lock_settings.locked_windows_cpu {
+        global_ui_state.locked_windows_cpu.insert(window_name);
+    }
+    
+    info!("Loaded lock settings: tab_bar={}, tabs={}, close_buttons={}, locked_windows_preview={}, locked_windows_cpu={}", 
         global_ui_state.lock_tab_bar, 
         global_ui_state.lock_tabs, 
         global_ui_state.lock_close_buttons,
-        global_ui_state.locked_windows.len());
+        global_ui_state.locked_windows_preview.len(),
+        global_ui_state.locked_windows_cpu.len());
 }
 
 /// System to save lock settings when they change
@@ -727,14 +738,18 @@ pub fn save_lock_settings_on_change(
 ) {
     // Initialize on first run
     if last_saved.is_none() {
-        let mut locked_windows_vec: Vec<String> = global_ui_state.locked_windows.iter().cloned().collect();
-        locked_windows_vec.sort(); // Sort for consistent comparison
+        let mut locked_windows_preview_vec: Vec<String> = global_ui_state.locked_windows_preview.iter().cloned().collect();
+        locked_windows_preview_vec.sort(); // Sort for consistent comparison
+        
+        let mut locked_windows_cpu_vec: Vec<String> = global_ui_state.locked_windows_cpu.iter().cloned().collect();
+        locked_windows_cpu_vec.sort(); // Sort for consistent comparison
         
         *last_saved = Some(LockSettings {
             lock_tab_bar: global_ui_state.lock_tab_bar,
             lock_tabs: global_ui_state.lock_tabs,
             lock_close_buttons: global_ui_state.lock_close_buttons,
-            locked_windows: locked_windows_vec,
+            locked_windows_preview: locked_windows_preview_vec,
+            locked_windows_cpu: locked_windows_cpu_vec,
         });
         return;
     }
@@ -742,13 +757,17 @@ pub fn save_lock_settings_on_change(
     let last = last_saved.as_ref().unwrap();
     
     // Check if lock settings changed
-    let mut current_locked_windows: Vec<String> = global_ui_state.locked_windows.iter().cloned().collect();
-    current_locked_windows.sort(); // Sort for consistent comparison
+    let mut current_locked_windows_preview: Vec<String> = global_ui_state.locked_windows_preview.iter().cloned().collect();
+    current_locked_windows_preview.sort(); // Sort for consistent comparison
+    
+    let mut current_locked_windows_cpu: Vec<String> = global_ui_state.locked_windows_cpu.iter().cloned().collect();
+    current_locked_windows_cpu.sort(); // Sort for consistent comparison
     
     let changed = last.lock_tab_bar != global_ui_state.lock_tab_bar
         || last.lock_tabs != global_ui_state.lock_tabs
         || last.lock_close_buttons != global_ui_state.lock_close_buttons
-        || last.locked_windows != current_locked_windows;
+        || last.locked_windows_preview != current_locked_windows_preview
+        || last.locked_windows_cpu != current_locked_windows_cpu;
 
     if changed {
         // Load existing settings to preserve other values
@@ -759,7 +778,8 @@ pub fn save_lock_settings_on_change(
             lock_tab_bar: global_ui_state.lock_tab_bar,
             lock_tabs: global_ui_state.lock_tabs,
             lock_close_buttons: global_ui_state.lock_close_buttons,
-            locked_windows: current_locked_windows.clone(),
+            locked_windows_preview: current_locked_windows_preview.clone(),
+            locked_windows_cpu: current_locked_windows_cpu.clone(),
         };
 
         if let Err(e) = settings.save() {
@@ -773,7 +793,8 @@ pub fn save_lock_settings_on_change(
             lock_tab_bar: global_ui_state.lock_tab_bar,
             lock_tabs: global_ui_state.lock_tabs,
             lock_close_buttons: global_ui_state.lock_close_buttons,
-            locked_windows: current_locked_windows,
+            locked_windows_preview: current_locked_windows_preview,
+            locked_windows_cpu: current_locked_windows_cpu,
         });
     }
 }

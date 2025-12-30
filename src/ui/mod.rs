@@ -63,8 +63,9 @@ pub struct GlobalUiState {
     pub lock_tab_bar: bool,
     pub lock_tabs: bool,
     pub lock_close_buttons: bool,
-    // Individual window lock states
-    pub locked_windows: std::collections::HashSet<String>,
+    // Individual window lock states per scene
+    pub locked_windows_preview: std::collections::HashSet<String>,
+    pub locked_windows_cpu: std::collections::HashSet<String>,
 }
 
 impl Default for GlobalUiState {
@@ -82,7 +83,8 @@ impl Default for GlobalUiState {
             lock_tab_bar: false,
             lock_tabs: false,
             lock_close_buttons: false,
-            locked_windows: std::collections::HashSet::new(),
+            locked_windows_preview: std::collections::HashSet::new(),
+            locked_windows_cpu: std::collections::HashSet::new(),
         }
     }
 }

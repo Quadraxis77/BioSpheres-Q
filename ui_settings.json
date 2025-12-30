@@ -66,7 +66,7 @@
     "lock_tab_bar": false,
     "lock_tabs": false,
     "lock_close_buttons": false,
-    "locked_windows": [
+    "locked_windows_preview": [
       "Bottom Panel",
       "Child Settings",
       "Left Panel",
@@ -74,8 +74,14 @@
       "Name & Type",
       "Parent Split Angle",
       "Right Panel",
-      "Scene Manager",
       "Time Slider",
+      "Viewport"
+    ],
+    "locked_windows_cpu": [
+      "Bottom Panel",
+      "Left Panel",
+      "Right Panel",
+      "Scene Manager",
       "Viewport"
     ]
   }
