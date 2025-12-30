@@ -380,6 +380,9 @@ pub struct Prepared {
 
     /// Add your widgets to this UI so it ends up within the frame.
     pub content_ui: Ui,
+    
+    /// The maximum content rect that was set when the frame was created.
+    max_content_rect: Rect,
 }
 
 impl Frame {
@@ -409,6 +412,7 @@ impl Frame {
             frame: self,
             where_to_put_background,
             content_ui,
+            max_content_rect,
         }
     }
 
@@ -462,7 +466,16 @@ impl Frame {
 impl Prepared {
     fn outer_rect(&self) -> Rect {
         let content_rect = self.content_ui.min_rect();
-        content_rect
+        // Clamp content rect width to the max_content_rect to prevent horizontal overflow
+        // but allow height to grow naturally for scrolling
+        let clamped_content_rect = Rect {
+            min: content_rect.min,
+            max: epaint::Pos2 {
+                x: content_rect.max.x.min(self.max_content_rect.max.x),
+                y: content_rect.max.y,
+            },
+        };
+        clamped_content_rect
             + self.frame.inner_margin
             + MarginF32::from(self.frame.stroke.width)
             + self.frame.outer_margin
